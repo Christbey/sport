@@ -6,6 +6,7 @@ use App\Models\UserSubmission;
 use App\Models\NflTeamSchedule;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
 
 class PickemController extends Controller
 {
@@ -120,6 +121,7 @@ class PickemController extends Controller
     public function showLeaderboard(Request $request)
     {
         $gameWeek = $request->input('game_week');
+        $userId = Auth::id(); // Get the logged-in user's ID
 
         // Fetch distinct game weeks from the schedules
         $games = NflTeamSchedule::select('game_week')->distinct()
@@ -129,7 +131,6 @@ class PickemController extends Controller
         // Fetch leaderboard with correct picks, filter by game_week if provided
         $leaderboard = UserSubmission::with(['user'])
             ->selectRaw('user_id, COUNT(CASE WHEN is_correct THEN 1 END) as correct_picks')
-
             ->groupBy('user_id')
             ->when($gameWeek, function ($query) use ($gameWeek) {
                 $query->whereHas('event', function ($q) use ($gameWeek) {
@@ -139,8 +140,9 @@ class PickemController extends Controller
             ->orderByDesc('correct_picks')
             ->get();
 
-        // Fetch all picks for the given game week
+        // Fetch only the authenticated user's picks for the given game week
         $allPicks = UserSubmission::with(['user', 'event', 'team'])
+            ->where('user_id', $userId)  // Filter by the logged-in user's ID
             ->when($gameWeek, function ($query) use ($gameWeek) {
                 $query->whereHas('event', function ($q) use ($gameWeek) {
                     $q->where('game_week', $gameWeek);
