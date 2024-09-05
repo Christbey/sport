@@ -17,8 +17,11 @@ class CreateTeam implements CreatesTeams
      *
      * @param  array<string, string>  $input
      */
+
+
     public function create(User $user, array $input): Team
     {
+
         Gate::forUser($user)->authorize('create', Jetstream::newTeamModel());
 
         Validator::make($input, [

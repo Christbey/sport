@@ -17,7 +17,7 @@ class CreateNewUser implements CreatesNewUsers
     /**
      * Create a newly registered user.
      *
-     * @param  array<string, string>  $input
+     * @param array<string, string> $input
      */
     public function create(array $input): User
     {
@@ -34,20 +34,26 @@ class CreateNewUser implements CreatesNewUsers
                 'email' => $input['email'],
                 'password' => Hash::make($input['password']),
             ]), function (User $user) {
-                $this->createTeam($user);
+                $this->addToGeneralTeam($user); // Add the user to the General team
             });
         });
     }
 
     /**
-     * Create a personal team for the user.
+     * Add the user to the General team instead of creating a personal team.
      */
-    protected function createTeam(User $user): void
+    protected function addToGeneralTeam(User $user): void
     {
-        $user->ownedTeams()->save(Team::forceCreate([
-            'user_id' => $user->id,
-            'name' => explode(' ', $user->name, 2)[0]."'s Team",
-            'personal_team' => true,
-        ]));
+        // Fetch the general team by name or another unique identifier
+        $generalTeam = Team::where('name', 'General')->first(); // Change 'General' to the actual team name or identifier
+
+        // If the general team exists, attach the user to it
+        if ($generalTeam) {
+            $user->teams()->attach($generalTeam->id, ['role' => 'viewer']); // Attach the user as a 'member' (or any other role)
+            $user->switchTeam($generalTeam); // Optionally set the General team as the current team
+        } else {
+            // Optionally handle the case when the General team does not exist
+            throw new \Exception('General team not found');
+        }
     }
 }
