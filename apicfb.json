@@ -1,0 +1,176 @@
+[
+  {
+    "name": "venues",
+    "columns": [
+      { "name": "id", "type": "BIGINT", "auto_increment": true, "primary": true },
+      { "name": "venue_id", "type": "VARCHAR(255)" },
+      { "name": "name", "type": "VARCHAR(255)" },
+      { "name": "city", "type": "VARCHAR(255)" },
+      { "name": "state", "type": "VARCHAR(255)" },
+      { "name": "zip", "type": "VARCHAR(255)" },
+      { "name": "country_code", "type": "VARCHAR(10)" },
+      { "name": "timezone", "type": "VARCHAR(255)" },
+      { "name": "latitude", "type": "DECIMAL(10, 7)" },
+      { "name": "longitude", "type": "DECIMAL(10, 7)" },
+      { "name": "elevation", "type": "DECIMAL(5, 2)" },
+      { "name": "capacity", "type": "INT" },
+      { "name": "year_constructed", "type": "INT" },
+      { "name": "grass", "type": "BOOLEAN" },
+      { "name": "dome", "type": "BOOLEAN" },
+      { "name": "created_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP" },
+      { "name": "updated_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" }
+    ]
+  },
+  {
+    "name": "teams",
+    "columns": [
+      { "name": "id", "type": "BIGINT", "auto_increment": true, "primary": true },
+      { "name": "team_id", "type": "VARCHAR(255)" },
+      { "name": "school", "type": "VARCHAR(255)" },
+      { "name": "mascot", "type": "VARCHAR(255)" },
+      { "name": "abbreviation", "type": "VARCHAR(255)" },
+      { "name": "alt_name1", "type": "VARCHAR(255)", "nullable": true },
+      { "name": "alt_name2", "type": "VARCHAR(255)", "nullable": true },
+      { "name": "alt_name3", "type": "VARCHAR(255)", "nullable": true },
+      { "name": "color", "type": "VARCHAR(10)" },
+      { "name": "alt_color", "type": "VARCHAR(10)", "nullable": true },
+      { "name": "logos", "type": "TEXT", "nullable": true },
+      { "name": "twitter", "type": "VARCHAR(255)", "nullable": true },
+      { "name": "venue_id", "type": "BIGINT" },
+      { "name": "created_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP" },
+      { "name": "updated_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" }
+    ],
+    "foreign_keys": [
+      { "column": "venue_id", "references": "venues(id)", "on_delete": "CASCADE" }
+    ]
+  },
+  {
+    "name": "games",
+    "columns": [
+      { "name": "id", "type": "BIGINT", "auto_increment": true, "primary": true },
+      { "name": "game_id", "type": "VARCHAR(255)" },
+      { "name": "season", "type": "INT" },
+      { "name": "week", "type": "INT" },
+      { "name": "season_type", "type": "VARCHAR(255)" },
+      { "name": "start_date", "type": "TIMESTAMP" },
+      { "name": "home_team_id", "type": "BIGINT" },
+      { "name": "away_team_id", "type": "BIGINT" },
+      { "name": "venue_id", "type": "BIGINT" },
+      { "name": "home_team_score", "type": "INT", "nullable": true },
+      { "name": "away_team_score", "type": "INT", "nullable": true },
+      { "name": "created_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP" },
+      { "name": "updated_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" }
+    ],
+    "foreign_keys": [
+      { "column": "home_team_id", "references": "teams(id)", "on_delete": "CASCADE" },
+      { "column": "away_team_id", "references": "teams(id)", "on_delete": "CASCADE" },
+      { "column": "venue_id", "references": "venues(id)", "on_delete": "CASCADE" }
+    ]
+  },
+  {
+    "name": "calendar",
+    "columns": [
+      { "name": "id", "type": "BIGINT", "auto_increment": true, "primary": true },
+      { "name": "year", "type": "INT" },
+      { "name": "season_type", "type": "VARCHAR(255)" },
+      { "name": "start_date", "type": "DATE" },
+      { "name": "end_date", "type": "DATE" },
+      { "name": "created_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP" },
+      { "name": "updated_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" }
+    ]
+  },
+  {
+    "name": "media",
+    "columns": [
+      { "name": "id", "type": "BIGINT", "auto_increment": true, "primary": true },
+      { "name": "game_id", "type": "BIGINT" },
+      { "name": "media_type", "type": "VARCHAR(255)" },
+      { "name": "outlet", "type": "VARCHAR(255)" },
+      { "name": "call_sign", "type": "VARCHAR(255)", "nullable": true },
+      { "name": "created_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP" },
+      { "name": "updated_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" }
+    ],
+    "foreign_keys": [
+      { "column": "game_id", "references": "games(id)", "on_delete": "CASCADE" }
+    ]
+  },
+  {
+    "name": "weather",
+    "columns": [
+      { "name": "id", "type": "BIGINT", "auto_increment": true, "primary": true },
+      { "name": "game_id", "type": "BIGINT" },
+      { "name": "temperature", "type": "DECIMAL(5, 2)", "nullable": true },
+      { "name": "humidity", "type": "DECIMAL(5, 2)", "nullable": true },
+      { "name": "wind_speed", "type": "DECIMAL(5, 2)", "nullable": true },
+      { "name": "created_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP" },
+      { "name": "updated_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" }
+    ],
+    "foreign_keys": [
+      { "column": "game_id", "references": "games(id)", "on_delete": "CASCADE" }
+    ]
+  },
+  {
+    "name": "talent",
+    "columns": [
+      { "name": "id", "type": "BIGINT", "auto_increment": true, "primary": true },
+      { "name": "team_id", "type": "BIGINT" },
+      { "name": "year", "type": "INT" },
+      { "name": "talent_score", "type": "DECIMAL(8, 2)" },
+      { "name": "created_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP" },
+      { "name": "updated_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" }
+    ],
+    "foreign_keys": [
+      { "column": "team_id", "references": "teams(id)", "on_delete": "CASCADE" }
+    ]
+  },
+  {
+    "name": "team_matchups",
+    "columns": [
+      { "name": "id", "type": "BIGINT", "auto_increment": true, "primary": true },
+      { "name": "team1_id", "type": "BIGINT" },
+      { "name": "team2_id", "type": "BIGINT" },
+      { "name": "min_year", "type": "INT" },
+      { "name": "max_year", "type": "INT" },
+      { "name": "created_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP" },
+      { "name": "updated_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" }
+    ],
+    "foreign_keys": [
+      { "column": "team1_id", "references": "teams(id)", "on_delete": "CASCADE" },
+      { "column": "team2_id", "references": "teams(id)", "on_delete": "CASCADE" }
+    ]
+  },
+  {
+    "name": "coaches",
+    "columns": [
+      { "name": "id", "type": "BIGINT", "auto_increment": true, "primary": true },
+      { "name": "first_name", "type": "VARCHAR(255)" },
+      { "name": "last_name", "type": "VARCHAR(255)" },
+      { "name": "team_id", "type": "BIGINT" },
+      { "name": "year", "type": "INT" },
+      { "name": "min_year", "type": "INT", "nullable": true },
+      { "name": "max_year", "type": "INT", "nullable": true },
+      { "name": "created_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP" },
+      { "name": "updated_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" }
+    ],
+    "foreign_keys": [
+      { "column": "team_id", "references": "teams(id)", "on_delete": "CASCADE" }
+    ]
+  },
+  {
+    "name": "rankings",
+    "columns": [
+      { "name": "id", "type": "BIGINT", "auto_increment": true, "primary": true },
+      { "name": "year", "type": "INT" },
+      { "name": "week", "type": "INT" },
+      { "name": "season_type", "type": "VARCHAR(255)" },
+      { "name": "team_id", "type": "BIGINT" },
+      { "name": "rank", "type": "INT" },
+      { "name": "poll", "type": "VARCHAR(255)" },
+      { "name": "created_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP" },
+      { "name": "updated_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" }
+    ],
+    "foreign_keys": [
+      { "column": "team_id", "references": "teams(id)", "on_delete": "CASCADE" }
+    ]
+  }
+]
