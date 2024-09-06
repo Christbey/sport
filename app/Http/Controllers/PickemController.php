@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\UserSubmission;
 use App\Models\NflTeamSchedule;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -31,10 +32,16 @@ class PickemController extends Controller
             ->where('season_type', 'Regular Season') // Filter only 'Regular Season' games
             ->get();
 
-        // Pass the schedules, weeks, and week_id to the view
-        return view('pickem.show', compact('schedules', 'weeks', 'week_id'));
-    }
+        // Fetch the user's previous submissions for the displayed events
+        $userId = auth()->id();
+        $userSubmissions = UserSubmission::where('user_id', $userId)
+            ->whereIn('espn_event_id', $schedules->pluck('espn_event_id'))
+            ->get()
+            ->keyBy('espn_event_id'); // Key submissions by event ID for easy lookup
 
+        // Pass the schedules, weeks, user submissions, and week_id to the view
+        return view('pickem.show', compact('schedules', 'weeks', 'week_id', 'userSubmissions'));
+    }
 
 
     public function showTeamSchedule($week_id = null)
@@ -57,52 +64,70 @@ class PickemController extends Controller
     }
 
 
+
+
     public function pickWinner(Request $request)
     {
-        // Validate the request
+        // Validate the request to ensure the picks are valid
         $request->validate([
-            'event_id' => 'required|exists:nfl_team_schedules,espn_event_id', // Reference the schedule table
-            'team_id' => 'required|exists:nfl_teams,id',
+            'event_ids' => 'required|array',
+            'event_ids.*' => 'exists:nfl_team_schedules,espn_event_id', // Validate each event ID
+            'team_ids' => 'required|array',
+            'team_ids.*' => 'exists:nfl_teams,id', // Validate each team pick
         ]);
 
-        // Get the event and ensure it is from the regular season
-        $event = NflTeamSchedule::where('espn_event_id', $request->event_id)
-            ->where('season_type', 'Regular Season') // Ensure it's a regular season event
-            ->firstOrFail();
+        $userId = auth()->id(); // Get the authenticated user's ID
+        $teamIds = $request->input('team_ids'); // Retrieve the selected teams
+        $eventIds = $request->input('event_ids'); // Retrieve the event IDs
 
-        $selectedTeamId = $request->team_id;
+        try {
+            // Set the timezone to CST
+            $nowCST = Carbon::now('America/Chicago');
 
-        // Initialize isCorrect as false by default
-        $isCorrect = false;
+            // Loop through each event and update the user's pick
+            foreach ($eventIds as $eventId) {
+                $selectedTeamId = $teamIds[$eventId] ?? null; // Get the selected team for this event
 
-        // Check if the event is completed
-        if ($event->game_status === 'Completed') {
-            // Determine if the user's choice was correct
-            $isCorrect = $event->home_pts > $event->away_pts
-                ? $selectedTeamId == $event->home_team_id
-                : $selectedTeamId == $event->away_team_id;
+                if ($selectedTeamId) {
+                    // Find the event for this submission
+                    $event = NflTeamSchedule::where('espn_event_id', $eventId)
+                        ->where('season_type', 'Regular Season')
+                        ->firstOrFail();
+
+                    // Initialize isCorrect as false by default
+                    $isCorrect = false;
+
+                    // Check if the event is completed and determine if the user's choice was correct
+                    if ($event->game_status === 'Completed') {
+                        $isCorrect = $event->home_pts > $event->away_pts
+                            ? $selectedTeamId == $event->home_team_id
+                            : $selectedTeamId == $event->away_team_id;
+                    }
+
+                    // Use updateOrCreate to update the user's submission or create a new one
+                    UserSubmission::updateOrCreate(
+                        [
+                            'user_id' => $userId,
+                            'espn_event_id' => $eventId, // Use espn_event_id to find existing submission
+                        ],
+                        [
+                            'team_id' => $selectedTeamId,
+                            'is_correct' => $isCorrect,
+                            'week_id' => $event->game_week,
+                            'created_at' => $nowCST,   // Store the submission time in CST
+                            'updated_at' => $nowCST,   // Store the updated time in CST
+                        ]
+                    );
+                }
+            }
+
+            // Redirect back with a success message after storing all picks
+            return redirect()->back()->with('success', 'Your picks have been submitted successfully!');
+        } catch (QueryException $e) {
+            // Catch any database query errors and flash an error message
+            return redirect()->back()->with('error', 'There was an issue submitting your picks. Please try again.');
         }
-
-        // Store the user's submission
-        UserSubmission::updateOrCreate(
-            [
-                'user_id' => auth()->id(),
-                'espn_event_id' => $event->espn_event_id,  // Use espn_event_id here
-            ],
-            [
-                'team_id' => $selectedTeamId,
-                'is_correct' => $isCorrect,  // Save the correct value
-                'week_id' => $event->game_week,  // Save as a string
-            ]
-        );
-
-        // Redirect back to the same page with success message
-        return redirect()->route('pickem.schedule', ['week_id' => $event->game_week])
-            ->with('success', 'Your pick has been submitted successfully!')
-            ->with('submitted_event_id', $event->espn_event_id);
-    }
-
-    /**
+    }    /**
      * Show user submissions.
      */
     public function showSubmissions(Request $request, $weekId = null)
