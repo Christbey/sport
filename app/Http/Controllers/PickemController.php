@@ -22,6 +22,7 @@ class PickemController extends Controller
         // Fetch all unique game_week values for the dropdown
         $weeks = NflTeamSchedule::select('game_week')->distinct()
             ->where('season_type', 'Regular Season')
+            ->orderBy('game_week', 'asc') // Order the weeks
             ->get();
 
         // Fetch schedules for the selected week where the season_type is 'Regular Season'
@@ -30,6 +31,7 @@ class PickemController extends Controller
                 $query->where('game_week', $week_id);
             })
             ->where('season_type', 'Regular Season') // Filter only 'Regular Season' games
+            ->orderBy('game_date', 'asc') // Order by game_date to show the games from earliest to latest
             ->get();
 
         // Fetch the user's previous submissions for the displayed events
@@ -42,7 +44,6 @@ class PickemController extends Controller
         // Pass the schedules, weeks, user submissions, and week_id to the view
         return view('pickem.show', compact('schedules', 'weeks', 'week_id', 'userSubmissions'));
     }
-
 
     public function showTeamSchedule($week_id = null)
     {

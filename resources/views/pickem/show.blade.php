@@ -61,11 +61,8 @@
                                         <div class="flex items-center">
                                             <input id="away_team_{{ $schedule->id }}" name="team_ids[{{ $schedule->espn_event_id }}]" type="radio" value="{{ $schedule->away_team_id }}" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300"
                                                     {{ $userPick == $schedule->away_team_id ? 'checked' : '' }}>
-                                            <label for="away_team_{{ $schedule->id }}" class="ml-3 block text-sm font-medium text-gray-700">
+                                            <label for="away_team_{{ $schedule->id }}" class="ml-3 block text-sm font-medium {{ $userPick == $schedule->away_team_id ? 'font-bold' : '' }}">
                                                 {{ $schedule->awayTeam->team_name ?? 'Unknown' }}
-                                                @if($userPick == $schedule->away_team_id)
-                                                    <span class="text-green-500">(Your Pick)</span>
-                                                @endif
                                             </label>
                                         </div>
                                     </div>
@@ -74,19 +71,15 @@
                                     <div class="flex items-center mb-2">
                                         <input id="home_team_{{ $schedule->id }}" name="team_ids[{{ $schedule->espn_event_id }}]" type="radio" value="{{ $schedule->home_team_id }}" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300"
                                                 {{ $userPick == $schedule->home_team_id ? 'checked' : '' }}>
-                                        <label for="home_team_{{ $schedule->id }}" class="ml-3 block text-sm font-medium text-gray-700">
+                                        <label for="home_team_{{ $schedule->id }}" class="ml-3 block text-sm font-medium {{ $userPick == $schedule->home_team_id ? 'font-bold' : '' }}">
                                             {{ $schedule->homeTeam->team_name ?? 'Unknown' }}
-                                            @if($userPick == $schedule->home_team_id)
-                                                <span class="text-green-500">(Your Pick)</span>
-                                            @endif
                                         </label>
                                     </div>
                                 </div>
                             </div>
                         @endforeach
                     @endif
-                </div>
-                <!-- Submit All Picks Button -->
+                </div>                <!-- Submit All Picks Button -->
                 <div class="mt-6">
                     <button type="submit" class="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                         Submit All Picks
