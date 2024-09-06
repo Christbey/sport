@@ -44,7 +44,6 @@ class PickemController extends Controller
         // Pass the schedules, weeks, user submissions, and week_id to the view
         return view('pickem.show', compact('schedules', 'weeks', 'week_id', 'userSubmissions'));
     }
-
     public function showTeamSchedule($week_id = null)
     {
         // Fetch all unique game_week values only for regular season

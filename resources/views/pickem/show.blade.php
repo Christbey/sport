@@ -75,6 +75,10 @@
                                             {{ $schedule->homeTeam->team_name ?? 'Unknown' }}
                                         </label>
                                     </div>
+                                        <!-- Game Status (Footer) -->
+                                        <div class="text-xs font-light\relaxed text-gray-400 game-footer mt-4">
+                                            <p> {{ $schedule->status_type_detail ?? 'No status available' }}</p>
+                                        </div>
                                 </div>
                             </div>
                         @endforeach
