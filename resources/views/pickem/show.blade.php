@@ -44,15 +44,7 @@
                             @endphp
                             <div class="bg-white shadow-md rounded-lg overflow-hidden relative">
                                 <div class="p-4 sm:p-6">
-                                    @if(session('submitted_event_id') == $schedule->espn_event_id && session('error'))
-                                        <div class="mb-4 p-4 bg-red-100 text-red-700 rounded-lg">
-                                            {{ session('error') }}
-                                        </div>
-                                    @elseif(session('submitted_event_id') == $schedule->espn_event_id && session('success'))
-                                        <div class="mb-4 p-4 bg-green-100 text-green-700 rounded-lg">
-                                            {{ session('success') }}
-                                        </div>
-                                    @endif
+
 
                                     <input type="hidden" name="event_ids[]" value="{{ $schedule->espn_event_id }}">
 
