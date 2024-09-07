@@ -17,7 +17,7 @@
             <h2 class="text-2xl font-semibold text-gray-900">
                 The Rules:
             </h2>
-            <p class="mt-4 text-gray-500 text-sm leading-relaxed">
+            <p class="mt-2 text-gray-500 text-sm leading-relaxed">
                 Each week, you’ll select the winners of NFL games. Make sure to submit your picks before they lock! The results will be available after Monday Night Football, so you can see how you performed against your colleagues.
             </p>
         </div>
@@ -27,7 +27,7 @@
             <h2 class="text-xl font-semibold text-gray-900">
                 🏈 Join the Fun
             </h2>
-            <p class="mt-4 text-gray-500 text-sm leading-relaxed">
+            <p class="mt-2 text-gray-500 text-sm leading-relaxed">
                 Bring Picksports to your office for some friendly competition this NFL season.
             </p>
         </div>
@@ -36,7 +36,7 @@
             <h2 class="text-xl font-semibold text-gray-900">
                 🗓️ Weekly Participation
             </h2>
-            <p class="mt-4 text-gray-500 text-sm leading-relaxed">
+            <p class="mt-2 text-gray-500 text-sm leading-relaxed">
                 Select the winners of NFL games every week and compete against your colleagues.
             </p>
         </div>
@@ -45,7 +45,7 @@
             <h2 class="text-xl font-semibold text-gray-900">
                 ⏰ Submission Deadline
             </h2>
-            <p class="mt-4 text-gray-500 text-sm leading-relaxed">
+            <p class="mt-2 text-gray-500 text-sm leading-relaxed">
                 Make your picks before they lock 1 hour before kickoff on Thursday night!
             </p>
         </div>
@@ -54,7 +54,7 @@
             <h2 class="text-xl font-semibold text-gray-900">
                 📊 Results
             </h2>
-            <p class="mt-4 text-gray-500 text-sm leading-relaxed">
+            <p class="mt-2 text-gray-500 text-sm leading-relaxed">
                 Get results after the conclusion of Monday Night Football (MNF) and see who’s on top.
             </p>
         </div>
@@ -63,7 +63,7 @@
             <h2 class="text-xl font-semibold text-gray-900">
                 🏆 Prove Your Expertise
             </h2>
-            <p class="mt-4 text-gray-500 text-sm leading-relaxed">
+            <p class="mt-2 text-gray-500 text-sm leading-relaxed">
                 It’s time to show who’s the ultimate NFL guru in your office!
             </p>
         </div>

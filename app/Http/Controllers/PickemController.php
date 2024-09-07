@@ -11,9 +11,7 @@ use Illuminate\Support\Facades\Auth;
 
 class PickemController extends Controller
 {
-    /**
-     * Show the team schedule for a specific week.
-     */
+
     public function filter(Request $request)
     {
         // Get the selected week_id (game_week)
@@ -44,6 +42,7 @@ class PickemController extends Controller
         // Pass the schedules, weeks, user submissions, and week_id to the view
         return view('pickem.show', compact('schedules', 'weeks', 'week_id', 'userSubmissions'));
     }
+
     public function showTeamSchedule($week_id = null)
     {
         // Fetch all unique game_week values only for regular season
@@ -63,9 +62,6 @@ class PickemController extends Controller
         return view('pickem.show', compact('schedules', 'weeks', 'week_id'));
     }
 
-
-
-
     public function pickWinner(Request $request)
     {
         // Validate the request to ensure the picks are valid
@@ -79,11 +75,9 @@ class PickemController extends Controller
         $userId = auth()->id(); // Get the authenticated user's ID
         $teamIds = $request->input('team_ids'); // Retrieve the selected teams
         $eventIds = $request->input('event_ids'); // Retrieve the event IDs
+        $now = Carbon::now(); // Current time
 
         try {
-            // Set the timezone to CST
-            $nowCST = Carbon::now('America/Chicago');
-
             // Loop through each event and update the user's pick
             foreach ($eventIds as $eventId) {
                 $selectedTeamId = $teamIds[$eventId] ?? null; // Get the selected team for this event
@@ -93,6 +87,14 @@ class PickemController extends Controller
                     $event = NflTeamSchedule::where('espn_event_id', $eventId)
                         ->where('season_type', 'Regular Season')
                         ->firstOrFail();
+
+                    // Convert the game_time_epoch to a Carbon instance
+                    $gameTime = Carbon::createFromTimestamp($event->game_time_epoch, 'America/Chicago');
+
+                    // Check if the current time is within 30 minutes of the game time
+                    if ($now->diffInMinutes($gameTime, false) <= 30) {
+                        return redirect()->back()->with('error', "The game for event {$event->short_name} is locked. You can no longer submit picks.");
+                    }
 
                     // Initialize isCorrect as false by default
                     $isCorrect = false;
@@ -114,8 +116,8 @@ class PickemController extends Controller
                             'team_id' => $selectedTeamId,
                             'is_correct' => $isCorrect,
                             'week_id' => $event->game_week,
-                            'created_at' => $nowCST,   // Store the submission time in CST
-                            'updated_at' => $nowCST,   // Store the updated time in CST
+                            'created_at' => $now,   // Store the submission time in CST
+                            'updated_at' => $now,   // Store the updated time in CST
                         ]
                     );
                 }
@@ -127,20 +129,6 @@ class PickemController extends Controller
             // Catch any database query errors and flash an error message
             return redirect()->back()->with('error', 'There was an issue submitting your picks. Please try again.');
         }
-    }    /**
-     * Show user submissions.
-     */
-    public function showSubmissions(Request $request, $weekId = null)
-    {
-        // Get the user's submissions for the specified week
-        $userSubmissions = UserSubmission::with(['event', 'team'])
-            ->where('user_id', auth()->id())
-            ->where('week_id', $weekId)
-            ->where('season_type', 'Regular Season')
-            ->get();
-
-        // Render submissions view
-        return view('pickem.index', compact('userSubmissions', 'weekId'));
     }
 
     public function showLeaderboard(Request $request)
