@@ -45,6 +45,27 @@ class PickemController extends Controller
 
     public function showTeamSchedule($week_id = null)
     {
+        // If no week_id is provided, calculate the current week based on the date
+        if (!$week_id) {
+            $today = Carbon::now();
+
+            // Loop through the weeks from the config to find the current week
+            foreach (config('nfl.weeks') as $weekName => $range) {
+                $start = Carbon::parse($range['start']);
+                $end = Carbon::parse($range['end']);
+
+                if ($today->between($start, $end)) {
+                    $week_id = $weekName; // Set week_id to "Week X"
+                    break;
+                }
+            }
+
+            // If no matching week is found, default to 'Week 1'
+            if (!$week_id) {
+                $week_id = 'Week 1';
+            }
+        }
+
         // Fetch all unique game_week values only for regular season
         $weeks = NflTeamSchedule::select('game_week')->distinct()
             ->where('season_type', 'Regular Season') // Only fetch regular season weeks
@@ -58,10 +79,9 @@ class PickemController extends Controller
             ->with(['awayTeam', 'homeTeam'])
             ->get();
 
-        // Return the view with schedules and weeks
+        // Return the view with schedules, weeks, and the selected week_id
         return view('pickem.show', compact('schedules', 'weeks', 'week_id'));
     }
-
     public function pickWinner(Request $request)
     {
         // Validate the request to ensure the picks are valid

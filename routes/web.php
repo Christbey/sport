@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CollegeFootballHypotheticalController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PickemController;
 
@@ -24,3 +25,5 @@ Route::get('/pickem/filter', [PickemController::class, 'filter'])->name('pickem.
 Route::post('/pickem/pick-winner', [PickemController::class, 'pickWinner'])->name('pickem.pickWinner');
 Route::get('/pickem/leaderboard', [PickemController::class, 'showLeaderboard'])->name('picks.leaderboard');
 });
+
+Route::get('/cfb/hypotheticals', [CollegeFootballHypotheticalController::class, 'index'])->name('cfb.index');
