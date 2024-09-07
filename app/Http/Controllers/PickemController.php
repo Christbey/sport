@@ -34,6 +34,11 @@ class PickemController extends Controller
             ->orderBy('game_date', 'asc') // Order by game_date to show the games from earliest to latest
             ->get();
 
+        // Add text color logic based on status_type_detail
+        foreach ($schedules as $schedule) {
+            $schedule->textColor = ($schedule->status_type_detail === 'Final') ? 'text-red-700' : 'text-gray-500';
+        }
+
         // Fetch the user's previous submissions for the displayed events
         $userId = auth()->id();
         $userSubmissions = UserSubmission::where('user_id', $userId)
@@ -43,8 +48,7 @@ class PickemController extends Controller
 
         // Pass the schedules, weeks, user submissions, and week_id to the view
         return view('pickem.show', compact('schedules', 'weeks', 'week_id', 'userSubmissions'));
-    }
-    public function showTeamSchedule($week_id = null)
+    }    public function showTeamSchedule($week_id = null)
     {
         // Fetch all unique game_week values only for regular season
         $weeks = NflTeamSchedule::select('game_week')->distinct()
@@ -62,9 +66,6 @@ class PickemController extends Controller
         // Return the view with schedules and weeks
         return view('pickem.show', compact('schedules', 'weeks', 'week_id'));
     }
-
-
-
 
     public function pickWinner(Request $request)
     {

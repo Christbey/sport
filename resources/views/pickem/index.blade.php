@@ -1,5 +1,5 @@
 <x-app-layout>
-    <div class="max-w-7xl mx-auto py-6 px-6 lg:px-8">
+    <div class="max-w-3xl mx-auto py-6 px-6 lg:px-8">
         <h1 class="text-3xl font-bold mb-6">Leaderboard</h1>
 
         <form method="GET" action="{{ route('picks.leaderboard') }}" class="mb-6">
@@ -27,6 +27,7 @@
             <table class="min-w-full bg-white border border-gray-200 divide-y divide-gray-200 shadow-md rounded-lg">
                 <thead class="bg-gray-50">
                 <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Correct Picks</th>
                 </tr>
@@ -34,6 +35,7 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                 @foreach($leaderboard as $entry)
                     <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $loop->iteration }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $entry->user->name }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $entry->correct_picks }}</td>
                     </tr>
@@ -47,7 +49,6 @@
             <table class="min-w-full bg-white border border-gray-200 divide-y divide-gray-200 shadow-md rounded-lg">
                 <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Event</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team Picked</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Correct Pick</th>
@@ -56,7 +57,6 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                 @foreach($allPicks as $pick)
                     <tr>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $pick->user->name }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {{ $pick->event ? $pick->event->short_name : 'Unknown Event' }}
                         </td>
