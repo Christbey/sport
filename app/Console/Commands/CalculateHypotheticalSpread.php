@@ -71,8 +71,6 @@ class CalculateHypotheticalSpread extends Command
             );
 
             // Check if the prediction is correct and update 'is_prediction_correct'
-            $this->checkAndMarkPredictionResult($hypothetical);
-
             Log::info("Hypothetical Spread for {$awayTeam->school} @ {$homeTeam->school}: $spread");
         }
     }
@@ -87,34 +85,4 @@ class CalculateHypotheticalSpread extends Command
     }
 
     // Function to check if the prediction was correct and mark it in the database
-    private function checkAndMarkPredictionResult(CollegeFootballHypothetical $hypothetical)
-    {
-        // Find the corresponding game from the CollegeFootballGame model
-        $game = CollegeFootballGame::find($hypothetical->game_id);
-
-        if ($game && $game->completed === 1) {  // Use the `completed` column to check if the game is finished
-            // Calculate the actual points difference
-            $actualPointsDifference = $game->home_points - $game->away_points;
-
-            // Log the actual points difference and hypothetical spread
-            Log::info("Game ID: {$game->id}, Home Points: {$game->home_pts}, Away Points: {$game->away_pts}");
-            Log::info("Hypothetical Spread: {$hypothetical->hypothetical_spread}, Actual Points Difference: {$actualPointsDifference}");
-
-            // Determine if the prediction was correct
-            if (($hypothetical->hypothetical_spread > 0 && $actualPointsDifference >= $hypothetical->hypothetical_spread) ||
-                ($hypothetical->hypothetical_spread < 0 && $actualPointsDifference <= $hypothetical->hypothetical_spread)) {
-                $hypothetical->is_prediction_correct = 'true'; // Prediction is correct
-            } else {
-                $hypothetical->is_prediction_correct = 'false'; // Prediction is incorrect
-            }
-
-            // Save the updated hypothetical result
-            Log::info("Before saving: is_prediction_correct = {$hypothetical->is_prediction_correct}");
-            $hypothetical->save();
-            Log::info("After saving: is_prediction_correct = {$hypothetical->is_prediction_correct}");        } else {
-            // If the game is not completed, set the value to 'pending'
-            $hypothetical->is_prediction_correct = 'pending';
-            $hypothetical->save();
-        }
-    }
 }
