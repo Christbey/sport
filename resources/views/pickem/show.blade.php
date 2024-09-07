@@ -1,4 +1,5 @@
 <x-app-layout>
+
     <div class="max-w-3xl lg:mx-auto px-4 py-6 sm:px-6 lg:px-8">
         @if(session('success'))
             <div class="mb-4 p-4 bg-green-100 text-green-700 rounded-lg">
@@ -11,8 +12,9 @@
                 {{ session('error') }}
             </div>
         @endif
-
         <div class="bg-white shadow-sm sm:rounded-lg p-6">
+            <h2 class="text-2xl font-semibold mb-6">Select Week</h2>
+
             <!-- Form for filtering by week -->
             <form id="weekForm" method="GET" action="{{ route('pickem.filter') }}" class="mb-6">
                 <label for="week_id" class="block text-sm font-medium text-gray-700 mb-2"></label>
@@ -27,7 +29,7 @@
             </form>
 
             <!-- Display matchups and submit form -->
-            <h2 class="text-2xl text-gray-700 font-semibold mb-6">{{ $week_id ?? 'All' }} Matchups</h2>
+            <h2 class="text-2xl font-semibold mb-6">{{ $week_id ?? 'All' }} Matchups</h2>
 
             <form action="{{ route('pickem.pickWinner') }}" method="POST">
                 @csrf
@@ -42,11 +44,13 @@
                             @endphp
                             <div class="bg-white shadow-md rounded-lg overflow-hidden relative">
                                 <div class="p-4 sm:p-6">
+
+
                                     <input type="hidden" name="event_ids[]" value="{{ $schedule->espn_event_id }}">
 
                                     <!-- Away Team Radio -->
                                     <div class="mb-4">
-                                        <div class="flex text-gray-800 items-center">
+                                        <div class="flex items-center">
                                             <input id="away_team_{{ $schedule->id }}" name="team_ids[{{ $schedule->espn_event_id }}]" type="radio" value="{{ $schedule->away_team_id }}" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300"
                                                     {{ $userPick == $schedule->away_team_id ? 'checked' : '' }}>
                                             <label for="away_team_{{ $schedule->id }}" class="ml-3 block text-sm font-medium {{ $userPick == $schedule->away_team_id ? 'font-bold' : '' }}">
@@ -63,18 +67,15 @@
                                             {{ $schedule->homeTeam->team_name ?? 'Unknown' }}
                                         </label>
                                     </div>
-
-                                    <!-- Game Status (Footer) -->
-                                    <div class="text-xs font-light relaxed game-footer mt-4 {{ $schedule->textColor }}">
-                                        <p>{{ $schedule->status_type_detail ?? 'No status available' }}</p>
-                                    </div>
+                                        <!-- Game Status (Footer) -->
+                                        <div class="text-xs font-light\relaxed text-gray-400 game-footer mt-4">
+                                            <p> {{ $schedule->status_type_detail ?? 'No status available' }}</p>
+                                        </div>
                                 </div>
                             </div>
                         @endforeach
                     @endif
-                </div>
-
-                <!-- Submit All Picks Button -->
+                </div>                <!-- Submit All Picks Button -->
                 <div class="mt-6">
                     <button type="submit" class="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                         Submit All Picks

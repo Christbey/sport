@@ -2,8 +2,6 @@
 
 namespace App\Providers;
 
-use App\Models\NflTeamSchedule;
-use App\Observers\NflTeamScheduleObserver;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,8 +17,8 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Bootstrap any application services.
      */
-    public function boot()
+    public function boot(): void
     {
-        NflTeamSchedule::observe(NflTeamScheduleObserver::class);
+        //
     }
 }

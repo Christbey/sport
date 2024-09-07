@@ -15,44 +15,28 @@ class FetchNFLTeamSchedule extends Command
 
     public function handle()
     {
+        // Get the season from the argument
         $season = $this->argument('season');
 
-        $this->dispatchTeamSchedules($season);
-        $this->dispatchEspnScheduleJobs();
-
-        $this->info('All jobs dispatched successfully.');
-    }
-
-    /**
-     * Dispatch jobs to store NFL team schedules.
-     *
-     * @param string $season
-     * @return void
-     */
-    private function dispatchTeamSchedules(string $season): void
-    {
+        // Fetch all the teams from the nfl_teams table
         $teams = NflTeam::all();
 
+        // Loop through each team and dispatch the StoreNflTeamSchedule job
         foreach ($teams as $team) {
             StoreNflTeamSchedule::dispatch($team->team_abv, $season);
             $this->info("NFL team schedule for {$team->team_abv} dispatched successfully.");
         }
-    }
 
-    /**
-     * Dispatch ESPN schedule fetch jobs for all season types and weeks.
-     *
-     * @return void
-     */
-    private function dispatchEspnScheduleJobs(): void
-    {
+        // Now loop through each season type (1, 2, 3) and each week (1 to 18)
         $this->info('Dispatching ESPN schedule fetch jobs for all weeks and season types...');
 
-        foreach (range(1, 3) as $seasonType) {
-            foreach (range(1, 18) as $weekNumber) {
+        for ($seasonType = 1; $seasonType <= 3; $seasonType++) {
+            for ($weekNumber = 1; $weekNumber <= 18; $weekNumber++) {
                 FetchNflEspnScheduleJob::dispatch(2024, $seasonType, $weekNumber);
                 $this->info("FetchNflEspnScheduleJob dispatched for SeasonType: {$seasonType}, Week: {$weekNumber} of the 2024 season.");
             }
         }
+
+        $this->info('All ESPN schedule fetch jobs dispatched successfully.');
     }
 }
