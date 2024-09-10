@@ -30,8 +30,8 @@ class FetchNFLTeamSchedule extends Command
         // Now loop through each season type (1, 2, 3) and each week (1 to 18)
         $this->info('Dispatching ESPN schedule fetch jobs for all weeks and season types...');
 
-        for ($seasonType = 1; $seasonType <= 3; $seasonType++) {
-            for ($weekNumber = 1; $weekNumber <= 18; $weekNumber++) {
+        for ($seasonType = 2; $seasonType <= 2; $seasonType++) {
+            for ($weekNumber = 1; $weekNumber <= 1; $weekNumber++) {
                 FetchNflEspnScheduleJob::dispatch(2024, $seasonType, $weekNumber);
                 $this->info("FetchNflEspnScheduleJob dispatched for SeasonType: {$seasonType}, Week: {$weekNumber} of the 2024 season.");
             }
