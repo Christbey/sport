@@ -28,7 +28,7 @@ class StoreNflTeamSchedule implements ShouldQueue
         // Fetch the data from the API
         $response = Http::withHeaders([
             'x-rapidapi-host' => 'tank01-nfl-live-in-game-real-time-statistics-nfl.p.rapidapi.com',
-            'x-rapidapi-key' => env('RAPIDAPI_KEY'),
+            'x-rapidapi-key' => config('services.rapidapi.key'),
         ])->get('https://tank01-nfl-live-in-game-real-time-statistics-nfl.p.rapidapi.com/getNFLTeamSchedule', [
             'teamAbv' => $this->teamAbv,
             'season' => $this->season,

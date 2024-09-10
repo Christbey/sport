@@ -29,9 +29,9 @@ class FetchNFLTeamSchedule extends Command
         }
 
         // After dispatching all team schedules, dispatch the FetchNflEspnScheduleJob
-        FetchNflEspnScheduleJob::dispatch(2024, 2, 1); // Example: Year=2024, SeasonType=2 (Regular Season), WeekNumber=1
+      //  FetchNflEspnScheduleJob::dispatch(2024, 2, 1); // Example: Year=2024, SeasonType=2 (Regular Season), WeekNumber=1
 
         $this->info('All NFL team schedules dispatched successfully.');
-        $this->info('FetchNflEspnScheduleJob dispatched for Week 1 of the 2024 season.');
+       // $this->info('FetchNflEspnScheduleJob dispatched for Week 1 of the 2024 season.');
     }
 }
