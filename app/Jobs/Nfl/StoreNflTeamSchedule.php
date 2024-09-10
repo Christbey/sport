@@ -9,6 +9,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class StoreNflTeamSchedule implements ShouldQueue
 {
@@ -41,35 +42,50 @@ class StoreNflTeamSchedule implements ShouldQueue
             // Check if the schedule data is not null or empty
             if (is_array($scheduleData) && !empty($scheduleData)) {
                 foreach ($scheduleData as $game) {
-                    NflTeamSchedule::updateOrCreate(
-                        [
-                            'game_id' => $game['gameID'],
-                        ],
-                        [
-                            'team_abv' => $this->teamAbv,
-                            'season_type' => $game['seasonType'],
-                            'away_team' => $game['away'],
-                            'home_team_id' => $game['teamIDHome'],
-                            'game_date' => $game['gameDate'],
-                            'game_status' => $game['gameStatus'],
-                            'game_week' => $game['gameWeek'],
-                            'away_team_id' => $game['teamIDAway'],
-                            'home_team' => $game['home'],
-                            'away_result' => $game['awayResult'] ?? null, // Use null if key does not exist
-                            'home_result' => $game['homeResult'] ?? null, // Use null if key does not exist
-                            'home_pts' => $game['homePts'] ?? null, // Use null if key does not exist
-                            'away_pts' => $game['awayPts'] ?? null, // Use null if key does not exist
-                            'game_time' => $game['gameTime'] ?? null, // Use null if key does not exist
-                            'game_time_epoch' => !empty($game['gameTime_epoch']) ? (int)$game['gameTime_epoch'] : null, // Ensure it's an integer or null
-                            'game_status_code' => $game['gameStatusCode'] ?? null, // Use null if key does not exist
-                        ]
-                    );
+                    // Extract necessary game details
+                    $homePts = $game['homePts'] ?? null;
+                    $awayPts = $game['awayPts'] ?? null;
+                    $homeResult = $game['homeResult'] ?? null;
+                    $awayResult = $game['awayResult'] ?? null;
+
+                    try {
+                        // Store or update the schedule in the database
+                        NFLTeamSchedule::updateOrCreate(
+                            [
+                                'game_id' => $game['gameID'],
+                            ],
+                            [
+                                'team_abv' => $this->teamAbv,
+                                'season_type' => $game['seasonType'],
+                                'away_team' => $game['away'],
+                                'home_team_id' => $game['teamIDHome'],
+                                'game_date' => $game['gameDate'],
+                                'game_status' => $game['gameStatus'],
+                                'game_week' => $game['gameWeek'],
+                                'away_team_id' => $game['teamIDAway'],
+                                'home_team' => $game['home'],
+                                'away_result' => $awayResult, // Storing away team result
+                                'home_result' => $homeResult, // Storing home team result
+                                'home_pts' => $homePts, // Storing home team points
+                                'away_pts' => $awayPts, // Storing away team points
+                                'game_time' => $game['gameTime'] ?? null,
+                                'game_time_epoch' => !empty($game['gameTime_epoch']) ? (int)$game['gameTime_epoch'] : null,
+                                'game_status_code' => $game['gameStatusCode'] ?? null,
+                            ]
+                        );
+
+                        // Log success for each game
+                        Log::info("Game ID {$game['gameID']} for team {$this->teamAbv} stored successfully.");
+                    } catch (\Exception $e) {
+                        // Log any errors during data storage
+                        Log::error("Error storing game {$game['gameID']} for team {$this->teamAbv}: " . $e->getMessage());
+                    }
                 }
             } else {
-                \Log::warning("No schedule data found for team: {$this->teamAbv} in season: {$this->season}");
+                Log::warning("No schedule data found for team: {$this->teamAbv} in season: {$this->season}");
             }
         } else {
-            \Log::error("Failed to fetch schedule for team: {$this->teamAbv} in season: {$this->season}. Status: {$response->status()}");
+            Log::error("Failed to fetch schedule for team: {$this->teamAbv} in season: {$this->season}. Status: {$response->status()}");
         }
     }
 }
