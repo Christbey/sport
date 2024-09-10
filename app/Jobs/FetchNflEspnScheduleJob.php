@@ -4,7 +4,6 @@ namespace App\Jobs;
 
 use App\Models\NflTeamSchedule;
 use App\Models\NflTeam;
-use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -71,16 +70,9 @@ class FetchNflEspnScheduleJob implements ShouldQueue
     protected function storeEvent(array $event)
     {
         $competition = $event['competitions'][0] ?? [];
-
-        // Ensure both competitors exist
-        if (!isset($competition['competitors'][0]) || !isset($competition['competitors'][1])) {
-            Log::warning('Missing competitors for event', ['event_id' => $event['id']]);
-            return; // Skip this event
-        }
-
         $homeTeamEspnId = $competition['competitors'][0]['team']['id'] ?? null;
         $awayTeamEspnId = $competition['competitors'][1]['team']['id'] ?? null;
-        $shortName = $event['shortName'] ?? 'Unknown'; // e.g., "BAL @ KC"
+        $shortName = $event['shortName']; // e.g., "BAL @ KC"
 
         // Try to match using espn_id first
         $homeTeam = NflTeam::where('espn_id', $homeTeamEspnId)->first();
@@ -88,11 +80,11 @@ class FetchNflEspnScheduleJob implements ShouldQueue
 
         // Fallback: Try to match using short_name if espn_id matching fails
         if (!$homeTeam || !$awayTeam) {
-            if (strpos($shortName, ' at ') !== false) {
-                [$awayTeamAbv, $homeTeamAbv] = explode(' at ', $shortName);
-                $homeTeam = NflTeam::where('team_abv', $homeTeamAbv)->first();
-                $awayTeam = NflTeam::where('team_abv', $awayTeamAbv)->first();
-            }
+            [$awayTeamAbv, $homeTeamAbv] = explode(' @ ', $shortName);
+
+            // Attempt to find teams based on their abbreviations from short_name
+            $homeTeam = NflTeam::where('team_abv', $homeTeamAbv)->first();
+            $awayTeam = NflTeam::where('team_abv', $awayTeamAbv)->first();
         }
 
         // Only proceed if both teams are found
@@ -114,7 +106,7 @@ class FetchNflEspnScheduleJob implements ShouldQueue
                     'attendance' => $competition['attendance'] ?? null,
                     'name' => $event['name'],
                     'short_name' => $event['shortName'],
-                    'game_date' => date('Y-m-d', strtotime($event['date'])), // Store game_date
+                    'game_date' => date('Y-m-d', strtotime($event['date'])), // Still store game_date
                 ]
             );
 
@@ -122,8 +114,6 @@ class FetchNflEspnScheduleJob implements ShouldQueue
         } else {
             Log::warning('Team not found for event', [
                 'short_name' => $shortName,
-                'home_team_espn_id' => $homeTeamEspnId,
-                'away_team_espn_id' => $awayTeamEspnId,
             ]);
         }
     }
