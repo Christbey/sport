@@ -21,17 +21,25 @@ class FetchNFLTeamSchedule extends Command
         // Fetch all the teams from the nfl_teams table
         $teams = NflTeam::all();
 
-        // Loop through each team and dispatch the StoreNflTeamSchedule job
+        // Define a consistent delay between each job dispatch
+        $delayInSeconds = 5;
+        $delay = 0; // Start with zero delay
+
+        // Loop through each team and dispatch the StoreNflTeamSchedule job with a consistent delay
         foreach ($teams as $team) {
-            StoreNflTeamSchedule::dispatch($team->team_abv, $season);
-            sleep(2);
-            $this->info("NFL team schedule for {$team->team_abv} dispatched successfully.");
+            // Dispatch the job with the current delay
+            StoreNflTeamSchedule::dispatch($team->team_abv, $season)->delay(now()->addSeconds($delay));
+
+            // Log the success message
+            $this->info("NFL team schedule for {$team->team_abv} dispatched successfully with a delay of {$delay} seconds.");
+
+            // Increment the delay for the next job
+            $delay += $delayInSeconds;
         }
 
-        // After dispatching all team schedules, dispatch the FetchNflEspnScheduleJob
-       FetchNflEspnScheduleJob::dispatch(2024, 2, 1); // Example: Year=2024, SeasonType=2 (Regular Season), WeekNumber=1
+        // Dispatch the FetchNflEspnScheduleJob without delay (or you can add a delay if needed)
+        FetchNflEspnScheduleJob::dispatch(2024, 2, 1);
 
         $this->info('All NFL team schedules dispatched successfully.');
-       // $this->info('FetchNflEspnScheduleJob dispatched for Week 1 of the 2024 season.');
     }
 }
