@@ -26,6 +26,9 @@ Picksports
                             <div class="w-60">
                                 <x-dropdown-link href="{{ route('pickem.schedule') }}">{{ __('View Schedule') }}</x-dropdown-link>
                                 <x-dropdown-link href="{{ route('picks.leaderboard') }}">{{ __('Leaderboard') }}</x-dropdown-link>
+                                <!-- Add College Football Hypotheticals Link -->
+
+                                <x-dropdown-link href="{{ route('cfb.index') }}">{{ __('CFB Hypotheticals') }}</x-dropdown-link>
                             </div>
                         </x-slot>
                     </x-dropdown>
@@ -137,6 +140,8 @@ Picksports
             <x-responsive-nav-link href="{{ route('dashboard') }}" :active="request()->routeIs('dashboard')">{{ __('Dashboard') }}</x-responsive-nav-link>
             <x-responsive-nav-link href="{{ route('pickem.schedule') }}" :active="request()->routeIs('pickem.schedule')">{{ __('View Schedule') }}</x-responsive-nav-link>
             <x-responsive-nav-link href="{{ route('picks.leaderboard') }}" :active="request()->routeIs('picks.leaderboard')">{{ __('Leaderboard') }}</x-responsive-nav-link>
+            <!-- Add Hypotheticals link to the mobile menu as well -->
+            <x-responsive-nav-link href="{{ route('cfb.index') }}" :active="request()->routeIs('cfb.index')">{{ __('CFB Hypotheticals') }}</x-responsive-nav-link>
         </div>
 
         <!-- Authenticated Users -->

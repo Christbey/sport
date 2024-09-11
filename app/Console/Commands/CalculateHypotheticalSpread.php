@@ -8,6 +8,7 @@ use App\Models\CollegeFootball\CollegeFootballElo;
 use App\Models\CollegeFootball\CollegeFootballFpi;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 class CalculateHypotheticalSpread extends Command
 {
@@ -21,11 +22,15 @@ class CalculateHypotheticalSpread extends Command
 
     public function handle()
     {
-        // Fetch only games from Week 1 where both home and away divisions are 'fbs'
+        // Get today's date
+        $today = Carbon::today();
+
+        // Fetch only games from Week 1 where both home and away divisions are 'fbs' and start_date is in the future
         $games = CollegeFootballGame::where('home_division', 'fbs')
             ->where('away_division', 'fbs')
-            ->where('week', 1)  // Filter for Week 1
+            ->where('week', 3)  // Filter for Week 1
             ->where('season', 2024)  // Adjust the season if needed
+            ->where('start_date', '>=', $today)  // Only include games where start_date is today or in the future
             ->get();
 
         foreach ($games as $game) {
@@ -70,7 +75,7 @@ class CalculateHypotheticalSpread extends Command
                 ]
             );
 
-            // Check if the prediction is correct and update 'is_prediction_correct'
+            // Log the hypothetical spread
             Log::info("Hypothetical Spread for {$awayTeam->school} @ {$homeTeam->school}: $spread");
         }
     }
@@ -83,6 +88,4 @@ class CalculateHypotheticalSpread extends Command
 
         return round(($fpiSpread + $eloSpread) / 1.4, 2); // Adjust divisor as necessary
     }
-
-    // Function to check if the prediction was correct and mark it in the database
 }
