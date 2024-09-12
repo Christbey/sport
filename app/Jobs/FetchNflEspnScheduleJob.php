@@ -168,6 +168,9 @@ class FetchNflEspnScheduleJob implements ShouldQueue
                     'game_status_code' => $gameStatusCode,
                     'game_time' => $gameTime,
                     'game_time_epoch' => $gameTimeEpoch,
+                    'name' => $event['name'],
+                    'short_name' => $event['shortName'],
+                    'game_date' => date('Y-m-d', strtotime($event['date'])), // Still store game_date
                 ]
             );
 
