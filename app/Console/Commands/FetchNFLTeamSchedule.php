@@ -34,11 +34,11 @@ class FetchNFLTeamSchedule extends Command
             $this->info("NFL team schedule for {$team->team_abv} dispatched successfully with a delay of {$delay} seconds.");
 
             // Increment the delay for the next job
-            $delay += $delayInSeconds;
+            $delay = $delayInSeconds;
         }
 
         // Dispatch the FetchNflEspnScheduleJob without delay (or you can add a delay if needed)
-        FetchNflEspnScheduleJob::dispatch(2024, 2, 1);
+        FetchNflEspnScheduleJob::dispatch(2024, 2, 2);
 
         $this->info('All NFL team schedules dispatched successfully.');
     }

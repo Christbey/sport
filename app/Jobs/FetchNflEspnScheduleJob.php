@@ -28,7 +28,7 @@ class FetchNflEspnScheduleJob implements ShouldQueue
      * @param int $seasonType
      * @param int $weekNumber
      */
-    public function __construct($seasonYear, $seasonType, $weekNumber)
+    public function __construct(int $seasonYear, int $seasonType, $weekNumber)
     {
         $this->seasonYear = $seasonYear;
         $this->seasonType = $seasonType;
@@ -117,14 +117,32 @@ class FetchNflEspnScheduleJob implements ShouldQueue
         }
 
         // Extract additional details
-        $homePts = $competition['competitors'][0]['score'] ?? 'N/A';
-        $awayPts = $competition['competitors'][1]['score'] ?? 'N/A';
-        $homeResult = $competition['competitors'][0]['winner'] ? 'Win' : 'Loss';
-        $awayResult = $competition['competitors'][1]['winner'] ? 'Win' : 'Loss';
+        $homePts = $competition['competitors'][0]['score'] ?? null;
+        $awayPts = $competition['competitors'][1]['score'] ?? null;
         $gameStatus = $event['status']['type']['description'] ?? 'N/A';
         $gameStatusCode = $event['status']['type']['id'] ?? 'N/A';
         $gameTime = $event['date'] ?? 'N/A';
         $gameTimeEpoch = $gameTime ? strtotime($gameTime) : 'N/A';
+
+        // Check if the game has completed (i.e., a winner is defined)
+        $homeResult = isset($competition['competitors'][0]['winner'])
+            ? ($competition['competitors'][0]['winner'] ? 'Win' : 'Loss')
+            : null;
+        $awayResult = isset($competition['competitors'][1]['winner'])
+            ? ($competition['competitors'][1]['winner'] ? 'Win' : 'Loss')
+            : null;
+
+        // Log for debugging
+        Log::info('Event Details:', [
+            'event_id' => $event['id'],
+            'home_team' => $homeTeamEspnId,
+            'away_team' => $awayTeamEspnId,
+            'home_pts' => $homePts,
+            'away_pts' => $awayPts,
+            'home_result' => $homeResult,
+            'away_result' => $awayResult,
+            'game_status' => $gameStatus,
+        ]);
 
         // Only store if both teams are matched
         if ($homeTeam && $awayTeam) {
@@ -144,8 +162,8 @@ class FetchNflEspnScheduleJob implements ShouldQueue
                     'attendance' => $competition['attendance'] ?? 0,
                     'home_pts' => $homePts,
                     'away_pts' => $awayPts,
-                    'home_result' => $homeResult,
-                    'away_result' => $awayResult,
+                    'home_result' => $homeResult, // Only set if the winner is determined
+                    'away_result' => $awayResult, // Only set if the winner is determined
                     'game_status' => $gameStatus,
                     'game_status_code' => $gameStatusCode,
                     'game_time' => $gameTime,

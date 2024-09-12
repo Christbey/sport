@@ -69,7 +69,7 @@
         </div>
 
         <div class="mt-8 flex justify-center">
-            <a href="{{ url('/pickem/filter?week_id=Week+1') }}"
+            <a href="{{ url('/pickem/filter?week_id=Week+2') }}"
                class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-indigo-500">
                 Submit Weekly Picks
             </a>

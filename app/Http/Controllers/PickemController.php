@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers;
 
 use App\Models\UserSubmission;
@@ -11,77 +10,56 @@ use Illuminate\Support\Facades\Auth;
 
 class PickemController extends Controller
 {
-
-    public function filter(Request $request)
+    public function showTeamSchedule(Request $request, $game_week = null)
     {
-        // Get the selected week_id (game_week)
-        $week_id = $request->input('week_id');
+        // Get game_week from the request or the route parameter
+        $game_week = $request->input('game_week') ?? $game_week;
 
-        // Fetch all unique game_week values for the dropdown
-        $weeks = NflTeamSchedule::select('game_week')->distinct()
-            ->where('season_type', 'Regular Season')
-            ->orderBy('game_week', 'asc') // Order the weeks
-            ->get();
-
-        // Fetch schedules for the selected week where the season_type is 'Regular Season'
-        $schedules = NflTeamSchedule::with(['awayTeam', 'homeTeam'])
-            ->when($week_id, function ($query) use ($week_id) {
-                $query->where('game_week', $week_id);
-            })
-            ->where('season_type', 'Regular Season') // Filter only 'Regular Season' games
-            ->orderBy('game_date', 'asc') // Order by game_date to show the games from earliest to latest
-            ->get();
-
-        // Fetch the user's previous submissions for the displayed events
-        $userId = auth()->id();
-        $userSubmissions = UserSubmission::where('user_id', $userId)
-            ->whereIn('espn_event_id', $schedules->pluck('espn_event_id'))
-            ->get()
-            ->keyBy('espn_event_id'); // Key submissions by event ID for easy lookup
-
-        // Pass the schedules, weeks, user submissions, and week_id to the view
-        return view('pickem.show', compact('schedules', 'weeks', 'week_id', 'userSubmissions'));
-    }
-
-    public function showTeamSchedule($week_id = null)
-    {
-        // If no week_id is provided, calculate the current week based on the date
-        if (!$week_id) {
+        // If no game_week is provided, calculate the current week based on the date
+        if (!$game_week) {
             $today = Carbon::now();
-
-            // Loop through the weeks from the config to find the current week
             foreach (config('nfl.weeks') as $weekName => $range) {
                 $start = Carbon::parse($range['start']);
                 $end = Carbon::parse($range['end']);
-
                 if ($today->between($start, $end)) {
-                    $week_id = $weekName; // Set week_id to "Week X"
+                    $game_week = $weekName;
                     break;
                 }
             }
 
-            // If no matching week is found, default to 'Week 1'
-            if (!$week_id) {
-                $week_id = 'Week 1';
+            // Default to 'Week 1' if no matching week is found
+            if (!$game_week) {
+                $game_week = 'Week 1';
             }
         }
 
-        // Fetch all unique game_week values only for regular season
-        $weeks = NflTeamSchedule::select('game_week')->distinct()
-            ->where('season_type', 'Regular Season') // Only fetch regular season weeks
+        // Fetch all distinct game_week values for the regular season
+        $weeks = NflTeamSchedule::select('game_week')
+            ->distinct()
+            ->where('season_type', 'Regular Season')
+            ->orderByRaw('CAST(SUBSTRING(game_week, 6) AS UNSIGNED) ASC') // Order numerically
             ->get();
 
-        // Fetch schedules filtered by game_week if provided and only regular season
+        // Fetch schedules filtered by game_week for the regular season
         $schedules = NflTeamSchedule::where('season_type', 'Regular Season')
-            ->when($week_id, function ($query) use ($week_id) {
-                return $query->where('game_week', $week_id);
+            ->when($game_week, function ($query) use ($game_week) {
+                return $query->where('game_week', $game_week);
             })
             ->with(['awayTeam', 'homeTeam'])
+            ->orderBy('game_date', 'asc')
             ->get();
 
-        // Return the view with schedules, weeks, and the selected week_id
-        return view('pickem.show', compact('schedules', 'weeks', 'week_id'));
+        // Fetch the user's previous submissions for displayed events
+        $userId = auth()->id();
+        $userSubmissions = UserSubmission::where('user_id', $userId)
+            ->whereIn('espn_event_id', $schedules->pluck('espn_event_id'))
+            ->get()
+            ->keyBy('espn_event_id');
+
+        // Return the view with schedules, weeks, and the selected game_week
+        return view('pickem.show', compact('schedules', 'weeks', 'game_week', 'userSubmissions'));
     }
+
     public function pickWinner(Request $request)
     {
         // Validate the request to ensure the picks are valid
@@ -154,14 +132,13 @@ class PickemController extends Controller
     public function showLeaderboard(Request $request)
     {
         $gameWeek = $request->input('game_week');
-        $userId = Auth::id(); // Get the logged-in user's ID
+        $userId = Auth::id();
 
-        // Fetch distinct game weeks from the schedules
-        $games = NflTeamSchedule::select('game_week')->distinct()
+        $games = NflTeamSchedule::select('game_week')
+            ->distinct()
             ->where('season_type', 'Regular Season')
             ->get();
 
-        // Fetch leaderboard with correct picks, filter by game_week if provided
         $leaderboard = UserSubmission::with(['user'])
             ->selectRaw('user_id, COUNT(CASE WHEN is_correct THEN 1 END) as correct_picks')
             ->groupBy('user_id')
@@ -173,9 +150,8 @@ class PickemController extends Controller
             ->orderByDesc('correct_picks')
             ->get();
 
-        // Fetch only the authenticated user's picks for the given game week
         $allPicks = UserSubmission::with(['user', 'event', 'team'])
-            ->where('user_id', $userId)  // Filter by the logged-in user's ID
+            ->where('user_id', $userId)
             ->when($gameWeek, function ($query) use ($gameWeek) {
                 $query->whereHas('event', function ($q) use ($gameWeek) {
                     $q->where('game_week', $gameWeek);
@@ -185,5 +161,4 @@ class PickemController extends Controller
 
         return view('pickem.index', compact('leaderboard', 'allPicks', 'games', 'gameWeek'));
     }
-
 }

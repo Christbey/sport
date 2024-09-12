@@ -1,8 +1,8 @@
 <?php
 
 use App\Http\Controllers\CollegeFootballHypotheticalController;
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PickemController;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
@@ -17,13 +17,16 @@ Route::middleware([
         return view('dashboard');
     })->name('dashboard');
 
+    // Route to show the schedule and matchups using game_week
+    Route::get('/pickem/schedule/{game_week?}', [PickemController::class, 'showTeamSchedule'])->name('pickem.schedule');
 
-Route::get('/pickem/schedule/{week_id?}', [PickemController::class, 'showTeamSchedule'])->name('pickem.schedule');
-Route::get('/pickem/filter', [PickemController::class, 'filter'])->name('pickem.filter');
+    // Route to submit picks
+    Route::post('/pickem/pick-winner', [PickemController::class, 'pickWinner'])->name('pickem.pickWinner');
 
-// Route for pickWinner
-Route::post('/pickem/pick-winner', [PickemController::class, 'pickWinner'])->name('pickem.pickWinner');
-Route::get('/pickem/leaderboard', [PickemController::class, 'showLeaderboard'])->name('picks.leaderboard');
+    // Route for the leaderboard
+    Route::get('/pickem/leaderboard', [PickemController::class, 'showLeaderboard'])->name('picks.leaderboard');
+
+    // Route to show the hypothetical matchups
+    Route::get('/cfb/hypotheticals', [CollegeFootballHypotheticalController::class, 'index'])->name('cfb.index');
 });
 
-Route::get('/cfb/hypotheticals', [CollegeFootballHypotheticalController::class, 'index'])->name('cfb.index');
