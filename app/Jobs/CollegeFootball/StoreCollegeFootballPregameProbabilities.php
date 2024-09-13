@@ -37,7 +37,7 @@ class StoreCollegeFootballPregameProbabilities implements ShouldQueue
         $this->week = $week;
         $this->team = $team;
         $this->seasonType = $seasonType;
-        $this->apiKey = env('COLLEGE_FOOTBALL_DATA_API_KEY');
+        $this->apiKey =config('services.college_football_data.key');
     }
 
     /**

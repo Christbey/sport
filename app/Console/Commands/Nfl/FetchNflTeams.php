@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Console\Commands\Nfl;
 
-use App\Jobs\Nfl\StoreNflTeams;
 use App\Jobs\Nfl\StoreNflEspnTeams;
+use App\Jobs\Nfl\StoreNflTeams;
 use Illuminate\Console\Command;
 
 class FetchNflTeams extends Command

@@ -9,7 +9,7 @@ class CreateNflBettingOddsTable extends Migration
     {
         Schema::create('nfl_betting_odds', function (Blueprint $table) {
             $table->id();
-            $table->string('game_id');              // ID for the game
+            $table->string('event_id');              // ID for the game
             $table->date('game_date');              // Date of the game
             $table->string('away_team');            // Away team
             $table->string('home_team');            // Home team

@@ -40,7 +40,7 @@ class StoreCollegeFootballGameMedia implements ShouldQueue
         $this->conference = $params['conference'] ?? null;
         $this->mediaType = $params['mediaType'] ?? null;
         $this->classification = $params['classification'] ?? null;
-        $this->apiKey = env('COLLEGE_FOOTBALL_DATA_API_KEY');
+        $this->apiKey =config('services.college_football_data.key');
     }
 
     /**

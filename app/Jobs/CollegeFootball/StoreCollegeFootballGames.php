@@ -29,7 +29,7 @@ class StoreCollegeFootballGames implements ShouldQueue
     {
         $this->year = $year;
         $this->apiUrl = 'https://api.collegefootballdata.com/games';
-        $this->apiKey = env('COLLEGE_FOOTBALL_DATA_API_KEY');
+        $this->apiKey =config('services.college_football_data.key');
     }
 
     /**

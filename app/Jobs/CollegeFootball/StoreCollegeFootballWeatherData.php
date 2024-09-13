@@ -40,7 +40,7 @@ class StoreCollegeFootballWeatherData implements ShouldQueue
                 'year' => $this->year,
             ],
             'headers' => [
-                'Authorization' => 'Bearer ' . env('COLLEGE_FOOTBALL_DATA_API_KEY'),
+                'Authorization' => 'Bearer ' . config('services.college_football_data.key'),
                 'Accept' => 'application/json',
             ],
         ]);

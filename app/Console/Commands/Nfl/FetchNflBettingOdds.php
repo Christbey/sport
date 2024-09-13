@@ -1,5 +1,5 @@
 <?php
-namespace App\Console\Commands;
+namespace App\Console\Commands\Nfl;
 
 use App\Jobs\Nfl\StoreNflBettingOdds;
 use Illuminate\Console\Command;

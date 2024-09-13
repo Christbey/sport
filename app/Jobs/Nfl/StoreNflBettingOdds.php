@@ -47,29 +47,37 @@ class StoreNflBettingOdds implements ShouldQueue
                             if (isset($sportsBook['odds']) && is_array($sportsBook['odds'])) {
                                 $odds = $sportsBook['odds'];
 
-                                // Store the data
-                                NflBettingOdds::create([
-                                    'game_id' => $game['gameID'],
-                                    'game_date' => $game['gameDate'],
-                                    'away_team' => $game['awayTeam'],
-                                    'home_team' => $game['homeTeam'],
-                                    'away_team_id' => $game['teamIDAway'],
-                                    'home_team_id' => $game['teamIDHome'],
-                                    'source' => $sportsBook['sportsBook'],
-                                    'spread_home' => isset($odds['homeTeamSpread']) ? floatval($odds['homeTeamSpread']) : null,
-                                    'spread_away' => isset($odds['awayTeamSpread']) ? floatval($odds['awayTeamSpread']) : null,
-                                    'total_over' => isset($odds['totalOver']) ? floatval($odds['totalOver']) : null,
-                                    'total_under' => isset($odds['totalUnder']) ? floatval($odds['totalUnder']) : null,
-                                    'moneyline_home' => isset($odds['homeTeamMLOdds']) ? floatval($odds['homeTeamMLOdds']) : null,
-                                    'moneyline_away' => isset($odds['awayTeamMLOdds']) ? floatval($odds['awayTeamMLOdds']) : null,
-                                    'implied_total_home' => $odds['impliedTotals']['homeTotal'] ?? null,
-                                    'implied_total_away' => $odds['impliedTotals']['awayTotal'] ?? null,
-                                ]);
+                                // Store or update the data
+                                if (!empty($game['gameID'])) {
+                                    NflBettingOdds::updateOrCreate(
+                                        [
+                                            'event_id' => $game['gameID'], // Conditions to match an existing record
+                                            'source' => $sportsBook['sportsBook'],
+                                        ],
+                                        [
+                                            'game_date' => $game['gameDate'],
+                                            'away_team' => $game['awayTeam'],
+                                            'home_team' => $game['homeTeam'],
+                                            'away_team_id' => $game['teamIDAway'],
+                                            'home_team_id' => $game['teamIDHome'],
+                                            'spread_home' => isset($odds['homeTeamSpread']) ? floatval($odds['homeTeamSpread']) : null,
+                                            'spread_away' => isset($odds['awayTeamSpread']) ? floatval($odds['awayTeamSpread']) : null,
+                                            'total_over' => isset($odds['totalOver']) ? floatval($odds['totalOver']) : null,
+                                            'total_under' => isset($odds['totalUnder']) ? floatval($odds['totalUnder']) : null,
+                                            'moneyline_home' => isset($odds['homeTeamMLOdds']) ? floatval($odds['homeTeamMLOdds']) : null,
+                                            'moneyline_away' => isset($odds['awayTeamMLOdds']) ? floatval($odds['awayTeamMLOdds']) : null,
+                                            'implied_total_home' => $odds['impliedTotals']['homeTotal'] ?? null,
+                                            'implied_total_away' => $odds['impliedTotals']['awayTotal'] ?? null,
+                                        ]
+                                    );
+                                } else {
+                                    Log::warning('No event ID found for the game', ['game' => $game]);
+                                }
                             }
                         }
                     }
                 }
-                Log::info('All odds data stored successfully.');
+                Log::info('All odds data stored or updated successfully.');
             } else {
                 Log::error('Unexpected data format received from the API.', ['data' => $oddsData]);
             }

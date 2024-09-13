@@ -32,7 +32,7 @@ class StoreCollegeFootballEloRatings implements ShouldQueue
         $this->seasonType = $params['seasonType'] ?? null;
         $this->team = $params['team'] ?? null;
         $this->conference = $params['conference'] ?? null;
-        $this->apiKey = env('COLLEGE_FOOTBALL_DATA_API_KEY');
+        $this->apiKey =config('services.college_football_data.key');
     }
 
     public function handle()

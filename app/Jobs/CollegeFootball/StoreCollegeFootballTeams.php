@@ -27,7 +27,7 @@ class StoreCollegeFootballTeams implements ShouldQueue
     public function __construct()
     {
         $this->apiUrl = 'https://api.collegefootballdata.com/teams';
-        $this->apiKey = env('COLLEGE_FOOTBALL_DATA_API_KEY'); // Store your API key in the .env file
+        $this->apiKey =config('services.college_football_data.key');
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Models\CollegeFootballHypothetical;
 use App\Models\CollegeFootball\CollegeFootballGame;
 use App\Models\CollegeFootball\CollegeFootballElo;
 use App\Models\CollegeFootball\CollegeFootballFpi;
+use App\Models\Sagarin;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
@@ -44,17 +45,22 @@ class CalculateHypotheticalSpread extends Command
                 continue;
             }
 
+            // Fetch Elo and FPI ratings
             $homeElo = CollegeFootballElo::where('team_id', $homeTeam->id)->where('year', $game->season)->value('elo');
             $awayElo = CollegeFootballElo::where('team_id', $awayTeam->id)->where('year', $game->season)->value('elo');
             $homeFpi = CollegeFootballFpi::where('team_id', $homeTeam->id)->where('year', $game->season)->value('fpi');
             $awayFpi = CollegeFootballFpi::where('team_id', $awayTeam->id)->where('year', $game->season)->value('fpi');
 
-            if ($homeElo === null || $awayElo === null || $homeFpi === null || $awayFpi === null) {
-                Log::warning("ELO or FPI data missing for {$homeTeam->school} vs {$awayTeam->school} in $year.");
+            // Fetch Sagarin ratings
+            $homeSagarin = Sagarin::where('id', $homeTeam->id)->value('rating');
+            $awaySagarin = Sagarin::where('id', $awayTeam->id)->value('rating');
+
+            if ($homeElo === null || $awayElo === null || $homeFpi === null || $awayFpi === null || $homeSagarin === null || $awaySagarin === null) {
+                Log::warning("ELO, FPI, or Sagarin data missing for {$homeTeam->school} vs {$awayTeam->school} in $year.");
                 continue;
             }
 
-            $spread = $this->calculateHypotheticalSpread($homeFpi, $awayFpi, $homeElo, $awayElo);
+            $spread = $this->calculateHypotheticalSpread($homeFpi, $awayFpi, $homeElo, $awayElo, $homeSagarin, $awaySagarin);
 
             // Use updateOrCreate to store or update the result in the database
             $hypothetical = CollegeFootballHypothetical::updateOrCreate(
@@ -71,6 +77,8 @@ class CalculateHypotheticalSpread extends Command
                     'away_elo' => $awayElo,
                     'home_fpi' => $homeFpi,
                     'away_fpi' => $awayFpi,
+                    'home_sagarin' => $homeSagarin,
+                    'away_sagarin' => $awaySagarin,
                     'hypothetical_spread' => $spread,
                 ]
             );
@@ -80,12 +88,13 @@ class CalculateHypotheticalSpread extends Command
         }
     }
 
-    // Function to calculate spread using only ELO and FPI
-    private function calculateHypotheticalSpread($homeFpi, $awayFpi, $homeElo, $awayElo): float
+    // Function to calculate spread using Elo, FPI, and Sagarin
+    private function calculateHypotheticalSpread($homeFpi, $awayFpi, $homeElo, $awayElo, $homeSagarin, $awaySagarin): float
     {
         $fpiSpread = $homeFpi && $awayFpi ? ($homeFpi - $awayFpi) / 2 : 0;
         $eloSpread = $homeElo && $awayElo ? ($homeElo - $awayElo) / 25 : 0;
+        $sagarinSpread = $homeSagarin && $awaySagarin ? ($homeSagarin - $awaySagarin) / 10 : 0;
 
-        return round(($fpiSpread + $eloSpread) / 1.4, 2); // Adjust divisor as necessary
+        return round(($fpiSpread + $eloSpread + $sagarinSpread) / 1.6, 2); // Adjust divisor as necessary
     }
 }

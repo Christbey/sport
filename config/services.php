@@ -40,4 +40,9 @@ return [
         'host' => env('RAPIDAPI_HOST'),
     ],
 
+    'college_football_data' => [
+        'key' => env('COLLEGE_FOOTBALL_DATA_API_KEY'),
+        'host' => env('COLLEGE_FOOTBALL_DATA_HOST'),
+    ],
+
 ];

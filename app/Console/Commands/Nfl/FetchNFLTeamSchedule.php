@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Console\Commands\Nfl;
 
-use App\Jobs\Nfl\StoreNflTeamSchedule;
 use App\Jobs\FetchNflEspnScheduleJob;
+use App\Jobs\Nfl\StoreNflTeamSchedule;
 use App\Models\NflTeam;
 use Illuminate\Console\Command;
 
