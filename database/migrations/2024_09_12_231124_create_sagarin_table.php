@@ -8,7 +8,7 @@ class CreateSagarinTable extends Migration
 {
     public function up()
     {
-        Schema::create('sagarins', function (Blueprint $table) {
+        Schema::create('sagarin', function (Blueprint $table) {
             $table->unsignedBigInteger('id')->primary(); // referencing CollegeFootballTeam's id
             $table->string('team_name');
             $table->decimal('rating', 8, 2);
