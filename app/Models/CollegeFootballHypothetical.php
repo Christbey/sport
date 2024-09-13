@@ -10,6 +10,8 @@ class CollegeFootballHypothetical extends Model
 {
     use HasFactory;
 
+    protected $table = 'college_football_hypotheticals';
+
     protected $fillable = [
         'game_id',
         'week',

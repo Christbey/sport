@@ -23,78 +23,156 @@ class CalculateHypotheticalSpread extends Command
 
     public function handle()
     {
-        // Get today's date
-        $today = Carbon::today();
-
-        // Fetch only games from Week 1 where both home and away divisions are 'fbs' and start_date is in the future
-        $games = CollegeFootballGame::where('home_division', 'fbs')
-            ->where('away_division', 'fbs')
-            ->where('week', 3)  // Filter for Week 1
-            ->where('season', 2024)  // Adjust the season if needed
-            ->where('start_date', '>=', $today)  // Only include games where start_date is today or in the future
-            ->get();
+        $games = $this->fetchRelevantGames();
 
         foreach ($games as $game) {
-            $homeTeam = $game->homeTeam;
-            $awayTeam = $game->awayTeam;
-            $year = $game->year;
-            $week = $game->week;
-
-            if (!$homeTeam || !$awayTeam) {
-                Log::warning("Missing team data for game ID {$game->id}. Home or away team is null.");
-                continue;
-            }
-
-            // Fetch Elo and FPI ratings
-            $homeElo = CollegeFootballElo::where('team_id', $homeTeam->id)->where('year', $game->season)->value('elo');
-            $awayElo = CollegeFootballElo::where('team_id', $awayTeam->id)->where('year', $game->season)->value('elo');
-            $homeFpi = CollegeFootballFpi::where('team_id', $homeTeam->id)->where('year', $game->season)->value('fpi');
-            $awayFpi = CollegeFootballFpi::where('team_id', $awayTeam->id)->where('year', $game->season)->value('fpi');
-
-            // Fetch Sagarin ratings
-            $homeSagarin = Sagarin::where('id', $homeTeam->id)->value('rating');
-            $awaySagarin = Sagarin::where('id', $awayTeam->id)->value('rating');
-
-            if ($homeElo === null || $awayElo === null || $homeFpi === null || $awayFpi === null || $homeSagarin === null || $awaySagarin === null) {
-                Log::warning("ELO, FPI, or Sagarin data missing for {$homeTeam->school} vs {$awayTeam->school} in $year.");
-                continue;
-            }
-
-            $spread = $this->calculateHypotheticalSpread($homeFpi, $awayFpi, $homeElo, $awayElo, $homeSagarin, $awaySagarin);
-
-            // Use updateOrCreate to store or update the result in the database
-            $hypothetical = CollegeFootballHypothetical::updateOrCreate(
-                [
-                    'game_id' => $game->id,  // Use game_id as the unique identifier for updating or creating
-                ],
-                [
-                    'week' => $week,  // Store the week of the game
-                    'home_team_id' => $homeTeam->id,
-                    'away_team_id' => $awayTeam->id,
-                    'home_team_school' => $homeTeam->school,  // Storing the home team school name
-                    'away_team_school' => $awayTeam->school,  // Storing the away team school name
-                    'home_elo' => $homeElo,
-                    'away_elo' => $awayElo,
-                    'home_fpi' => $homeFpi,
-                    'away_fpi' => $awayFpi,
-                    'home_sagarin' => $homeSagarin,
-                    'away_sagarin' => $awaySagarin,
-                    'hypothetical_spread' => $spread,
-                ]
-            );
-
-            // Log the hypothetical spread
-            Log::info("Hypothetical Spread for {$awayTeam->school} @ {$homeTeam->school}: $spread");
+            $this->processGame($game);
         }
     }
 
-    // Function to calculate spread using Elo, FPI, and Sagarin
+    /**
+     * Fetch games for Week 1 where both teams are in the 'fbs' division.
+     */
+    private function fetchRelevantGames()
+    {
+        $today = Carbon::today();
+
+        return CollegeFootballGame::where('home_division', 'fbs')
+            ->where('away_division', 'fbs')
+            ->where('week', 3)
+            ->where('season', 2024)
+            ->where('start_date', '>=', $today)
+            ->get();
+    }
+
+    /**
+     * Process a single game: calculate the spread and update or create the record.
+     */
+    private function processGame($game)
+    {
+        $homeTeam = $game->homeTeam;
+        $awayTeam = $game->awayTeam;
+
+        if (!$homeTeam || !$awayTeam) {
+            return $this->logMissingTeamWarning($game);
+        }
+
+        [$homeElo, $awayElo] = $this->fetchEloRatings($game, $homeTeam, $awayTeam);
+        [$homeFpi, $awayFpi] = $this->fetchFpiRatings($game, $homeTeam, $awayTeam);
+        [$homeSagarin, $awaySagarin] = $this->fetchSagarinRatings($homeTeam, $awayTeam);
+
+        if (!$this->ratingsAreValid($homeElo, $awayElo, $homeFpi, $awayFpi, $homeSagarin, $awaySagarin)) {
+            return $this->logMissingRatingsWarning($game, $homeTeam, $awayTeam);
+        }
+
+        $spread = $this->calculateHypotheticalSpread($homeFpi, $awayFpi, $homeElo, $awayElo, $homeSagarin, $awaySagarin);
+        $this->storeHypotheticalSpread($game, $homeTeam, $awayTeam, $spread);
+    }
+
+    /**
+     * Fetch Elo ratings for home and away teams.
+     */
+    private function fetchEloRatings($game, $homeTeam, $awayTeam)
+    {
+        $homeElo = CollegeFootballElo::where('team_id', $homeTeam->id)->where('year', $game->season)->value('elo');
+        $awayElo = CollegeFootballElo::where('team_id', $awayTeam->id)->where('year', $game->season)->value('elo');
+
+        return [$homeElo, $awayElo];
+    }
+
+    /**
+     * Fetch FPI ratings for home and away teams.
+     */
+    private function fetchFpiRatings($game, $homeTeam, $awayTeam)
+    {
+        $homeFpi = CollegeFootballFpi::where('team_id', $homeTeam->id)->where('year', $game->season)->value('fpi');
+        $awayFpi = CollegeFootballFpi::where('team_id', $awayTeam->id)->where('year', $game->season)->value('fpi');
+
+        return [$homeFpi, $awayFpi];
+    }
+
+    /**
+     * Fetch Sagarin ratings for home and away teams.
+     */
+    private function fetchSagarinRatings($homeTeam, $awayTeam)
+    {
+        $homeSagarin = Sagarin::where('id', $homeTeam->id)->value('rating');
+        $awaySagarin = Sagarin::where('id', $awayTeam->id)->value('rating');
+
+        return [$homeSagarin, $awaySagarin];
+    }
+
+    /**
+     * Check if all ratings are valid (not null).
+     */
+    private function ratingsAreValid(...$ratings)
+    {
+        foreach ($ratings as $rating) {
+            if ($rating === null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Calculate the hypothetical spread using Elo, FPI, and Sagarin ratings.
+     */
     private function calculateHypotheticalSpread($homeFpi, $awayFpi, $homeElo, $awayElo, $homeSagarin, $awaySagarin): float
     {
         $fpiSpread = $homeFpi && $awayFpi ? ($homeFpi - $awayFpi) / 2 : 0;
         $eloSpread = $homeElo && $awayElo ? ($homeElo - $awayElo) / 25 : 0;
         $sagarinSpread = $homeSagarin && $awaySagarin ? ($homeSagarin - $awaySagarin) / 10 : 0;
 
-        return round(($fpiSpread + $eloSpread + $sagarinSpread) / 1.6, 2); // Adjust divisor as necessary
+        return round(($fpiSpread + $eloSpread + $sagarinSpread) / 1.6, 2);
+    }
+
+    /**
+     * Store or update the hypothetical spread in the database.
+     */
+    private function storeHypotheticalSpread($game, $homeTeam, $awayTeam, $spread)
+    {
+        $homeElo = CollegeFootballElo::where('team_id', $homeTeam->id)->where('year', $game->season)->value('elo');
+        $awayElo = CollegeFootballElo::where('team_id', $awayTeam->id)->where('year', $game->season)->value('elo');
+        $homeFpi = CollegeFootballFpi::where('team_id', $homeTeam->id)->where('year', $game->season)->value('fpi');
+        $awayFpi = CollegeFootballFpi::where('team_id', $awayTeam->id)->where('year', $game->season)->value('fpi');
+        $homeSagarin = Sagarin::where('id', $homeTeam->id)->value('rating');
+        $awaySagarin = Sagarin::where('id', $awayTeam->id)->value('rating');
+
+        CollegeFootballHypothetical::updateOrCreate(
+            ['game_id' => $game->id],
+            [
+                'week' => $game->week,
+                'home_team_id' => $homeTeam->id,
+                'away_team_id' => $awayTeam->id,
+                'home_team_school' => $homeTeam->school,
+                'away_team_school' => $awayTeam->school,
+                'home_elo' => $homeElo,  // Use just the elo value
+                'away_elo' => $awayElo,  // Use just the elo value
+                'home_fpi' => $homeFpi,  // Use just the fpi value
+                'away_fpi' => $awayFpi,  // Use just the fpi value
+                'home_sagarin' => $homeSagarin,  // Use just the Sagarin value
+                'away_sagarin' => $awaySagarin,  // Use just the Sagarin value
+                'hypothetical_spread' => $spread,
+            ]
+        );
+
+        Log::info("Hypothetical Spread for {$awayTeam->school} @ {$homeTeam->school}: $spread");
+    }
+
+    /**
+     * Log a warning if team data is missing.
+     */
+    private function logMissingTeamWarning($game)
+    {
+        Log::warning("Missing team data for game ID {$game->id}. Home or away team is null.");
+    }
+
+    /**
+     * Log a warning if ratings data is missing.
+     */
+    private function logMissingRatingsWarning($game, $homeTeam, $awayTeam)
+    {
+        Log::warning("ELO, FPI, or Sagarin data missing for {$homeTeam->school} vs {$awayTeam->school} in {$game->season}.");
     }
 }
