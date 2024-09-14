@@ -26,7 +26,10 @@
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
                         @foreach ($hypotheticals as $game)
-                            <tr onclick="window.location='{{ route('cfb.hypothetical.show', $game->game_id) }}'" style="cursor: pointer; color: {{ $game->winner_color }};">
+                            <!-- Apply conditional background color based on the 'correct' value -->
+                            <tr onclick="window.location='{{ route('cfb.hypothetical.show', $game->game_id) }}'"
+                                class="{{ $game->correct == 1 ? 'bg-green-100' : '' }}"
+                                style="cursor: pointer; color: {{ $game->winner_color }};">
                                 <td class="px-6 py-4 whitespace-nowrap text-sm">{{ $game->away_team_school }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">{{ $game->home_team_school }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm">{{ $game->hypothetical_spread }}</td>

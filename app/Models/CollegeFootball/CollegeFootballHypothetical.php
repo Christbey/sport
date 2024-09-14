@@ -23,7 +23,7 @@ class CollegeFootballHypothetical extends Model
         'home_fpi',
         'away_fpi',
         'hypothetical_spread',
-        'is_prediction_correct',
+        'correct',
     ];
 
     protected $casts = [

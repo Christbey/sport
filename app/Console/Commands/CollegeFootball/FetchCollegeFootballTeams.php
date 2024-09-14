@@ -28,8 +28,6 @@ class FetchCollegeFootballTeams extends Command
      */
     public function handle()
     {
-
-
         StoreCollegeFootballTeams::dispatch();
 
         $this->info('Dispatched job to fetch and store college football teams.');

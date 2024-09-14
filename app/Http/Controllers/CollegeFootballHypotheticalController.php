@@ -35,10 +35,8 @@ class CollegeFootballHypotheticalController extends Controller
 
             // Determine the projected winner and fetch their team color
             if ($homeWinningPercentage > 0.5) {
-                // Home team is projected to win
                 $winnerTeam = CollegeFootballTeam::find($hypothetical->home_team_id);
             } else {
-                // Away team is projected to win
                 $winnerTeam = CollegeFootballTeam::find($hypothetical->away_team_id);
             }
 
@@ -137,4 +135,24 @@ class CollegeFootballHypotheticalController extends Controller
         // Average the two probabilities (or adjust weights as needed)
         return round(($eloProbability + $fpiProbability) / 2, 4); // Rounded to 4 decimal places
     }
+
+    public function updateCorrect(Request $request, $id)
+    {
+        // Validate the input
+        $request->validate([
+            'correct' => 'required|boolean',
+        ]);
+
+        // Find the hypothetical by id
+        $hypothetical = CollegeFootballHypothetical::findOrFail($id);
+
+        // Update the 'correct' field
+        $hypothetical->update([
+            'correct' => $request->input('correct'),
+        ]);
+
+        return redirect()->route('cfb.hypothetical.show', $hypothetical->game_id)
+            ->with('success', 'Prediction outcome updated successfully.');
+    }
+
 }

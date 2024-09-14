@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\CollegeFootballHypotheticalController;
+use App\Http\Controllers\CollegeFootballNoteController;
 use App\Http\Controllers\PickemController;
 use Illuminate\Support\Facades\Route;
 
@@ -29,6 +30,8 @@ Route::middleware([
     // Route to show the hypothetical matchups
     Route::get('/cfb/hypotheticals', [CollegeFootballHypotheticalController::class, 'index'])->name('cfb.index');
     Route::get('/cfb/detail/{game_id}', [CollegeFootballHypotheticalController::class, 'show'])->name('cfb.hypothetical.show');
+    Route::post('/cfb/notes', [CollegeFootballNoteController::class, 'store'])->name('cfb.notes.store');
+    Route::patch('/cfb/hypothetical/{id}/correct', [CollegeFootballHypotheticalController::class, 'updateCorrect'])->name('cfb.hypothetical.correct');
 
 });
 
