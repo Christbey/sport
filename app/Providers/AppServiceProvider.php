@@ -2,8 +2,7 @@
 
 namespace App\Providers;
 
-use App\Models\CollegeFootball\CollegeFootballGame;
-use App\Models\NflTeamSchedule;
+use App\Models\Nfl\NflTeamSchedule;
 use App\Observers\NflTeamScheduleObserver;
 use Illuminate\Support\ServiceProvider;
 

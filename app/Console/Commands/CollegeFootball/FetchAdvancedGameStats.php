@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Console\Commands\CollegeFootball;
 
-use App\Models\AdvancedGameStat;
+use App\Models\CollegeFootball\AdvancedGameStat;
 use App\Models\CollegeFootball\CollegeFootballTeam;
 use GuzzleHttp\Client;
 use Illuminate\Console\Command;
@@ -70,7 +70,7 @@ class FetchAdvancedGameStats extends Command
     {
         // Find the team_id based on the team name
         $team = CollegeFootballTeam::where('school', $gameStat['team'])->first();
-        $teamId = $team ? $team->id : null; // If team not found, set team_id to null
+        $teamId = $team?->id; // If team not found, set team_id to null
 
         AdvancedGameStat::updateOrCreate(
             ['game_id' => $gameStat['gameId'], 'team' => $gameStat['team']],

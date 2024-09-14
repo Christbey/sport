@@ -2,7 +2,7 @@
 
 namespace App\Observers;
 
-use App\Models\NflTeamSchedule;
+use App\Models\Nfl\NflTeamSchedule;
 use App\Models\UserSubmission;
 
 class NflTeamScheduleObserver
@@ -10,7 +10,7 @@ class NflTeamScheduleObserver
     /**
      * Handle the NflTeamSchedule "updated" event.
      *
-     * @param  \App\Models\NflTeamSchedule  $nflTeamSchedule
+     * @param  \App\Models\Nfl\NflTeamSchedule  $nflTeamSchedule
      * @return void
      */
     public function updated(NflTeamSchedule $nflTeamSchedule)

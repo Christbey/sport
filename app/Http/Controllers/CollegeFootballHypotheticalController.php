@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CollegeFootball\AdvancedGameStat;
 use App\Models\CollegeFootball\CollegeFootballGame;
-use App\Models\CollegeFootballHypothetical;
+use App\Models\CollegeFootball\CollegeFootballHypothetical;
 use App\Models\CollegeFootball\CollegeFootballTeam;
-use App\Models\SpRating;
-use App\Models\AdvancedGameStat;
+use App\Models\CollegeFootball\SpRating;
 use Illuminate\Http\Request;
 
 class CollegeFootballHypotheticalController extends Controller

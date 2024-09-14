@@ -1,17 +1,17 @@
 <?php
 
-namespace App\Jobs;
+namespace App\Jobs\Nfl;
 
-use App\Models\NflTeamSchedule;
-use App\Models\NflTeam;
+use App\Models\Nfl\NflTeam;
+use App\Models\Nfl\NflTeamSchedule;
 use Exception;
 use Illuminate\Bus\Queueable;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class FetchNflEspnScheduleJob implements ShouldQueue
 {

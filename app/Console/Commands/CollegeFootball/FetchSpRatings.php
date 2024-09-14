@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Console\Commands\CollegeFootball;
 
 use App\Models\CollegeFootball\CollegeFootballTeam;
-use App\Models\SpRating;
+use App\Models\CollegeFootball\SpRating;
 use GuzzleHttp\Client;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;

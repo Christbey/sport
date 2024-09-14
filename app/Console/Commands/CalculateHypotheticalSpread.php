@@ -2,14 +2,14 @@
 
 namespace App\Console\Commands;
 
-use App\Models\CollegeFootballHypothetical;
-use App\Models\CollegeFootball\CollegeFootballGame;
 use App\Models\CollegeFootball\CollegeFootballElo;
 use App\Models\CollegeFootball\CollegeFootballFpi;
-use App\Models\Sagarin;
+use App\Models\CollegeFootball\CollegeFootballGame;
+use App\Models\CollegeFootball\CollegeFootballHypothetical;
+use App\Models\CollegeFootball\Sagarin;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
-use Carbon\Carbon;
 
 class CalculateHypotheticalSpread extends Command
 {
@@ -34,16 +34,21 @@ class CalculateHypotheticalSpread extends Command
      * Fetch games for Week 1 where both teams are in the 'fbs' division.
      */
     private function fetchRelevantGames()
-    {
-        $today = Carbon::today();
+{
+    $today = Carbon::today();
 
-        return CollegeFootballGame::where('home_division', 'fbs')
-            ->where('away_division', 'fbs')
-            ->where('week', 3)
-            ->where('season', 2024)
-            ->where('start_date', '>=', $today)
-            ->get();
-    }
+    // Fetch week and season from config
+    $week = config('college_football.week');
+    $season = config('college_football.season');
+
+    return CollegeFootballGame::where('home_division', 'fbs')
+        ->where('away_division', 'fbs')
+        ->where('week', $week)        // Using config value for week
+        ->where('season', $season)    // Using config value for season
+        ->where('start_date', '>=', $today)
+        ->get();
+}
+
 
     /**
      * Process a single game: calculate the spread and update or create the record.

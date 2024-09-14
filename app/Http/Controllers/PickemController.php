@@ -1,11 +1,11 @@
 <?php
 namespace App\Http\Controllers;
 
+use App\Models\Nfl\NflTeamSchedule;
 use App\Models\UserSubmission;
-use App\Models\NflTeamSchedule;
+use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 
 class PickemController extends Controller

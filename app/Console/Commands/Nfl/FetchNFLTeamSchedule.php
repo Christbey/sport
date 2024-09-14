@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands\Nfl;
 
-use App\Jobs\FetchNflEspnScheduleJob;
+use App\Jobs\Nfl\FetchNflEspnScheduleJob;
 use App\Jobs\Nfl\StoreNflTeamSchedule;
-use App\Models\NflTeam;
+use App\Models\Nfl\NflTeam;
 use Illuminate\Console\Command;
 
 class FetchNFLTeamSchedule extends Command

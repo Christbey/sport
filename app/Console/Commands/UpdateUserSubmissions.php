@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
-use App\Models\NflTeamSchedule;
+use App\Models\Nfl\NflTeamSchedule;
 use App\Models\UserSubmission;
+use Illuminate\Console\Command;
 use Symfony\Component\Console\Command\Command as CommandAlias;
 
 class UpdateUserSubmissions extends Command

@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Console\Commands\CollegeFootball;
 
 use App\Models\CollegeFootball\CollegeFootballTeam;
-use Illuminate\Console\Command;
+use App\Models\CollegeFootball\Sagarin;
 use GuzzleHttp\Client;
-use App\Models\Sagarin;
+use Illuminate\Console\Command;
 
 class ScrapeCollegeFootballRankings extends Command
 {
