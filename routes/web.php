@@ -28,5 +28,7 @@ Route::middleware([
 
     // Route to show the hypothetical matchups
     Route::get('/cfb/hypotheticals', [CollegeFootballHypotheticalController::class, 'index'])->name('cfb.index');
+    Route::get('/cfb/detail/{game_id}', [CollegeFootballHypotheticalController::class, 'show'])->name('cfb.hypothetical.show');
+
 });
 

@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\CollegeFootball\CollegeFootballGame;
 use App\Models\CollegeFootballHypothetical;
 use App\Models\CollegeFootball\CollegeFootballTeam;
+use App\Models\SpRating;
+use App\Models\AdvancedGameStat;
 use Illuminate\Http\Request;
 
 class CollegeFootballHypotheticalController extends Controller
@@ -48,6 +50,82 @@ class CollegeFootballHypotheticalController extends Controller
         return view('cfb.index', compact('hypotheticals', 'weeks', 'week'));
     }
 
+    public function show($game_id)
+    {
+        // Fetch the hypothetical spread details based on the game_id
+        $hypothetical = CollegeFootballHypothetical::where('game_id', $game_id)->firstOrFail();
+        $game = CollegeFootballGame::find($game_id);
+
+        // Fetch home and away team details
+        $homeTeam = CollegeFootballTeam::find($hypothetical->home_team_id);
+        $awayTeam = CollegeFootballTeam::find($hypothetical->away_team_id);
+
+        // Fetch SP+ ratings for the home and away teams
+        $homeSpRating = SpRating::where('team', $homeTeam->school)->first();
+        $awaySpRating = SpRating::where('team', $awayTeam->school)->first();
+
+        // Fetch average advanced stats for the home and away teams by team_id
+        $homeAdvStatsAvg = [
+            'offense_ppa' => AdvancedGameStat::where('team_id', $homeTeam->id)->avg('offense_ppa'),
+            'offense_success_rate' => AdvancedGameStat::where('team_id', $homeTeam->id)->avg('offense_success_rate'),
+            'offense_explosiveness' => AdvancedGameStat::where('team_id', $homeTeam->id)->avg('offense_explosiveness'),
+            'defense_ppa' => AdvancedGameStat::where('team_id', $homeTeam->id)->avg('defense_ppa'),
+            'defense_success_rate' => AdvancedGameStat::where('team_id', $homeTeam->id)->avg('defense_success_rate'),
+            'defense_explosiveness' => AdvancedGameStat::where('team_id', $homeTeam->id)->avg('defense_explosiveness'),
+        ];
+
+        $awayAdvStatsAvg = [
+            'offense_ppa' => AdvancedGameStat::where('team_id', $awayTeam->id)->avg('offense_ppa'),
+            'offense_success_rate' => AdvancedGameStat::where('team_id', $awayTeam->id)->avg('offense_success_rate'),
+            'offense_explosiveness' => AdvancedGameStat::where('team_id', $awayTeam->id)->avg('offense_explosiveness'),
+            'defense_ppa' => AdvancedGameStat::where('team_id', $awayTeam->id)->avg('defense_ppa'),
+            'defense_success_rate' => AdvancedGameStat::where('team_id', $awayTeam->id)->avg('defense_success_rate'),
+            'defense_explosiveness' => AdvancedGameStat::where('team_id', $awayTeam->id)->avg('defense_explosiveness'),
+        ];
+
+        // Calculate mismatches based on average advanced stats
+        $ppaMismatch = $homeAdvStatsAvg['offense_ppa'] && $awayAdvStatsAvg['defense_ppa']
+            ? round(  $awayAdvStatsAvg['defense_ppa']- $homeAdvStatsAvg['offense_ppa'], 5)
+            : 'N/A';
+
+        $successRateMismatch = $homeAdvStatsAvg['offense_success_rate'] && $awayAdvStatsAvg['defense_success_rate']
+            ? round( $awayAdvStatsAvg['defense_success_rate']-$homeAdvStatsAvg['offense_success_rate'] , 5)
+            : 'N/A';
+
+        $explosivenessMismatch = $homeAdvStatsAvg['offense_explosiveness'] && $awayAdvStatsAvg['defense_explosiveness']
+            ? round( $awayAdvStatsAvg['defense_explosiveness']-$homeAdvStatsAvg['offense_explosiveness'], 5)
+            : 'N/A';
+
+        // Calculate offense trend (for example, you can average the last 3 games offense_ppa)
+        $home_offense_trend = AdvancedGameStat::where('team_id', $homeTeam->id)
+            ->orderBy('game_id', 'desc')
+            ->limit(3)
+            ->avg('offense_ppa') ?? 'N/A';
+
+        $away_offense_trend = AdvancedGameStat::where('team_id', $awayTeam->id)
+            ->orderBy('game_id', 'desc')
+            ->limit(3)
+            ->avg('offense_ppa') ?? 'N/A';
+
+        // Determine the projected winner
+        $homeWinningPercentage = $this->calculateHomeWinningPercentage(
+            $hypothetical->home_elo,
+            $hypothetical->away_elo,
+            $hypothetical->home_fpi,
+            $hypothetical->away_fpi
+        );
+        $winnerTeam = $homeWinningPercentage > 0.5 ? $homeTeam : $awayTeam;
+
+        // Pass the data to the view
+        return view('cfb.detail', compact(
+            'hypothetical', 'game', 'homeTeam', 'awayTeam',
+            'homeSpRating', 'awaySpRating',
+            'ppaMismatch', 'successRateMismatch', 'explosivenessMismatch',
+            'home_offense_trend', 'away_offense_trend',
+            'homeWinningPercentage', 'winnerTeam'
+        ));
+    }
+
     private function calculateHomeWinningPercentage($homeElo, $awayElo, $homeFpi, $awayFpi)
     {
         // Calculate probability using ELO
@@ -59,5 +137,4 @@ class CollegeFootballHypotheticalController extends Controller
         // Average the two probabilities (or adjust weights as needed)
         return round(($eloProbability + $fpiProbability) / 2, 4); // Rounded to 4 decimal places
     }
-
 }
