@@ -27,7 +27,7 @@ Picksports
                                 <x-dropdown-link href="{{ route('pickem.schedule') }}">{{ __('View Schedule') }}</x-dropdown-link>
                                 <x-dropdown-link href="{{ route('picks.leaderboard') }}">{{ __('Leaderboard') }}</x-dropdown-link>
                                 <!-- Add College Football Hypotheticals Link -->
-
+<x-dropdown-link href="{{route('nfl.detail')}}" >{{__('Nfl Sheet')}}</x-dropdown-link>
                                 <x-dropdown-link href="{{ route('cfb.index') }}">{{ __('CFB Hypotheticals') }}</x-dropdown-link>
                             </div>
                         </x-slot>
