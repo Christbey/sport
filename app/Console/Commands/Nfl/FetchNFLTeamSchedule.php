@@ -4,7 +4,7 @@ namespace App\Console\Commands\Nfl;
 
 use App\Jobs\Nfl\FetchNflEspnScheduleJob;
 use App\Jobs\Nfl\StoreNflTeamSchedule;
-use App\Models\Nfl\NflTeam;
+use App\Models\NflTeam;
 use Illuminate\Console\Command;
 
 class FetchNFLTeamSchedule extends Command

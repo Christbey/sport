@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\CollegeFootballHypotheticalController;
 use App\Http\Controllers\CollegeFootballNoteController;
+use App\Http\Controllers\NflSheetController;
 use App\Http\Controllers\PickemController;
 use Illuminate\Support\Facades\Route;
 
@@ -32,6 +33,10 @@ Route::middleware([
     Route::get('/cfb/detail/{game_id}', [CollegeFootballHypotheticalController::class, 'show'])->name('cfb.hypothetical.show');
     Route::post('/cfb/notes', [CollegeFootballNoteController::class, 'store'])->name('cfb.notes.store');
     Route::patch('/cfb/hypothetical/{id}/correct', [CollegeFootballHypotheticalController::class, 'updateCorrect'])->name('cfb.hypothetical.correct');
+
+    // Route to show the NFL sheet
+    Route::get('/nfl/detail', [NflSheetController::class, 'index'])->name('nfl.detail');
+    Route::post('/nfl/sheet/store', [NflSheetController::class, 'store'])->name('nfl.sheet.store');
 
 });
 

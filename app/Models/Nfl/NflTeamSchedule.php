@@ -1,6 +1,7 @@
 <?php
 namespace App\Models\Nfl;
 
+use App\Models\NflTeam;
 use Illuminate\Database\Eloquent\Model;
 
 class NflTeamSchedule extends Model

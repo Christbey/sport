@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\Nfl\NflTeam;
 use App\Models\Nfl\NflTeamSchedule;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;

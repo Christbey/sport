@@ -2,8 +2,8 @@
 
 namespace App\Jobs\Nfl;
 
-use App\Models\Nfl\NflTeam;
 use App\Models\Nfl\NflTeamSchedule;
+use App\Models\NflTeam;
 use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;

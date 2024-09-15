@@ -3,6 +3,10 @@
         <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
             <div class="p-6 bg-white border-b border-gray-200">
                 <h1 class="text-2xl font-semibold mb-6 text-gray-800">{{ $homeTeam->school }} vs {{ $awayTeam->school }}</h1>
+                <div class="mt-6">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800">Spread Comparison</h2>
+                    <p>{{ $smartPick }}</p>
+                </div>
 
                 <!-- Hypothetical Spread Overview -->
                 <p>
@@ -22,17 +26,16 @@
                         </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
-                        <!-- SP+ Ratings and Other Metrics -->
                         @foreach([
-                            'Overall Ranking' => ['home' => $homeSpRating->ranking, 'away' => $awaySpRating->ranking],
-                            'Overall Rating' => ['home' => $homeSpRating->overall_rating, 'away' => $awaySpRating->overall_rating],
+                            'Overall Ranking' => ['home' => optional($homeSpRating)->ranking, 'away' => optional($awaySpRating)->ranking],
+                            'Overall Rating' => ['home' => optional($homeSpRating)->overall_rating, 'away' => optional($awaySpRating)->overall_rating],
                             'Elo Rating' => ['home' => $hypothetical->home_elo, 'away' => $hypothetical->away_elo],
                             'FPI Rating' => ['home' => $hypothetical->home_fpi, 'away' => $hypothetical->away_fpi],
-                            'Offense Ranking' => ['home' => $homeSpRating->offense_ranking, 'away' => $awaySpRating->offense_ranking],
-                            'Offense Rating' => ['home' => $homeSpRating->offense_rating, 'away' => $awaySpRating->offense_rating],
-                            'Defense Ranking' => ['home' => $homeSpRating->defense_ranking, 'away' => $awaySpRating->defense_ranking],
-                            'Defense Rating' => ['home' => $homeSpRating->defense_rating, 'away' => $awaySpRating->defense_rating],
-                            'Special Teams Rating' => ['home' => $homeSpRating->special_teams_rating, 'away' => $awaySpRating->special_teams_rating],
+                            'Offense Ranking' => ['home' => optional($homeSpRating)->offense_ranking, 'away' => optional($awaySpRating)->offense_ranking],
+                            'Offense Rating' => ['home' => optional($homeSpRating)->offense_rating, 'away' => optional($awaySpRating)->offense_rating],
+                            'Defense Ranking' => ['home' => optional($homeSpRating)->defense_ranking, 'away' => optional($awaySpRating)->defense_ranking],
+                            'Defense Rating' => ['home' => optional($homeSpRating)->defense_rating, 'away' => optional($awaySpRating)->defense_rating],
+                            'Special Teams Rating' => ['home' => optional($homeSpRating)->special_teams_rating, 'away' => optional($awaySpRating)->special_teams_rating],
                         ] as $metric => $ratings)
                             <tr>
                                 <td class="px-6 py-4 text-sm">{{ $metric }}</td>
@@ -41,6 +44,7 @@
                             </tr>
                         @endforeach
                         </tbody>
+
                     </table>
                 </div>
 
@@ -101,21 +105,32 @@
                     <h1 class="text-2xl font-semibold mb-6 text-gray-800">{{ $homeTeam->school }} vs {{ $awayTeam->school }}</h1>
 
                     <!-- Form to mark the hypothetical as correct or incorrect -->
-                    <div class="mt-6">
-                        <h2 class="text-xl font-semibold mb-4 text-gray-800">Was the Hypothetical Correct?</h2>
+                    <div class="max-w-7xl mx-auto py-12">
+                        <h1 class="text-2xl font-bold">Update Prediction</h1>
+
                         <form action="{{ route('cfb.hypothetical.correct', $hypothetical->id) }}" method="POST">
                             @csrf
-                            @method('PATCH')
-                            <div class="mb-4">
-                                <label for="correct" class="block text-sm font-medium text-gray-700">Prediction Outcome</label>
-                                <select name="correct" id="correct" class="form-select mt-1 block w-full">
-                                    <option value="1" {{ $hypothetical->correct === 1 ? 'selected' : '' }}>Correct</option>
-                                    <option value="0" {{ $hypothetical->correct === 0 ? 'selected' : '' }}>Incorrect</option>
+                            @method('PATCH')  <!-- Change to PATCH -->
+
+                            <!-- Select the correct team -->
+                            <div class="mt-4">
+                                <label for="team_id" class="block text-sm font-medium text-gray-700">Select Team</label>
+                                <select name="team_id" id="team_id" class="mt-1 block w-full pl-3 pr-10 py-2 border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                    <option value="{{ $homeTeam->id }}">{{ $homeTeam->school }} (Home)</option>
+                                    <option value="{{ $awayTeam->id }}">{{ $awayTeam->school }} (Away)</option>
                                 </select>
                             </div>
-                            <div>
-                                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md">Save Outcome</button>
+
+                            <!-- Correct prediction -->
+                            <div class="mt-4">
+                                <label for="correct" class="block text-sm font-medium text-gray-700">Correct Prediction</label>
+                                <select name="correct" id="correct" class="mt-1 block w-full pl-3 pr-10 py-2 border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                    <option value="1" {{ $hypothetical->correct == 1 ? 'selected' : '' }}>Yes</option>
+                                    <option value="0" {{ $hypothetical->correct == 0 ? 'selected' : '' }}>No</option>
+                                </select>
                             </div>
+
+                            <button type="submit" class="mt-6 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500">Update</button>
                         </form>
                     </div>
                 </div>
