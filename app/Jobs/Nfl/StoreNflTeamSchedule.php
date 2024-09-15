@@ -62,28 +62,44 @@ class StoreNflTeamSchedule implements ShouldQueue
 
     protected function storeGameData($game)
     {
-        NflTeamSchedule::updateOrCreate(
-            [
-                'game_id' => $game['gameID'],
-            ],
-            [
-                'team_abv' => $this->teamAbv,
-                'season_type' => $game['seasonType'],
-                'away_team' => $game['away'],
-                'home_team_id' => $game['teamIDHome'],
-                'game_date' => $game['gameDate'],
-                'game_status' => $game['gameStatus'],
-                'game_week' => $game['gameWeek'],
-                'away_team_id' => $game['teamIDAway'],
-                'home_team' => $game['home'],
-                'away_result' => $game['awayResult'] ?? null,
-                'home_result' => $game['homeResult'] ?? null,
-                'home_pts' => $game['homePts'] ?? null,
-                'away_pts' => $game['awayPts'] ?? null,
-                'game_time' => $game['gameTime'] ?? null,
-                'game_time_epoch' => !empty($game['gameTime_epoch']) ? (int)$game['gameTime_epoch'] : null,
-                'game_status_code' => $game['gameStatusCode'] ?? null,
-            ]
-        );
+        // Find the existing record, or create a new one if it doesn't exist
+        $nflTeamSchedule = NflTeamSchedule::firstOrNew(['game_id' => $game['gameID']]);
+
+        // Set the fields only if they are defined in the incoming data
+        $nflTeamSchedule->team_abv = $this->teamAbv;
+        $nflTeamSchedule->season_type = $game['seasonType'];
+        $nflTeamSchedule->away_team = $game['away'];
+        $nflTeamSchedule->home_team_id = $game['teamIDHome'];
+        $nflTeamSchedule->game_date = $game['gameDate'];
+        $nflTeamSchedule->game_week = $game['gameWeek'];
+        $nflTeamSchedule->away_team_id = $game['teamIDAway'];
+        $nflTeamSchedule->home_team = $game['home'];
+
+        // Only update if the value is not null and not empty
+        if (!empty($game['awayResult'])) {
+            $nflTeamSchedule->away_result = $game['awayResult'];
+        }
+
+        if (!empty($game['homeResult'])) {
+            $nflTeamSchedule->home_result = $game['homeResult'];
+        }
+
+        if (!empty($game['gameStatus'])) {
+            $nflTeamSchedule->game_status = $game['gameStatus'];
+        }
+
+        // Handle optional points
+        $nflTeamSchedule->home_pts = $game['homePts'] ?? $nflTeamSchedule->home_pts;
+        $nflTeamSchedule->away_pts = $game['awayPts'] ?? $nflTeamSchedule->away_pts;
+
+        // Handle optional game time
+        $nflTeamSchedule->game_time = $game['gameTime'] ?? $nflTeamSchedule->game_time;
+        $nflTeamSchedule->game_time_epoch = !empty($game['gameTime_epoch']) ? (int)$game['gameTime_epoch'] : $nflTeamSchedule->game_time_epoch;
+
+        // Handle game status code
+        $nflTeamSchedule->game_status_code = $game['gameStatusCode'] ?? $nflTeamSchedule->game_status_code;
+
+        // Save the record to the database
+        $nflTeamSchedule->save();
     }
 }
