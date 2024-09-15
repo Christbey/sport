@@ -9,14 +9,16 @@ use Illuminate\Console\Command;
 
 class FetchNFLTeamSchedule extends Command
 {
-    protected $signature = 'nfl:fetch-team-schedule {season}';
+    protected $signature = 'nfl:fetch-team-schedule {season?}';
 
     protected $description = 'Fetch and store the NFL team schedule for all teams and a specific season, then run the ESPN schedule fetch job';
 
     public function handle()
     {
-        // Get the season from the argument
-        $season = $this->argument('season');
+        // Get the season from the argument or fallback to the config value
+        $season = $this->argument('season') ?? config('nfl.seasonYear');
+        $seasonType = config('nfl.seasonType');
+        $weekNumber = config('nfl.weekNumber');
 
         // Fetch all the teams from the nfl_teams table
         $teams = NflTeam::all();
@@ -37,8 +39,8 @@ class FetchNFLTeamSchedule extends Command
             $delay = $delayInSeconds;
         }
 
-        // Dispatch the FetchNflEspnScheduleJob without delay (or you can add a delay if needed)
-        FetchNflEspnScheduleJob::dispatch(2024, 2, 1);
+        // Dispatch the FetchNflEspnScheduleJob with the seasonYear, seasonType, and weekNumber from config
+        FetchNflEspnScheduleJob::dispatch($season, $seasonType, $weekNumber);
 
         $this->info('All NFL team schedules dispatched successfully.');
     }

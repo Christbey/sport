@@ -1,6 +1,9 @@
 <?php
 
 return [
+    'seasonYear' => env('NFL_SEASON_YEAR', 2024),
+    'seasonType' => env('NFL_SEASON_TYPE', 'regular'),
+    'weekNumber' => env('NFL_WEEK_NUMBER', 1),
     'weeks' => [
         'Week 1' => ['start' => '2024-08-30', 'end' => '2024-09-11'],
         'Week 2' => ['start' => '2024-09-12', 'end' => '2024-09-18'],
