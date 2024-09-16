@@ -2,19 +2,21 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Nfl\NflTeamSchedule;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use App\Models\NflBoxScore;
 use App\Models\NflPlayerStat;
 use App\Models\NflTeamStat;
+use Carbon\Carbon;
 
 class FetchNflBoxScore extends Command
 {
-    // Command signature with optional arguments
-    protected $signature = 'nfl:fetch-boxscore {gameID?}';
+    // Command signature with an optional gameID and 'all' method
+    protected $signature = 'nfl:fetch-boxscore {gameID?} {--all}';
 
     // Command description
-    protected $description = 'Fetch NFL box score from the API route and store the data';
+    protected $description = 'Fetch NFL box score for a specific game or all missing games before today, and store the data';
 
     public function __construct()
     {
@@ -23,21 +25,76 @@ class FetchNflBoxScore extends Command
 
     public function handle()
     {
-        // Get optional arguments and provide default values if not provided
-        $gameID = $this->argument('gameID') ?? '20240810_CHI@BUF';  // Default gameID
+        // Check if the 'all' option is used
+        if ($this->option('all')) {
+            $this->fetchAllBoxScoresBeforeToday();
+            return;
+        }
+
+        // Get optional gameID argument
+        $gameID = $this->argument('gameID');
+
+        // If a gameID is provided, fetch only that game's box score
+        if ($gameID) {
+            $this->fetchAndStoreBoxScore($gameID);
+        } else {
+            // If no gameID is provided, run for all game_ids within the current week's date range
+            $this->fetchBoxScoresForCurrentWeek();
+        }
+    }
+
+    protected function fetchBoxScoresForCurrentWeek()
+    {
+        // Get the current date
+        $currentDate = Carbon::now();
+
+        // Loop through the config weeks and find the current week based on date
+        $currentWeekConfig = collect(config('nfl.weeks'))->first(function ($week, $key) use ($currentDate) {
+            $startDate = Carbon::parse($week['start']);
+            $endDate = Carbon::parse($week['end']);
+            return $currentDate->between($startDate, $endDate);
+        });
+
+        if (!$currentWeekConfig) {
+            $this->error('No matching week found for the current date.');
+            return;
+        }
+
+        $startDate = $currentWeekConfig['start'];
+        $endDate = $currentWeekConfig['end'];
+
+        $this->info("Fetching box scores for games between {$startDate} and {$endDate}");
+
+        // Fetch all game_ids between the start and end date from the nfl_team_schedules table
+        $games = NflTeamSchedule::whereBetween('game_date', [$startDate, $endDate])->pluck('game_id');
+
+        if ($games->isEmpty()) {
+            $this->error("No games found for the date range {$startDate} to {$endDate}");
+            return;
+        }
+
+        // Loop through each game_id and fetch/store box score
+        foreach ($games as $gameID) {
+            $this->fetchAndStoreBoxScore($gameID);
+        }
+    }
+
+    protected function fetchAndStoreBoxScore($gameID)
+    {
+        $this->info("Fetching box score for game: {$gameID}");
 
         // Make an HTTP request to the route you've defined
         $response = Http::get(route('nfl.boxscore'), [
             'gameID' => $gameID,
         ]);
 
-        // Check for a successful response
+        // Check if the response is successful
         if ($response->successful()) {
             $data = $response->json();
             $this->storeBoxScoreData($data);
-            $this->info('NFL Box Score data stored successfully.');
+            $this->info("NFL Box Score for game {$gameID} stored successfully.");
         } else {
-            $this->error('Failed to fetch box score.');
+            $this->error("Failed to fetch box score for game {$gameID}");
         }
     }
 
@@ -99,6 +156,27 @@ class FetchNflBoxScore extends Command
                     ]
                 );
             }
+        }
+    }
+
+    protected function fetchAllBoxScoresBeforeToday()
+    {
+        $today = Carbon::today();
+        $this->info("Fetching all box scores for games before {$today}");
+
+        // Get all game_ids from nfl_team_schedules that have not been stored in the nfl_box_scores table
+        $games = NflTeamSchedule::where('game_date', '<', $today)
+            ->whereNotIn('game_id', NflBoxScore::pluck('game_id'))
+            ->pluck('game_id');
+
+        if ($games->isEmpty()) {
+            $this->info("No games found before {$today} that are missing box scores.");
+            return;
+        }
+
+        // Fetch box score for each missing game_id
+        foreach ($games as $gameID) {
+            $this->fetchAndStoreBoxScore($gameID);
         }
     }
 }
