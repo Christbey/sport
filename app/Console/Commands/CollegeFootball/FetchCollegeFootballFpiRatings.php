@@ -7,7 +7,7 @@ use Illuminate\Console\Command;
 
 class FetchCollegeFootballFpiRatings extends Command
 {
-    protected $signature = 'fetch:college-football-fpi {year}';
+    protected $signature = 'fetch:college-football-fpi {year?}';
     protected $description = 'Fetch and store college football FPI data';
 
     public function __construct()
@@ -17,7 +17,7 @@ class FetchCollegeFootballFpiRatings extends Command
 
     public function handle()
     {
-        $year = $this->argument('year');
+        $year = $this->argument('year') ?? config('college_football.season');
         StoreCollegeFootballFpiRatings::dispatch($year);
 
         $this->info('FPI data fetch job dispatched.');

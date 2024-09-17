@@ -5,6 +5,7 @@ use App\Http\Controllers\CollegeFootballNoteController;
 use App\Http\Controllers\NflSheetController;
 use App\Http\Controllers\PickemController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\TeamStatsController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -37,6 +38,10 @@ Route::middleware([
     // Route to show the NFL sheet
     Route::get('/nfl/detail', [NflSheetController::class, 'index'])->name('nfl.detail');
     Route::post('/nfl/sheet/store', [NflSheetController::class, 'store'])->name('nfl.sheet.store');
+
+
+    Route::get('/nfl/stats', [TeamStatsController::class, 'index'])->name('nfl.stats.index');
+    Route::get('/nfl/stats/show', [TeamStatsController::class, 'getStats'])->name('nfl.stats.results');
 
 });
 
