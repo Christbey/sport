@@ -45,3 +45,7 @@ Route::middleware([
 
 });
 
+use App\Http\Controllers\PlayerVsOpponentController;
+
+Route::get('/nfl/player-vs-opponent', [PlayerVsOpponentController::class, 'showForm'])->name('playerVsOpponent.form');
+Route::post('/nfl/player-vs-opponent', [PlayerVsOpponentController::class, 'index'])->name('playerVsOpponent.results');

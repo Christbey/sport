@@ -29,6 +29,8 @@ Picksports
                                 <!-- Add College Football Hypotheticals Link -->
 <x-dropdown-link href="{{route('nfl.detail')}}" >{{__('Nfl Sheet')}}</x-dropdown-link>
                                 <x-dropdown-link href="{{ route('cfb.index') }}">{{ __('CFB Hypotheticals') }}</x-dropdown-link>
+                                <x-dropdown-link href="{{ route('nfl.stats.index') }}">{{ __('NFL Stats') }}</x-dropdown-link>
+
                             </div>
                         </x-slot>
                     </x-dropdown>
@@ -142,6 +144,8 @@ Picksports
             <x-responsive-nav-link href="{{ route('picks.leaderboard') }}" :active="request()->routeIs('picks.leaderboard')">{{ __('Leaderboard') }}</x-responsive-nav-link>
             <!-- Add Hypotheticals link to the mobile menu as well -->
             <x-responsive-nav-link href="{{ route('cfb.index') }}" :active="request()->routeIs('cfb.index')">{{ __('CFB Hypotheticals') }}</x-responsive-nav-link>
+            <x-responsive-nav-link href="{{ route('nfl.detail') }}" :active="request()->routeIs('nfl.detail')">{{ __('Nfl Sheet') }}</x-responsive-nav-link>
+            <x-responsive-nav-link href="{{ route('nfl.stats.index') }}" :active="request()->routeIs('nfl.stats.index')">{{ __('NFL Stats') }}</x-responsive-nav-link>
         </div>
 
         <!-- Authenticated Users -->
