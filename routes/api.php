@@ -2,6 +2,8 @@
 use App\Http\Controllers\NflRapidApiController;
 
 use App\Http\Controllers\CollegeFootballDataController;
+use App\Http\Controllers\TeamRankingController;
+use App\Http\Controllers\TeamStatsController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -66,3 +68,6 @@ Route::get('/nfl/player-list', [NflRapidApiController::class, 'getNFLPlayerList'
 
 Route::get('/nfl/team-roster', [NflRapidApiController::class, 'getNFLTeamRoster'])->name('nfl.teamRoster');
 Route::get('/nfl/boxscore', [NflRapidApiController::class, 'getNFLBoxScore'])->name('nfl.boxscore');
+Route::get('/nfl-player-stats', [TeamStatsController::class, 'index']);
+Route::get('/team-rankings/points-per-game', [TeamRankingController::class, 'fetchPointsPerGame']);
+Route::get('/team-rankings/{rankingType}', [TeamRankingController::class, 'fetchRankings'])->name('team-rankings.fetch');

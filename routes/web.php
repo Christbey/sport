@@ -3,7 +3,9 @@
 use App\Http\Controllers\CollegeFootballHypotheticalController;
 use App\Http\Controllers\CollegeFootballNoteController;
 use App\Http\Controllers\NflSheetController;
+use App\Http\Controllers\NflStatsViewController;
 use App\Http\Controllers\PickemController;
+use App\Http\Controllers\TeamRankingController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\TeamStatsController;
 
@@ -45,7 +47,14 @@ Route::middleware([
 
 });
 
-use App\Http\Controllers\PlayerVsOpponentController;
 
-Route::get('/nfl/player-vs-opponent', [PlayerVsOpponentController::class, 'showForm'])->name('playerVsOpponent.form');
-Route::post('/nfl/player-vs-opponent', [PlayerVsOpponentController::class, 'index'])->name('playerVsOpponent.results');
+Route::get('/nfl/receivers', [NflStatsViewController::class, 'showReceivers']);
+Route::get('/nfl/rushers', [NflStatsViewController::class, 'showRushers']);
+Route::get('/team-rankings/points-per-game', [TeamRankingController::class, 'fetchPointsPerGame']);
+// Route to load Scoring Offense view
+Route::get('/team-rankings/scoring-offense', function () {
+    return view('team_rankings.scoring_offense');
+})->name('team-rankings.scoring-offense');
+
+// Dynamic route to fetch specific stat data
+Route::get('/team-rankings/{category}/{stat}', [TeamRankingController::class, 'fetchStatData'])->name('team-rankings.stat');
