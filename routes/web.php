@@ -52,7 +52,7 @@ Route::get('/nfl/receivers', [NflStatsViewController::class, 'showReceivers']);
 Route::get('/nfl/rushers', [NflStatsViewController::class, 'showRushers']);
 Route::get('/team-rankings/points-per-game', [TeamRankingController::class, 'fetchPointsPerGame']);
 // Route to load Scoring Offense view
-Route::get('/team-rankings/scoring-offense', function () {
+Route::get('/team-rankings/', function () {
     return view('team_rankings.scoring_offense');
 })->name('team-rankings.scoring-offense');
 

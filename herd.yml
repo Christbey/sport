@@ -1,0 +1,5 @@
+integrations:
+  forge:
+    picksports.app:
+      server-id: 711649
+      site-id: 2459798
