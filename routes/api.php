@@ -69,5 +69,12 @@ Route::get('/nfl/player-list', [NflRapidApiController::class, 'getNFLPlayerList'
 Route::get('/nfl/team-roster', [NflRapidApiController::class, 'getNFLTeamRoster'])->name('nfl.teamRoster');
 Route::get('/nfl/boxscore', [NflRapidApiController::class, 'getNFLBoxScore'])->name('nfl.boxscore');
 Route::get('/nfl-player-stats', [TeamStatsController::class, 'index']);
-Route::get('/team-rankings/points-per-game', [TeamRankingController::class, 'fetchPointsPerGame']);
-Route::get('/team-rankings/{rankingType}', [TeamRankingController::class, 'fetchRankings'])->name('team-rankings.fetch');
+
+Route::prefix('team-rankings')->group(function () {
+    // Route for fetching stat data
+    Route::get('/stat/{category}/{stat}', [TeamRankingController::class, 'getStat'])->name('api.team-rankings.stat');
+
+    // Route for fetching rankings
+    Route::get('/ranking/{rankingType}', [TeamRankingController::class, 'getRanking'])->name('api.team-rankings.fetch');
+});
+

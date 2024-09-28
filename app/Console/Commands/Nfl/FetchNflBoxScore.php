@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Console\Commands\Nfl;
 
 use App\Models\Nfl\NflTeamSchedule;
-use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Http;
 use App\Models\NflBoxScore;
 use App\Models\NflPlayerStat;
 use App\Models\NflTeamStat;
 use Carbon\Carbon;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Http;
 
 class FetchNflBoxScore extends Command
 {

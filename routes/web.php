@@ -50,11 +50,8 @@ Route::middleware([
 
 Route::get('/nfl/receivers', [NflStatsViewController::class, 'showReceivers']);
 Route::get('/nfl/rushers', [NflStatsViewController::class, 'showRushers']);
-Route::get('/team-rankings/points-per-game', [TeamRankingController::class, 'fetchPointsPerGame']);
-// Route to load Scoring Offense view
-Route::get('/team-rankings/', function () {
-    return view('team_rankings.scoring_offense');
-})->name('team-rankings.scoring-offense');
+// Route to load the scoring stats view
+Route::get('/scoring', [TeamRankingController::class, 'showScoring'])->name('team_rankings.scoring');
 
-// Dynamic route to fetch specific stat data
-Route::get('/team-rankings/{category}/{stat}', [TeamRankingController::class, 'fetchStatData'])->name('team-rankings.stat');
+// Route to load the rankings stats view
+Route::get('/rankings', [TeamRankingController::class, 'showRankings'])->name('team_rankings.rankings');

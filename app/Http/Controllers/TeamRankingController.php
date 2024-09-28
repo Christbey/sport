@@ -4,8 +4,8 @@ namespace App\Http\Controllers;
 
 use GuzzleHttp\Client;
 use Symfony\Component\DomCrawler\Crawler;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Http\Request;
 
 class TeamRankingController extends Controller
 {
@@ -13,119 +13,125 @@ class TeamRankingController extends Controller
 
     public function __construct()
     {
-        // Initialize Guzzle Client with base URL
-        $this->client = new Client([
+        $this->client = $this->initializeClient();
+    }
+
+    // Initialize Guzzle Client
+    protected function initializeClient()
+    {
+        return new Client([
             'base_uri' => 'https://www.teamrankings.com',
-            'timeout'  => 10.0,
+            'timeout' => 10.0,
             'headers' => [
                 'User-Agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36',
                 'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
                 'Accept-Language' => 'en-US,en;q=0.9',
                 'Connection' => 'keep-alive',
-                'Upgrade-Insecure-Requests' => '1',
-                'Sec-Fetch-Mode' => 'navigate',
-                'Sec-Fetch-User' => '?1',
-                'Sec-Fetch-Dest' => 'document',
             ],
         ]);
-
     }
 
-
-    public function fetchStatData($category, $stat)
+    // General method to fetch data from a URL and return a Crawler object
+    protected function fetchHtml($url)
     {
-        // Dynamically build the URL based on the category and stat type
+        try {
+            $response = $this->client->request('GET', $url);
+            return new Crawler($response->getBody()->getContents());
+        } catch (\Exception $e) {
+            Log::error("Error fetching URL: $url - " . $e->getMessage());
+            throw new \Exception('Unable to fetch data');
+        }
+    }
+
+    // General method to parse table rows
+    protected function parseTableRows(Crawler $crawler, array $mapping)
+    {
+        return $crawler->filter('table.tr-table.datatable.scrollable tbody tr')->each(function (Crawler $row) use ($mapping) {
+            $data = [];
+            foreach ($mapping as $index => $field) {
+                $data[$field] = $row->filter('td')->eq($index)->text();
+            }
+
+            // Check for team link if it's part of the mapping
+            if (isset($mapping['team_link'])) {
+                $data['team_link'] = $row->filter('td')->eq(1)->filter('a')->attr('href');
+            }
+
+            return $data;
+        });
+    }
+
+    // Fetch and return stat data
+    public function getStat($category, $stat)
+    {
         $url = "/nfl/stat/{$stat}";
 
         try {
-            // Fetch the HTML page using Guzzle
-            $response = $this->client->request('GET', $url);
-            $html = $response->getBody()->getContents();
+            $crawler = $this->fetchHtml($url);
 
-            // Use DomCrawler to parse the HTML and extract data
-            $crawler = new Crawler($html);
-            $rows = $crawler->filter('table.tr-table.datatable.scrollable tbody tr')->each(function (Crawler $row) {
-                return [
-                    'rank' => $row->filter('td')->eq(0)->text(),
-                    'team' => $row->filter('td')->eq(1)->text(),
-                    'team_link' => $row->filter('td')->eq(1)->filter('a')->attr('href'),
-                    '2024' => $row->filter('td')->eq(2)->text(),
-                    'last_3' => $row->filter('td')->eq(3)->text(),
-                    'last_1' => $row->filter('td')->eq(4)->text(),
-                    'home' => $row->filter('td')->eq(5)->text(),
-                    'away' => $row->filter('td')->eq(6)->text(),
-                    '2023' => $row->filter('td')->eq(7)->text(),
-                ];
-            });
+            $rows = $this->parseTableRows($crawler, [
+                0 => 'rank',
+                1 => 'team',
+                2 => '2024',
+                3 => 'last_3',
+                4 => 'last_1',
+                5 => 'home',
+                6 => 'away',
+                7 => '2023'
+            ]);
 
-            // Return a view with the data
-            return view('team_rankings.stat_data', ['rows' => $rows, 'stat' => $stat]);
+            return response()->json(['data' => $rows, 'stat' => $stat]);
 
         } catch (\Exception $e) {
-            // Handle exception
-            return response()->json(['error' => 'Unable to fetch data', 'message' => $e->getMessage()], 500);
+            return $this->handleError($e);
         }
     }
 
-    public function fetchRankings($rankingType)
+    // Fetch and return ranking data
+    public function getRanking($rankingType)
     {
-        // URL for fetching the table data
-        $url = "https://www.teamrankings.com/nfl/ranking/{$rankingType}";
+        $url = "/nfl/ranking/{$rankingType}";
 
         try {
-            // Fetch the HTML page using Guzzle
-            $response = $this->client->request('GET', $url);
-            $html = $response->getBody()->getContents();
+            $crawler = $this->fetchHtml($url);
 
-            // Use DomCrawler to parse the HTML and extract the table
-            $crawler = new Crawler($html);
-
-            // Check if the table exists
             if (!$crawler->filter('table.tr-table.datatable.scrollable')->count()) {
                 Log::warning('Table not found for the provided ranking type: ' . $rankingType);
-                return response()->json(['error' => 'Unable to fetch data', 'message' => 'Table not found in the HTML.'], 404);
+                return response()->json(['error' => 'Table not found'], 404);
             }
 
-            // Check if there are rows in the table
-            if ($crawler->filter('table.tr-table.datatable.scrollable tbody tr')->count() === 0) {
-                Log::warning('No table rows found for the provided ranking type: ' . $rankingType);
-                return response()->json(['error' => 'Unable to fetch data', 'message' => 'No data in table.'], 404);
-            }
+            $rows = $this->parseTableRows($crawler, [
+                0 => 'rank',
+                1 => 'team',
+                2 => 'rating',
+                3 => 'high',
+                4 => 'low',
+                5 => 'last'
+            ]);
 
-            // Extract table rows with ranking information
-            $rows = $crawler->filter('table.tr-table.datatable.scrollable tbody tr')->each(function (Crawler $row) {
-                // Default row structure
-                $data = [
-                    'rank' => $row->filter('td')->eq(0)->text(),
-                    'team' => $row->filter('td')->eq(1)->text(),
-                    'team_link' => $row->filter('td')->eq(1)->filter('a')->attr('href'),
-                    'rating' => $row->filter('td')->eq(2)->text(),
-                    'high' => $row->filter('td')->eq(3)->text(),
-                    'low' => $row->filter('td')->eq(4)->text(),
-                    'last' => $row->filter('td')->eq(5)->text(),
-                ];
-
-                // If the table includes v_1_5, v_6_10, v_11_16, add these fields
-                if ($row->filter('td')->count() > 6) {
-                    $data['v_1_5'] = $row->filter('td')->eq(3)->text();
-                    $data['v_6_10'] = $row->filter('td')->eq(4)->text();
-                    $data['v_11_16'] = $row->filter('td')->eq(5)->text();
-                    $data['high'] = $row->filter('td')->eq(6)->text();
-                    $data['low'] = $row->filter('td')->eq(7)->text();
-                    $data['last'] = $row->filter('td')->eq(8)->text();
-                }
-
-                return $data;
-            });
-
-            // Return the extracted data to a view
-            return view('team_rankings.ranking_data', ['rows' => $rows, 'rankingType' => $rankingType]);
+            return response()->json(['data' => $rows, 'rankingType' => $rankingType]);
 
         } catch (\Exception $e) {
-            // Log the error message for debugging
-            Log::error('Error fetching data for ranking type: ' . $rankingType . ' - ' . $e->getMessage());
-            return response()->json(['error' => 'Unable to fetch data', 'message' => $e->getMessage()], 500);
+            return $this->handleError($e);
         }
     }
 
+    // Common error handler
+    protected function handleError(\Exception $e)
+    {
+        Log::error('Error fetching data: ' . $e->getMessage());
+        return response()->json(['error' => 'Unable to fetch data', 'message' => $e->getMessage()], 500);
+    }
+
+    // Method to load scoring view
+    public function showScoring()
+    {
+        return view('team_rankings.scoring'); // This loads the 'scoring.blade.php' view file
+    }
+
+    // Method to load rankings view
+    public function showRankings()
+    {
+        return view('team_rankings.ranking'); // This loads the 'rankings.blade.php' view file
+    }
 }
