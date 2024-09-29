@@ -18,7 +18,6 @@
 
         <!-- Section to display game details -->
         <div id="gameDetails" class="mt-4">
-            <h3 class="text-xl font-semibold mb-2">Game Details</h3>
 
             <!-- Table to display game trends -->
             <div class="overflow-x-auto">
