@@ -196,6 +196,8 @@
                                    :active="request()->routeIs('team_rankings.rankings')">
                 {{ __('Team Rankings') }}
             </x-responsive-nav-link>
+            <x-responsive-nav-link href="{{ route('covers.games') }}"
+                                   :active="request()->routeIs('covers.games')">{{ __('Covers Games') }}</x-responsive-nav-link>
         </div>
 
         <!-- Authenticated Users -->
