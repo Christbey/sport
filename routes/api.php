@@ -1,4 +1,5 @@
 <?php
+
 use App\Http\Controllers\NflRapidApiController;
 
 use App\Http\Controllers\CollegeFootballDataController;
@@ -55,7 +56,6 @@ Route::get('/player/usage', [CollegeFootballDataController::class, 'getPlayerUsa
 Route::get('/player/returning', [CollegeFootballDataController::class, 'getReturningProduction']);
 Route::get('/stats/player/season', [CollegeFootballDataController::class, 'getPlayerSeasonStats']);
 Route::get('/player/portal', [CollegeFootballDataController::class, 'getTransferPortal']);
-
 
 Route::get('/nfl/betting-odds', [NflRapidApiController::class, 'getNFLBettingOdds']);
 Route::get('/nfl/news', [NflRapidApiController::class, 'getNFLNews']);
