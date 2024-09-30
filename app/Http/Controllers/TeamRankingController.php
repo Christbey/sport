@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Exception;
 use GuzzleHttp\Client;
 use Symfony\Component\DomCrawler\Crawler;
 use Illuminate\Support\Facades\Log;
@@ -21,7 +22,7 @@ class TeamRankingController extends Controller
     {
         return new Client([
             'base_uri' => 'https://www.teamrankings.com',
-            'timeout' => 10.0,
+            'timeout' => 30.0,
             'headers' => [
                 'User-Agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36',
                 'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
@@ -32,36 +33,7 @@ class TeamRankingController extends Controller
     }
 
     // General method to fetch data from a URL and return a Crawler object
-    protected function fetchHtml($url)
-    {
-        try {
-            $response = $this->client->request('GET', $url);
-            return new Crawler($response->getBody()->getContents());
-        } catch (\Exception $e) {
-            Log::error("Error fetching URL: $url - " . $e->getMessage());
-            throw new \Exception('Unable to fetch data');
-        }
-    }
 
-    // General method to parse table rows
-    protected function parseTableRows(Crawler $crawler, array $mapping)
-    {
-        return $crawler->filter('table.tr-table.datatable.scrollable tbody tr')->each(function (Crawler $row) use ($mapping) {
-            $data = [];
-            foreach ($mapping as $index => $field) {
-                $data[$field] = $row->filter('td')->eq($index)->text();
-            }
-
-            // Check for team link if it's part of the mapping
-            if (isset($mapping['team_link'])) {
-                $data['team_link'] = $row->filter('td')->eq(1)->filter('a')->attr('href');
-            }
-
-            return $data;
-        });
-    }
-
-    // Fetch and return stat data
     public function getStat($category, $stat)
     {
         $url = "/nfl/stat/{$stat}";
@@ -82,12 +54,53 @@ class TeamRankingController extends Controller
 
             return response()->json(['data' => $rows, 'stat' => $stat]);
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return $this->handleError($e);
         }
     }
 
+    // General method to parse table rows
+
+    protected function fetchHtml($url)
+    {
+        try {
+            $response = $this->client->request('GET', $url);
+            return new Crawler($response->getBody()->getContents());
+        } catch (Exception $e) {
+            Log::error("Error fetching URL: $url - " . $e->getMessage());
+            throw new Exception('Unable to fetch data');
+        }
+    }
+
+    // Fetch and return stat data
+
+    protected function parseTableRows(Crawler $crawler, array $mapping)
+    {
+        return $crawler->filter('table.tr-table.datatable.scrollable tbody tr')->each(function (Crawler $row) use ($mapping) {
+            $data = [];
+            foreach ($mapping as $index => $field) {
+                $data[$field] = $row->filter('td')->eq($index)->text();
+            }
+
+            // Check for team link if it's part of the mapping
+            if (isset($mapping['team_link'])) {
+                $data['team_link'] = $row->filter('td')->eq(1)->filter('a')->attr('href');
+            }
+
+            return $data;
+        });
+    }
+
     // Fetch and return ranking data
+
+    protected function handleError(Exception $e)
+    {
+        Log::error('Error fetching data: ' . $e->getMessage());
+        return response()->json(['error' => 'Unable to fetch data', 'message' => $e->getMessage()], 500);
+    }
+
+    // Common error handler
+
     public function getRanking($rankingType)
     {
         $url = "/nfl/ranking/{$rankingType}";
@@ -111,19 +124,13 @@ class TeamRankingController extends Controller
 
             return response()->json(['data' => $rows, 'rankingType' => $rankingType]);
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return $this->handleError($e);
         }
     }
 
-    // Common error handler
-    protected function handleError(\Exception $e)
-    {
-        Log::error('Error fetching data: ' . $e->getMessage());
-        return response()->json(['error' => 'Unable to fetch data', 'message' => $e->getMessage()], 500);
-    }
-
     // Method to load scoring view
+
     public function showScoring()
     {
         return view('team_rankings.scoring'); // This loads the 'scoring.blade.php' view file
