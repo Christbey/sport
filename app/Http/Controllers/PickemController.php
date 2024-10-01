@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Nfl\NflTeamSchedule;
@@ -90,9 +91,9 @@ class PickemController extends Controller
                     $gameTime = Carbon::createFromTimestamp($event->game_time_epoch, 'America/Chicago');
 
                     // Check if the current time is within 30 minutes of the game time
-                    if ($now->diffInMinutes($gameTime, false) <= 30) {
-                        return redirect()->back()->with('error', "The game for event {$event->short_name} is locked. You can no longer submit picks.");
-                    }
+//                    if ($now->diffInMinutes($gameTime, false) <= 30) {
+//                        return redirect()->back()->with('error', "The game for event {$event->short_name} is locked. You can no longer submit picks.");
+//                    }
 
                     // Initialize isCorrect as false by default
                     $isCorrect = false;
