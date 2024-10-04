@@ -1,8 +1,10 @@
 <?php
 
-use App\Http\Controllers\NflRapidApiController;
-
+use App\Http\Controllers\Api\EspnQbrController;
+use App\Http\Controllers\Api\EspnTeamProjectionController;
 use App\Http\Controllers\CollegeFootballDataController;
+use App\Http\Controllers\NflRapidApiController;
+use App\Http\Controllers\PickemController;
 use App\Http\Controllers\TeamRankingController;
 use App\Http\Controllers\TeamStatsController;
 use Illuminate\Http\Request;
@@ -78,3 +80,8 @@ Route::prefix('team-rankings')->group(function () {
     Route::get('/ranking/{rankingType}', [TeamRankingController::class, 'getRanking'])->name('api.team-rankings.fetch');
 });
 
+Route::get('/pickem/team-schedule', [PickemController::class, 'showTeamSchedule']);
+Route::post('pickem/pick', [PickemController::class, 'pickWinner']);
+Route::get('pickem/leaderboard', [PickemController::class, 'showLeaderboard']);
+Route::get('/nfl/qbr/{week}', [EspnQbrController::class, 'fetchQbrData']);
+Route::get('/nfl/team/{teamId}/projection', [EspnTeamProjectionController::class, 'fetchTeamProjection']);

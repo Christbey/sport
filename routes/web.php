@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\EspnQbrController;
 use App\Http\Controllers\CollegeFootballHypotheticalController;
 use App\Http\Controllers\CollegeFootballNoteController;
 use App\Http\Controllers\CoversController;
@@ -59,5 +60,7 @@ Route::get('/covers/games', [CoversController::class, 'showGames'])->name('cover
 
 // Fetch a single game's details by its covers_game_id
 Route::get('/api/covers/game/{covers_game_id}', [CoversController::class, 'getGameData']);
+// In routes/web.php
+Route::get('/nfl/qbr/{week}', [EspnQbrController::class, 'fetchQbrData'])->name('espn.qbr');
 
 

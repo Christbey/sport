@@ -34,21 +34,20 @@ class CalculateHypotheticalSpread extends Command
      * Fetch games for Week 1 where both teams are in the 'fbs' division.
      */
     private function fetchRelevantGames()
-{
-    $today = Carbon::today();
+    {
+        $today = Carbon::today();
 
-    // Fetch week and season from config
-    $week = config('college_football.week');
-    $season = config('college_football.season');
+        // Fetch week and season from config
+        $week = config('college_football.week');
+        $season = config('college_football.season');
 
-    return CollegeFootballGame::where('home_division', 'fbs')
-        ->where('away_division', 'fbs')
-        ->where('week', $week)        // Using config value for week
-        ->where('season', $season)    // Using config value for season
-        ->where('start_date', '>=', $today)
-        ->get();
-}
-
+        return CollegeFootballGame::where('home_division', 'fbs')
+            ->where('away_division', 'fbs')
+            ->where('week', $week)        // Using config value for week
+            ->where('season', $season)    // Using config value for season
+            ->where('start_date', '>=', $today)
+            ->get();
+    }
 
     /**
      * Process a single game: calculate the spread and update or create the record.
@@ -72,6 +71,14 @@ class CalculateHypotheticalSpread extends Command
 
         $spread = $this->calculateHypotheticalSpread($homeFpi, $awayFpi, $homeElo, $awayElo, $homeSagarin, $awaySagarin);
         $this->storeHypotheticalSpread($game, $homeTeam, $awayTeam, $spread);
+    }
+
+    /**
+     * Log a warning if team data is missing.
+     */
+    private function logMissingTeamWarning($game)
+    {
+        Log::warning("Missing team data for game ID {$game->id}. Home or away team is null.");
     }
 
     /**
@@ -121,6 +128,14 @@ class CalculateHypotheticalSpread extends Command
     }
 
     /**
+     * Log a warning if ratings data is missing.
+     */
+    private function logMissingRatingsWarning($game, $homeTeam, $awayTeam)
+    {
+        Log::warning("ELO, FPI, or Sagarin data missing for {$homeTeam->school} vs {$awayTeam->school} in {$game->season}.");
+    }
+
+    /**
      * Calculate the hypothetical spread using Elo, FPI, and Sagarin ratings.
      */
     private function calculateHypotheticalSpread($homeFpi, $awayFpi, $homeElo, $awayElo, $homeSagarin, $awaySagarin): float
@@ -152,9 +167,9 @@ class CalculateHypotheticalSpread extends Command
                 'away_team_id' => $awayTeam->id,
                 'home_team_school' => $homeTeam->school,
                 'away_team_school' => $awayTeam->school,
-                'home_elo' => $homeElo,  // Use just the elo value
-                'away_elo' => $awayElo,  // Use just the elo value
-                'home_fpi' => $homeFpi,  // Use just the fpi value
+                'home_elo' => $homeElo,
+                'away_elo' => $awayElo,
+                'home_fpi' => $homeFpi,
                 'away_fpi' => $awayFpi,  // Use just the fpi value
                 'home_sagarin' => $homeSagarin,  // Use just the Sagarin value
                 'away_sagarin' => $awaySagarin,  // Use just the Sagarin value
@@ -163,21 +178,5 @@ class CalculateHypotheticalSpread extends Command
         );
 
         Log::info("Hypothetical Spread for {$awayTeam->school} @ {$homeTeam->school}: $spread");
-    }
-
-    /**
-     * Log a warning if team data is missing.
-     */
-    private function logMissingTeamWarning($game)
-    {
-        Log::warning("Missing team data for game ID {$game->id}. Home or away team is null.");
-    }
-
-    /**
-     * Log a warning if ratings data is missing.
-     */
-    private function logMissingRatingsWarning($game, $homeTeam, $awayTeam)
-    {
-        Log::warning("ELO, FPI, or Sagarin data missing for {$homeTeam->school} vs {$awayTeam->school} in {$game->season}.");
     }
 }

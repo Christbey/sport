@@ -22,12 +22,11 @@ class TeamRankingController extends Controller
     {
         return new Client([
             'base_uri' => 'https://www.teamrankings.com',
-            
+
         ]);
     }
 
     // General method to fetch data from a URL and return a Crawler object
-
     public function getStat($category, $stat)
     {
         $url = "/nfl/stat/{$stat}";
@@ -54,7 +53,6 @@ class TeamRankingController extends Controller
     }
 
     // General method to parse table rows
-
     protected function fetchHtml($url)
     {
         try {
@@ -67,7 +65,6 @@ class TeamRankingController extends Controller
     }
 
     // Fetch and return stat data
-
     protected function parseTableRows(Crawler $crawler, array $mapping)
     {
         return $crawler->filter('table.tr-table.datatable.scrollable tbody tr')->each(function (Crawler $row) use ($mapping) {
@@ -86,7 +83,6 @@ class TeamRankingController extends Controller
     }
 
     // Fetch and return ranking data
-
     protected function handleError(Exception $e)
     {
         Log::error('Error fetching data: ' . $e->getMessage());
@@ -94,7 +90,6 @@ class TeamRankingController extends Controller
     }
 
     // Common error handler
-
     public function getRanking($rankingType)
     {
         $url = "/nfl/ranking/{$rankingType}";
@@ -124,7 +119,6 @@ class TeamRankingController extends Controller
     }
 
     // Method to load scoring view
-
     public function showScoring()
     {
         return view('team_rankings.scoring'); // This loads the 'scoring.blade.php' view file

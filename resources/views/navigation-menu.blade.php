@@ -1,24 +1,21 @@
 <nav x-data="{ open: false }" class="bg-white border-b border-gray-100">
-    <!-- Primary Navigation Menu -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
-            <div class="flex">
+            <div class="flex items-center">
                 <!-- Logo -->
-                <div class="shrink-0 flex items-center">
-                    <a href="{{ route('dashboard') }}">
-                        Picksports
-                    </a>
-                </div>
+                <a href="{{ route('dashboard') }}" class="shrink-0 flex items-center">
+                    Picksports
+                </a>
 
-                <!-- Navigation Links -->
-                <div class="hidden space-x-8 items-center sm:-my-px sm:ms-10 sm:flex">
+                <!-- Primary Navigation Links -->
+                <div class="hidden sm:flex space-x-8 sm:ms-10 items-center">
                     <x-dropdown align="right" width="48">
                         <x-slot name="trigger">
                             <button type="button"
-                                    class="inline-flex items-center px-3 py-2 text-sm leading-4 font-medium text-gray-500 bg-white hover:text-gray-700 focus:outline-none focus:bg-gray-50 active:bg-gray-50 transition ease-in-out duration-150">
+                                    class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-500 bg-white hover:text-gray-700 focus:outline-none focus:bg-gray-50 transition duration-150">
                                 {{ __('Pickem') }}
-                                <svg class="ms-2 -me-0.5 h-4 w-4 inline-block" xmlns="http://www.w3.org/2000/svg"
-                                     fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <svg class="ms-2 -me-0.5 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none"
+                                     viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round"
                                           d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9"/>
                                 </svg>
@@ -26,120 +23,106 @@
                         </x-slot>
 
                         <x-slot name="content">
-                            <div class="w-60">
+                            <div class="">
                                 <x-dropdown-link
                                         href="{{ route('pickem.schedule') }}">{{ __('View Schedule') }}</x-dropdown-link>
                                 <x-dropdown-link
                                         href="{{ route('picks.leaderboard') }}">{{ __('Leaderboard') }}</x-dropdown-link>
-                                <!-- Add College Football Hypotheticals Link -->
-                                <x-dropdown-link href="{{route('nfl.detail')}}">{{__('Nfl Sheet')}}</x-dropdown-link>
+                                <x-dropdown-link
+                                        href="{{ route('nfl.detail') }}">{{ __('Nfl Sheet') }}</x-dropdown-link>
                                 <x-dropdown-link
                                         href="{{ route('cfb.index') }}">{{ __('CFB Hypotheticals') }}</x-dropdown-link>
                                 <x-dropdown-link
-                                        href="{{ route('nfl.stats.index') }}">{{ __('NFL Stats') }}</x-dropdown-link>
+                                        href="{{ route('nfl.stats.index') }}">{{ __('Player Stats') }}</x-dropdown-link>
                                 <x-dropdown-link
-                                        href="{{route('team_rankings.scoring')}}">{{__('Offense Defense')}}</x-dropdown-link>
+                                        href="{{ route('team_rankings.scoring') }}">{{ __('Offense Defense') }}</x-dropdown-link>
                                 <x-dropdown-link
-                                        href="{{route('team_rankings.rankings')}}">{{__('Team Rankings')}}</x-dropdown-link>
-                                <x-dropdown-link href="{{ route('covers.games') }}">
-                                    {{ __('Covers Games') }}
-                                </x-dropdown-link>
-
+                                        href="{{ route('team_rankings.rankings') }}">{{ __('Team Rankings') }}</x-dropdown-link>
+                                <x-dropdown-link
+                                        href="{{ route('covers.games') }}">{{ __('Covers Games') }}</x-dropdown-link>
+                                <x-dropdown-link
+                                        href="{{ route('espn.qbr', ['week' => 1]) }}">{{ __('ESPN QBR') }}</x-dropdown-link>
                             </div>
                         </x-slot>
                     </x-dropdown>
                 </div>
             </div>
 
-            <!-- Authenticated & Guest Users -->
-            <div class="hidden sm:flex sm:items-center sm:ms-6">
+            <!-- Right-side User Authentication Links -->
+            <div class="hidden sm:flex items-center sm:ms-6">
                 @auth
-                    <!-- Teams Dropdown -->
                     @if (Laravel\Jetstream\Jetstream::hasTeamFeatures() && Auth::user()->currentTeam)
-                        <div class="ms-3 relative">
-                            <x-dropdown align="right" width="60">
-                                <x-slot name="trigger">
-                                    <span class="inline-flex rounded-md">
-                                        <button type="button"
-                                                class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-500 bg-white hover:text-gray-700 focus:outline-none focus:bg-gray-50 active:bg-gray-50 transition ease-in-out duration-150">
-                                            {{ Auth::user()->currentTeam->name }}
-                                            <svg class="ms-2 -me-0.5 h-4 w-4" xmlns="http://www.w3.org/2000/svg"
-                                                 fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                                                 stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round"
-                                                      d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9"/>
-                                            </svg>
-                                        </button>
-                                    </span>
-                                </x-slot>
-
-                                <x-slot name="content">
-                                    @if (Auth::user()->email === 'josh@picksports.app')
-                                        <div class="w-60">
-                                            <div class="block px-4 py-2 text-xs text-gray-400">{{ __('Manage Team') }}</div>
-                                            <x-dropdown-link
-                                                    href="{{ route('teams.show', Auth::user()->currentTeam->id) }}">{{ __('Team Settings') }}</x-dropdown-link>
-                                            @can('create', Laravel\Jetstream\Jetstream::newTeamModel())
-                                                <x-dropdown-link
-                                                        href="{{ route('teams.create') }}">{{ __('Create New Team') }}</x-dropdown-link>
-                                            @endcan
-                                        </div>
-                                    @endif
-                                    @if (Auth::user()->allTeams()->count() > 1)
-                                        <div class="border-t border-gray-200"></div>
-                                        <div class="block px-4 py-2 text-xs text-gray-400">{{ __('Switch Teams') }}</div>
-                                        @foreach (Auth::user()->allTeams() as $team)
-                                            <x-switchable-team :team="$team"/>
-                                        @endforeach
-                                    @endif
-                                </x-slot>
-                            </x-dropdown>
-                        </div>
-                    @endif
-
-                    <!-- Settings Dropdown -->
-                    <div class="ms-3 relative">
-                        <x-dropdown align="right" width="48">
+                        <!-- Teams Dropdown -->
+                        <x-dropdown align="right" width="60" class="ms-3">
                             <x-slot name="trigger">
-                                @if (Laravel\Jetstream\Jetstream::managesProfilePhotos())
-                                    <button class="flex text-sm border-2 border-transparent rounded-full focus:outline-none focus:border-gray-300 transition">
-                                        <img class="h-8 w-8 rounded-full object-cover"
-                                             src="{{ Auth::user()->profile_photo_url }}"
-                                             alt="{{ Auth::user()->name }}"/>
+                                <span class="inline-flex rounded-md">
+                                    <button class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-500 bg-white hover:text-gray-700 focus:outline-none focus:bg-gray-50 transition">
+                                        {{ Auth::user()->currentTeam->name }}
+                                        <svg class="ms-2 -me-0.5 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none"
+                                             viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                  d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9"/>
+                                        </svg>
                                     </button>
-                                @else
-                                    <span class="inline-flex rounded-md">
-                                        <button type="button"
-                                                class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-500 bg-white hover:text-gray-700 focus:outline-none focus:bg-gray-50 active:bg-gray-50 transition ease-in-out duration-150">
-                                            {{ Auth::user()->name }}
-                                            <svg class="ms-2 -me-0.5 h-4 w-4" xmlns="http://www.w3.org/2000/svg"
-                                                 fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                                                 stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round"
-                                                      d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
-                                            </svg>
-                                        </button>
-                                    </span>
-                                @endif
+                                </span>
                             </x-slot>
 
                             <x-slot name="content">
-                                <div class="block px-4 py-2 text-xs text-gray-400">{{ __('Manage Account') }}</div>
-                                <x-dropdown-link
-                                        href="{{ route('profile.show') }}">{{ __('Profile') }}</x-dropdown-link>
-                                @if (Laravel\Jetstream\Jetstream::hasApiFeatures())
+                                <div class="w-60">
                                     <x-dropdown-link
-                                            href="{{ route('api-tokens.index') }}">{{ __('API Tokens') }}</x-dropdown-link>
+                                            href="{{ route('teams.show', Auth::user()->currentTeam->id) }}">{{ __('Team Settings') }}</x-dropdown-link>
+                                    @can('create', Laravel\Jetstream\Jetstream::newTeamModel())
+                                        <x-dropdown-link
+                                                href="{{ route('teams.create') }}">{{ __('Create New Team') }}</x-dropdown-link>
+                                    @endcan
+                                </div>
+
+                                @if (Auth::user()->allTeams()->count() > 1)
+                                    <div class="border-t border-gray-200"></div>
+                                    <div class="block px-4 py-2 text-xs text-gray-400">{{ __('Switch Teams') }}</div>
+                                    @foreach (Auth::user()->allTeams() as $team)
+                                        <x-switchable-team :team="$team"/>
+                                    @endforeach
                                 @endif
-                                <div class="border-t border-gray-200"></div>
-                                <form method="POST" action="{{ route('logout') }}" x-data>
-                                    @csrf
-                                    <x-dropdown-link href="{{ route('logout') }}"
-                                                     @click.prevent="$root.submit();">{{ __('Log Out') }}</x-dropdown-link>
-                                </form>
                             </x-slot>
                         </x-dropdown>
-                    </div>
+                    @endif
+
+                    <!-- Settings Dropdown -->
+                    <x-dropdown align="right" width="48" class="ms-3">
+                        <x-slot name="trigger">
+                            @if (Laravel\Jetstream\Jetstream::managesProfilePhotos())
+                                <button class="flex text-sm border-2 border-transparent rounded-full focus:outline-none">
+                                    <img class="h-8 w-8 rounded-full object-cover"
+                                         src="{{ Auth::user()->profile_photo_url }}" alt="{{ Auth::user()->name }}"/>
+                                </button>
+                            @else
+                                <button class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-500 bg-white hover:text-gray-700 focus:outline-none focus:bg-gray-50 transition">
+                                    {{ Auth::user()->name }}
+                                    <svg class="ms-2 -me-0.5 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none"
+                                         viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                              d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+                                    </svg>
+                                </button>
+                            @endif
+                        </x-slot>
+
+                        <x-slot name="content">
+                            <div class="block px-4 py-2 text-xs text-gray-400">{{ __('Manage Account') }}</div>
+                            <x-dropdown-link href="{{ route('profile.show') }}">{{ __('Profile') }}</x-dropdown-link>
+                            @if (Laravel\Jetstream\Jetstream::hasApiFeatures())
+                                <x-dropdown-link
+                                        href="{{ route('api-tokens.index') }}">{{ __('API Tokens') }}</x-dropdown-link>
+                            @endif
+                            <div class="border-t border-gray-200"></div>
+                            <form method="POST" action="{{ route('logout') }}" x-data>
+                                @csrf
+                                <x-dropdown-link href="{{ route('logout') }}"
+                                                 @click.prevent="$root.submit();">{{ __('Log Out') }}</x-dropdown-link>
+                            </form>
+                        </x-slot>
+                    </x-dropdown>
                 @endauth
 
                 <!-- Guest Links -->
@@ -155,15 +138,15 @@
                 @endguest
             </div>
 
-            <!-- Hamburger (Mobile Menu) -->
+            <!-- Hamburger Menu for Mobile -->
             <div class="-me-2 flex items-center sm:hidden">
                 <button @click="open = ! open"
-                        class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:bg-gray-100 focus:text-gray-500 transition duration-150 ease-in-out">
+                        class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none">
                     <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
-                        <path :class="{'hidden': open, 'inline-flex': ! open }" class="inline-flex"
+                        <path :class="{ 'hidden': open, 'inline-flex': ! open }" class="inline-flex"
                               stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                               d="M4 6h16M4 12h16M4 18h16"/>
-                        <path :class="{'hidden': ! open, 'inline-flex': open }" class="hidden" stroke-linecap="round"
+                        <path :class="{ 'hidden': ! open, 'inline-flex': open }" class="hidden" stroke-linecap="round"
                               stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                     </svg>
                 </button>
@@ -172,7 +155,7 @@
     </div>
 
     <!-- Responsive Navigation Menu -->
-    <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
+    <div :class="{ 'block': open, 'hidden': ! open }" class="hidden sm:hidden">
         <div class="pt-2 pb-3 space-y-1">
             <x-responsive-nav-link href="{{ route('dashboard') }}"
                                    :active="request()->routeIs('dashboard')">{{ __('Dashboard') }}</x-responsive-nav-link>
@@ -180,27 +163,23 @@
                                    :active="request()->routeIs('pickem.schedule')">{{ __('View Schedule') }}</x-responsive-nav-link>
             <x-responsive-nav-link href="{{ route('picks.leaderboard') }}"
                                    :active="request()->routeIs('picks.leaderboard')">{{ __('Leaderboard') }}</x-responsive-nav-link>
-            <!-- Add Hypotheticals link to the mobile menu as well -->
             <x-responsive-nav-link href="{{ route('cfb.index') }}"
                                    :active="request()->routeIs('cfb.index')">{{ __('CFB Hypotheticals') }}</x-responsive-nav-link>
             <x-responsive-nav-link href="{{ route('nfl.detail') }}"
                                    :active="request()->routeIs('nfl.detail')">{{ __('Nfl Sheet') }}</x-responsive-nav-link>
             <x-responsive-nav-link href="{{ route('nfl.stats.index') }}"
-                                   :active="request()->routeIs('nfl.stats.index')">{{ __('NFL Stats') }}</x-responsive-nav-link>
+                                   :active="request()->routeIs('nfl.stats.index')">{{ __('Player Stats') }}</x-responsive-nav-link>
             <x-responsive-nav-link href="{{ route('team_rankings.scoring') }}"
-                                   :active="request()->routeIs('team_rankings.scoring')">
-                {{ __('Stats Ranking') }}
-            </x-responsive-nav-link>
-
+                                   :active="request()->routeIs('team_rankings.scoring')">{{ __('Offense Defense') }}</x-responsive-nav-link>
             <x-responsive-nav-link href="{{ route('team_rankings.rankings') }}"
-                                   :active="request()->routeIs('team_rankings.rankings')">
-                {{ __('Team Rankings') }}
-            </x-responsive-nav-link>
+                                   :active="request()->routeIs('team_rankings.rankings')">{{ __('Team Rankings') }}</x-responsive-nav-link>
             <x-responsive-nav-link href="{{ route('covers.games') }}"
                                    :active="request()->routeIs('covers.games')">{{ __('Covers Games') }}</x-responsive-nav-link>
+            <x-responsive-nav-link href="{{ route('espn.qbr', ['week' => 1]) }}"
+                                   :active="request()->routeIs('espn.qbr')">{{ __('ESPN QBR') }}</x-responsive-nav-link>
         </div>
 
-        <!-- Authenticated Users -->
+        <!-- Authenticated User -->
         @auth
             <div class="pt-4 pb-1 border-t border-gray-200">
                 <div class="flex items-center px-4">
