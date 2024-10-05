@@ -15,7 +15,7 @@ class CollegeFootballHypotheticalController extends Controller
     public function index(Request $request)
     {
         // Get the selected week from the request, default to the current week
-        $week = $request->input('week', 2);  // Default to week 2 if none selected
+        $week = $request->input('week', 6);  // Default to week 2 if none selected
 
         // Fetch all distinct weeks for the dropdown
         $weeks = CollegeFootballHypothetical::select('week')->distinct()->orderBy('week', 'asc')->get();
@@ -76,30 +76,31 @@ class CollegeFootballHypotheticalController extends Controller
 
         // Ensure that both teams exist
         if (!$homeTeam || !$awayTeam) {
-            return abort(404, 'Team not found');
+            abort(404, 'Team not found');
         }
 
         // Fetch SP+ ratings for the home and away teams
         $homeSpRating = SpRating::where('team', $homeTeam->school)->first();
         $awaySpRating = SpRating::where('team', $awayTeam->school)->first();
 
-        // Fetch average advanced stats for the home and away teams by team_id
+        // Fetch average advanced stats for the home team by team_id
         $homeAdvStatsAvg = [
-            'offense_ppa' => AdvancedGameStat::where('team_id', $homeTeam->id)->avg('offense_ppa'),
-            'offense_success_rate' => AdvancedGameStat::where('team_id', $homeTeam->id)->avg('offense_success_rate'),
-            'offense_explosiveness' => AdvancedGameStat::where('team_id', $homeTeam->id)->avg('offense_explosiveness'),
-            'defense_ppa' => AdvancedGameStat::where('team_id', $homeTeam->id)->avg('defense_ppa'),
-            'defense_success_rate' => AdvancedGameStat::where('team_id', $homeTeam->id)->avg('defense_success_rate'),
-            'defense_explosiveness' => AdvancedGameStat::where('team_id', $homeTeam->id)->avg('defense_explosiveness'),
+            'offense_ppa' => AdvancedGameStat::where('team_id', $homeTeam->id)->avg('offense_ppa') ?? 0,
+            'offense_success_rate' => AdvancedGameStat::where('team_id', $homeTeam->id)->avg('offense_success_rate') ?? 0,
+            'offense_explosiveness' => AdvancedGameStat::where('team_id', $homeTeam->id)->avg('offense_explosiveness') ?? 0,
+            'defense_ppa' => AdvancedGameStat::where('team_id', $homeTeam->id)->avg('defense_ppa') ?? 0,
+            'defense_success_rate' => AdvancedGameStat::where('team_id', $homeTeam->id)->avg('defense_success_rate') ?? 0,
+            'defense_explosiveness' => AdvancedGameStat::where('team_id', $homeTeam->id)->avg('defense_explosiveness') ?? 0,
         ];
 
+// Fetch average advanced stats for the away team by team_id
         $awayAdvStatsAvg = [
-            'offense_ppa' => AdvancedGameStat::where('team_id', $awayTeam->id)->avg('offense_ppa'),
-            'offense_success_rate' => AdvancedGameStat::where('team_id', $awayTeam->id)->avg('offense_success_rate'),
-            'offense_explosiveness' => AdvancedGameStat::where('team_id', $awayTeam->id)->avg('offense_explosiveness'),
-            'defense_ppa' => AdvancedGameStat::where('team_id', $awayTeam->id)->avg('defense_ppa'),
-            'defense_success_rate' => AdvancedGameStat::where('team_id', $awayTeam->id)->avg('defense_success_rate'),
-            'defense_explosiveness' => AdvancedGameStat::where('team_id', $awayTeam->id)->avg('defense_explosiveness'),
+            'offense_ppa' => AdvancedGameStat::where('team_id', $awayTeam->id)->avg('offense_ppa') ?? 0,
+            'offense_success_rate' => AdvancedGameStat::where('team_id', $awayTeam->id)->avg('offense_success_rate') ?? 0,
+            'offense_explosiveness' => AdvancedGameStat::where('team_id', $awayTeam->id)->avg('offense_explosiveness') ?? 0,
+            'defense_ppa' => AdvancedGameStat::where('team_id', $awayTeam->id)->avg('defense_ppa') ?? 0,
+            'defense_success_rate' => AdvancedGameStat::where('team_id', $awayTeam->id)->avg('defense_success_rate') ?? 0,
+            'defense_explosiveness' => AdvancedGameStat::where('team_id', $awayTeam->id)->avg('defense_explosiveness') ?? 0,
         ];
 
         // Calculate mismatches based on average advanced stats
@@ -171,7 +172,7 @@ class CollegeFootballHypotheticalController extends Controller
             ->orderBy('start_date', 'desc')
             ->get();
 
-// Calculate the outcomes of recent matchups and include scores
+        // Calculate the outcomes of recent matchups and include scores
         $previousResults = $recentMatchups->map(function ($game) {
             $homeWin = $game->home_points > $game->away_points;
             return [
@@ -180,7 +181,6 @@ class CollegeFootballHypotheticalController extends Controller
                 'score' => "{$game->home_points} - {$game->away_points}", // Pass the score
             ];
         });
-
 
         // Compare spreads and determine the smart pick
         $smartPick = $this->compareSpreads($game_id);
@@ -195,7 +195,6 @@ class CollegeFootballHypotheticalController extends Controller
             'homeTeamLast3Games', 'awayTeamLast3Games', 'recentMatchups', 'previousResults'
         ));
     }
-
 
     public function compareSpreads($gameId)
     {
@@ -269,6 +268,4 @@ class CollegeFootballHypotheticalController extends Controller
         return redirect()->route('cfb.hypothetical.show', $hypothetical->game_id)
             ->with('success', 'Prediction outcome and team updated successfully.');
     }
-
-
 }
