@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Console\Commands\Nfl;
 
 use App\Models\Nfl\NflTeamSchedule;
-use Illuminate\Console\Command;
 use App\Services\EloRatingService;
+use Illuminate\Console\Command;
 
 class UpdateNflEloRatings extends Command
 {

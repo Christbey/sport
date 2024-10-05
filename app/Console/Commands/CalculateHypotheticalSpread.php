@@ -8,6 +8,7 @@ use App\Models\CollegeFootball\CollegeFootballGame;
 use App\Models\CollegeFootball\CollegeFootballHypothetical;
 use App\Models\CollegeFootball\Sagarin;
 use Carbon\Carbon;
+use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -25,8 +26,18 @@ class CalculateHypotheticalSpread extends Command
     {
         $games = $this->fetchRelevantGames();
 
+        // Check if there are any games
+        if ($games->isEmpty()) {
+            Log::info('No games found for the specified week and season.');
+            return;
+        }
+
         foreach ($games as $game) {
-            $this->processGame($game);
+            try {
+                $this->processGame($game);
+            } catch (Exception $e) {
+                Log::error("Error processing game ID {$game->id}: " . $e->getMessage());
+            }
         }
     }
 
@@ -41,11 +52,13 @@ class CalculateHypotheticalSpread extends Command
         $week = config('college_football.week');
         $season = config('college_football.season');
 
+        // Eager load the home and away team relationships
         return CollegeFootballGame::where('home_division', 'fbs')
             ->where('away_division', 'fbs')
             ->where('week', $week)        // Using config value for week
             ->where('season', $season)    // Using config value for season
             ->where('start_date', '>=', $today)
+            ->with(['homeTeam', 'awayTeam'])  // Eager load teams
             ->get();
     }
 
@@ -119,12 +132,7 @@ class CalculateHypotheticalSpread extends Command
      */
     private function ratingsAreValid(...$ratings)
     {
-        foreach ($ratings as $rating) {
-            if ($rating === null) {
-                return false;
-            }
-        }
-        return true;
+        return !in_array(null, $ratings, true);
     }
 
     /**
@@ -152,13 +160,6 @@ class CalculateHypotheticalSpread extends Command
      */
     private function storeHypotheticalSpread($game, $homeTeam, $awayTeam, $spread)
     {
-        $homeElo = CollegeFootballElo::where('team_id', $homeTeam->id)->where('year', $game->season)->value('elo');
-        $awayElo = CollegeFootballElo::where('team_id', $awayTeam->id)->where('year', $game->season)->value('elo');
-        $homeFpi = CollegeFootballFpi::where('team_id', $homeTeam->id)->where('year', $game->season)->value('fpi');
-        $awayFpi = CollegeFootballFpi::where('team_id', $awayTeam->id)->where('year', $game->season)->value('fpi');
-        $homeSagarin = Sagarin::where('id', $homeTeam->id)->value('rating');
-        $awaySagarin = Sagarin::where('id', $awayTeam->id)->value('rating');
-
         CollegeFootballHypothetical::updateOrCreate(
             ['game_id' => $game->id],
             [
@@ -167,12 +168,12 @@ class CalculateHypotheticalSpread extends Command
                 'away_team_id' => $awayTeam->id,
                 'home_team_school' => $homeTeam->school,
                 'away_team_school' => $awayTeam->school,
-                'home_elo' => $homeElo,
-                'away_elo' => $awayElo,
-                'home_fpi' => $homeFpi,
-                'away_fpi' => $awayFpi,  // Use just the fpi value
-                'home_sagarin' => $homeSagarin,  // Use just the Sagarin value
-                'away_sagarin' => $awaySagarin,  // Use just the Sagarin value
+                'home_elo' => CollegeFootballElo::where('team_id', $homeTeam->id)->where('year', $game->season)->value('elo'),
+                'away_elo' => CollegeFootballElo::where('team_id', $awayTeam->id)->where('year', $game->season)->value('elo'),
+                'home_fpi' => CollegeFootballFpi::where('team_id', $homeTeam->id)->where('year', $game->season)->value('fpi'),
+                'away_fpi' => CollegeFootballFpi::where('team_id', $awayTeam->id)->where('year', $game->season)->value('fpi'),
+                'home_sagarin' => Sagarin::where('id', $homeTeam->id)->value('rating'),
+                'away_sagarin' => Sagarin::where('id', $awayTeam->id)->value('rating'),
                 'hypothetical_spread' => $spread,
             ]
         );
