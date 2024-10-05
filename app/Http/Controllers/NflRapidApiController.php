@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use Exception;
@@ -24,6 +25,25 @@ class NflRapidApiController extends Controller
     {
         $queryParams = $request->all();
         return $this->fetchData('getNFLBettingOdds', $queryParams);
+    }
+
+    protected function fetchData(string $endpoint, array $queryParams = []): JsonResponse
+    {
+        try {
+            $response = $this->client->request('GET', $endpoint, [
+                'query' => $queryParams,
+                'headers' => [
+                    'x-rapidapi-host' => 'tank01-nfl-live-in-game-real-time-statistics-nfl.p.rapidapi.com',
+                    'x-rapidapi-key' => $this->apiKey,
+                    'Accept' => 'application/json',
+                ],
+            ]);
+
+            $data = json_decode($response->getBody(), true);
+            return response()->json($data);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 
     public function getNFLNews(Request $request): JsonResponse
@@ -67,25 +87,6 @@ class NflRapidApiController extends Controller
         return $this->fetchData('getNFLPlayerList');
     }
 
-    protected function fetchData(string $endpoint, array $queryParams = []): JsonResponse
-    {
-        try {
-            $response = $this->client->request('GET', $endpoint, [
-                'query' => $queryParams,
-                'headers' => [
-                    'x-rapidapi-host' => 'tank01-nfl-live-in-game-real-time-statistics-nfl.p.rapidapi.com',
-                    'x-rapidapi-key' => $this->apiKey,
-                    'Accept' => 'application/json',
-                ],
-            ]);
-
-            $data = json_decode($response->getBody(), true);
-            return response()->json($data);
-        } catch (Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
-    }
-
     public function getNFLTeamRoster(Request $request): JsonResponse
     {
         // Extract the parameters from the request
@@ -105,6 +106,7 @@ class NflRapidApiController extends Controller
         // Call the fetchData method to retrieve the data from the endpoint
         return $this->fetchData('getNFLTeamRoster', $queryParams);
     }
+
     public function getNFLBoxScore(Request $request): JsonResponse
     {
         $gameID = $request->input('gameID', '20240810_CHI@BUF');  // Default value for gameID
@@ -115,26 +117,26 @@ class NflRapidApiController extends Controller
                 'query' => [
                     'gameID' => $gameID,
                     'playByPlay' => true,
-                    'fantasyPoints' => true,
-                    'twoPointConversions' => 2,
-                    'passYards' => 0.04,
-                    'passAttempts' => 0,
-                    'passTD' => 4,
-                    'passCompletions' => 0,
-                    'passInterceptions' => -2,
-                    'pointsPerReception' => 0.5,
-                    'carries' => 0.2,
-                    'rushYards' => 0.1,
-                    'rushTD' => 6,
-                    'fumbles' => -2,
-                    'receivingYards' => 0.1,
-                    'receivingTD' => 6,
-                    'targets' => 0,
-                    'defTD' => 6,
-                    'fgMade' => 3,
-                    'fgMissed' => -3,
-                    'xpMade' => 1,
-                    'xpMissed' => -1,
+                    'fantasyPoints' => false,
+                    #'twoPointConversions' => 2,
+                    #'passYards' => 0.04,
+                    #'passAttempts' => 0,
+                    #'passTD' => 4,
+                    #'passCompletions' => 0,
+                    #'passInterceptions' => -2,
+                    #'pointsPerReception' => 0.5,
+                    #'carries' => 0.2,
+                    #'rushYards' => 0.1,
+                    #'rushTD' => 6,
+                    #'fumbles' => -2,
+                    #'receivingYards' => 0.1,
+                    #'receivingTD' => 6,
+                    #'targets' => 0,
+                    #'defTD' => 6,
+                    #'fgMade' => 3,
+                    #'fgMissed' => -3,
+                    #'xpMade' => 1,
+                    #'xpMissed' => -1,
                 ],
                 'headers' => [
                     'x-rapidapi-host' => 'tank01-nfl-live-in-game-real-time-statistics-nfl.p.rapidapi.com',

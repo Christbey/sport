@@ -1,8 +1,10 @@
+@php use Carbon\Carbon; @endphp
 <x-app-layout>
     <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 py-8">
         <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
             <div class="p-6 bg-white border-b border-gray-200">
-                <h1 class="text-2xl font-semibold mb-6 text-gray-800">{{ $homeTeam->school }} vs {{ $awayTeam->school }}</h1>
+                <h1 class="text-2xl font-semibold mb-6 text-gray-800">{{ $homeTeam->school }}
+                    vs {{ $awayTeam->school }}</h1>
                 <div class="mt-6">
                     <h2 class="text-xl font-semibold mb-4 text-gray-800">Spread Comparison</h2>
                     <p>{{ $smartPick }}</p>
@@ -20,7 +22,9 @@
                     <table class="min-w-full bg-white border border-gray-200 divide-y divide-gray-200 shadow-md rounded-lg">
                         <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metric</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Metric
+                            </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ $homeTeam->school }}</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ $awayTeam->school }}</th>
                         </tr>
@@ -88,7 +92,8 @@
 
                     <div class="mb-4">
                         <label for="note" class="block text-sm font-medium text-gray-700">Note</label>
-                        <textarea name="note" id="note" rows="4" class="form-input mt-1 block w-full" placeholder="Add your notes here..."></textarea>
+                        <textarea name="note" id="note" rows="4" class="form-input mt-1 block w-full"
+                                  placeholder="Add your notes here..."></textarea>
                     </div>
 
                     <div>
@@ -102,7 +107,8 @@
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 py-8">
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                 <div class="p-6 bg-white border-b border-gray-200">
-                    <h1 class="text-2xl font-semibold mb-6 text-gray-800">{{ $homeTeam->school }} vs {{ $awayTeam->school }}</h1>
+                    <h1 class="text-2xl font-semibold mb-6 text-gray-800">{{ $homeTeam->school }}
+                        vs {{ $awayTeam->school }}</h1>
 
                     <!-- Form to mark the hypothetical as correct or incorrect -->
                     <div class="max-w-7xl mx-auto py-12">
@@ -115,7 +121,8 @@
                             <!-- Select the correct team -->
                             <div class="mt-4">
                                 <label for="team_id" class="block text-sm font-medium text-gray-700">Select Team</label>
-                                <select name="team_id" id="team_id" class="mt-1 block w-full pl-3 pr-10 py-2 border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                <select name="team_id" id="team_id"
+                                        class="mt-1 block w-full pl-3 pr-10 py-2 border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
                                     <option value="{{ $homeTeam->id }}">{{ $homeTeam->school }} (Home)</option>
                                     <option value="{{ $awayTeam->id }}">{{ $awayTeam->school }} (Away)</option>
                                 </select>
@@ -123,18 +130,81 @@
 
                             <!-- Correct prediction -->
                             <div class="mt-4">
-                                <label for="correct" class="block text-sm font-medium text-gray-700">Correct Prediction</label>
-                                <select name="correct" id="correct" class="mt-1 block w-full pl-3 pr-10 py-2 border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                <label for="correct" class="block text-sm font-medium text-gray-700">Correct
+                                    Prediction</label>
+                                <select name="correct" id="correct"
+                                        class="mt-1 block w-full pl-3 pr-10 py-2 border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
                                     <option value="1" {{ $hypothetical->correct == 1 ? 'selected' : '' }}>Yes</option>
                                     <option value="0" {{ $hypothetical->correct == 0 ? 'selected' : '' }}>No</option>
                                 </select>
                             </div>
 
-                            <button type="submit" class="mt-6 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500">Update</button>
+                            <button type="submit"
+                                    class="mt-6 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500">
+                                Update
+                            </button>
                         </form>
                     </div>
                 </div>
             </div>
         </div>
+        <div class="space-y-6">
+            <!-- Last 3 Matchups for Home Team -->
+            <div class="bg-gray-50 p-4 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">
+                    Last 3 Matchups for {{ $homeTeam->school }}
+                </h2>
+                <ul class="list-disc space-y-2 pl-5">
+                    @foreach($homeTeamLast3Games as $game)
+                        <li class="text-gray-600">
+                            <span class="font-semibold">{{ $game->homeTeam->school ?? 'Unknown Team' }}</span>
+                            vs
+                            <span class="font-semibold">{{ $game->awayTeam->school ?? 'Unknown Team' }}</span>
+                            on <span
+                                    class="text-blue-600">{{ Carbon::parse($game->start_date)->format('M d, Y') }}</span>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+
+            <!-- Last 3 Matchups for Away Team -->
+            <div class="bg-gray-50 p-4 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">
+                    Last 3 Matchups for {{ $awayTeam->school }}
+                </h2>
+                <ul class="list-disc space-y-2 pl-5">
+                    @foreach($awayTeamLast3Games as $game)
+                        <li class="text-gray-600">
+                            <span class="font-semibold">{{ $game->homeTeam->school ?? 'Unknown Team' }}</span>
+                            vs
+                            <span class="font-semibold">{{ $game->awayTeam->school ?? 'Unknown Team' }}</span>
+                            on <span
+                                    class="text-blue-600">{{ Carbon::parse($game->start_date)->format('M d, Y') }}</span>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+
+            <!-- Previous Matchups Between the Two Teams -->
+            <div class="bg-gray-50 p-4 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">
+                    Previous Matchups Between {{ $homeTeam->school }} and {{ $awayTeam->school }}
+                </h2>
+                @if($previousResults->isEmpty())
+                    <p class="text-gray-500">No previous matchups found between these two teams.</p>
+                @else
+                    <ul class="list-disc space-y-2 pl-5">
+                        @foreach($previousResults as $result)
+                            <li class="text-gray-600">
+                                <span class="text-blue-600">{{ Carbon::parse($result['date'])->format('M d, Y') }}</span>
+                                - Winner: <span class="font-semibold">{{ $result['winner'] }}</span>
+                                - Score: <span class="font-semibold">{{ $result['score'] }}</span>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+            </div>
+        </div>
+
     </div>
 </x-app-layout>

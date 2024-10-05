@@ -7,6 +7,7 @@ use App\Models\CollegeFootball\CollegeFootballGame;
 use App\Models\CollegeFootball\CollegeFootballHypothetical;
 use App\Models\CollegeFootball\CollegeFootballTeam;
 use App\Models\CollegeFootball\SpRating;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class CollegeFootballHypotheticalController extends Controller
@@ -48,8 +49,23 @@ class CollegeFootballHypotheticalController extends Controller
         return view('cfb.index', compact('hypotheticals', 'weeks', 'week'));
     }
 
+    private function calculateHomeWinningPercentage($homeElo, $awayElo, $homeFpi, $awayFpi)
+    {
+        // Calculate probability using ELO
+        $eloProbability = 1 / (1 + pow(10, ($awayElo - $homeElo) / 400));
+
+        // Calculate probability using FPI
+        $fpiProbability = 1 / (1 + pow(10, ($awayFpi - $homeFpi) / 10));
+
+        // Average the two probabilities (or adjust weights as needed)
+        return round(($eloProbability + $fpiProbability) / 2, 4); // Rounded to 4 decimal places
+    }
+
     public function show($game_id)
     {
+        // Fetch today's date for filtering games
+        $today = Carbon::today();
+
         // Fetch the hypothetical spread details based on the game_id
         $hypothetical = CollegeFootballHypothetical::where('game_id', $game_id)->firstOrFail();
         $game = CollegeFootballGame::find($game_id);
@@ -57,6 +73,11 @@ class CollegeFootballHypotheticalController extends Controller
         // Fetch home and away team details
         $homeTeam = CollegeFootballTeam::find($hypothetical->home_team_id);
         $awayTeam = CollegeFootballTeam::find($hypothetical->away_team_id);
+
+        // Ensure that both teams exist
+        if (!$homeTeam || !$awayTeam) {
+            return abort(404, 'Team not found');
+        }
 
         // Fetch SP+ ratings for the home and away teams
         $homeSpRating = SpRating::where('team', $homeTeam->school)->first();
@@ -94,7 +115,7 @@ class CollegeFootballHypotheticalController extends Controller
             ? round($awayAdvStatsAvg['defense_explosiveness'] - $homeAdvStatsAvg['offense_explosiveness'], 5)
             : 'N/A';
 
-        // Calculate offense trend
+        // Calculate offense trend (last 3 games)
         $home_offense_trend = AdvancedGameStat::where('team_id', $homeTeam->id)
             ->orderBy('game_id', 'desc')
             ->limit(3)
@@ -114,53 +135,68 @@ class CollegeFootballHypotheticalController extends Controller
         );
         $winnerTeam = $homeWinningPercentage > 0.5 ? $homeTeam : $awayTeam;
 
+        // Fetch the last 3 matchups for each team (before today's date)
+        $homeTeamLast3Games = CollegeFootballGame::with(['homeTeam', 'awayTeam'])
+            ->where(function ($query) use ($homeTeam) {
+                $query->where('home_id', $homeTeam->id)
+                    ->orWhere('away_id', $homeTeam->id);
+            })
+            ->whereDate('start_date', '<', $today) // Only games before today
+            ->orderBy('start_date', 'desc')
+            ->limit(3)
+            ->get();
+
+        $awayTeamLast3Games = CollegeFootballGame::with(['homeTeam', 'awayTeam'])
+            ->where(function ($query) use ($awayTeam) {
+                $query->where('home_id', $awayTeam->id)
+                    ->orWhere('away_id', $awayTeam->id);
+            })
+            ->whereDate('start_date', '<', $today) // Only games before today
+            ->orderBy('start_date', 'desc')
+            ->limit(3)
+            ->get();
+
+        // Fetch recent matchups between the two teams (if applicable)
+        $recentMatchups = CollegeFootballGame::with(['homeTeam', 'awayTeam'])
+            ->where(function ($query) use ($homeTeam, $awayTeam) {
+                $query->where(function ($q) use ($homeTeam, $awayTeam) {
+                    $q->where('home_id', $homeTeam->id)
+                        ->where('away_id', $awayTeam->id);
+                })
+                    ->orWhere(function ($q) use ($homeTeam, $awayTeam) {
+                        $q->where('home_id', $awayTeam->id)
+                            ->where('away_id', $homeTeam->id);
+                    });
+            })
+            ->orderBy('start_date', 'desc')
+            ->get();
+
+// Calculate the outcomes of recent matchups and include scores
+        $previousResults = $recentMatchups->map(function ($game) {
+            $homeWin = $game->home_points > $game->away_points;
+            return [
+                'date' => $game->start_date,
+                'winner' => $homeWin ? $game->homeTeam->school : $game->awayTeam->school,
+                'score' => "{$game->home_points} - {$game->away_points}", // Pass the score
+            ];
+        });
+
+
         // Compare spreads and determine the smart pick
         $smartPick = $this->compareSpreads($game_id);
 
-        // Pass the data to the view
+        // Pass all the data to the view
         return view('cfb.detail', compact(
             'hypothetical', 'game', 'homeTeam', 'awayTeam',
             'homeSpRating', 'awaySpRating',
             'ppaMismatch', 'successRateMismatch', 'explosivenessMismatch',
             'home_offense_trend', 'away_offense_trend',
-            'homeWinningPercentage', 'winnerTeam', 'smartPick'
+            'homeWinningPercentage', 'winnerTeam', 'smartPick',
+            'homeTeamLast3Games', 'awayTeamLast3Games', 'recentMatchups', 'previousResults'
         ));
     }
 
-    private function calculateHomeWinningPercentage($homeElo, $awayElo, $homeFpi, $awayFpi)
-    {
-        // Calculate probability using ELO
-        $eloProbability = 1 / (1 + pow(10, ($awayElo - $homeElo) / 400));
 
-        // Calculate probability using FPI
-        $fpiProbability = 1 / (1 + pow(10, ($awayFpi - $homeFpi) / 10));
-
-        // Average the two probabilities (or adjust weights as needed)
-        return round(($eloProbability + $fpiProbability) / 2, 4); // Rounded to 4 decimal places
-    }
-
-    public function updateCorrect(Request $request, $id)
-    {
-        // Validate the input
-        $request->validate([
-            'correct' => 'required|boolean',
-           // 'team_id' => 'required|exists:college_football_teams,id', // Ensure a valid team is selected
-        ]);
-
-        // Find the hypothetical by id
-        $hypothetical = CollegeFootballHypothetical::findOrFail($id);
-
-        // Update the 'correct' and 'team_id' fields
-        $hypothetical->update([
-            'correct' => $request->input('correct'),
-            'side' => $request->input('team_id'), // Store selected team's ID
-        ]);
-
-        return redirect()->route('cfb.hypothetical.show', $hypothetical->game_id)
-            ->with('success', 'Prediction outcome and team updated successfully.');
-    }
-
-    // Controller or logic to compare spreads and make a recommendation
     public function compareSpreads($gameId)
     {
         // Fetch the hypothetical and game data
@@ -190,12 +226,10 @@ class CollegeFootballHypotheticalController extends Controller
         // Check if the spreads are too close to call (within 2.5 points)
         if (abs($hypotheticalSpread - $draftKingsSpread) <= 2.5) {
             $smartPick = 'Too close to call';
-        }
-        // If hypothetical spread predicts a smaller win/loss than DraftKings, underdog is the smart pick
+        } // If hypothetical spread predicts a smaller win/loss than DraftKings, underdog is the smart pick
         elseif (abs($hypotheticalSpread) < abs($draftKingsSpread)) {
             $smartPick = "The smart pick is the underdog, {$underdogTeam->school}, according to the hypothetical spread. The Vegas line is {$formattedSpread}.";
-        }
-        // If hypothetical spread predicts a larger win/loss than DraftKings, favorite is the smart pick
+        } // If hypothetical spread predicts a larger win/loss than DraftKings, favorite is the smart pick
         else {
             $smartPick = "The smart pick is the favorite, {$favoriteTeam->school}, according to the hypothetical spread. The Vegas line is {$formattedSpread}.";
         }
@@ -211,6 +245,29 @@ class CollegeFootballHypotheticalController extends Controller
         }
 
         return $smartPick;
+    }
+
+    // Controller or logic to compare spreads and make a recommendation
+
+    public function updateCorrect(Request $request, $id)
+    {
+        // Validate the input
+        $request->validate([
+            'correct' => 'required|boolean',
+            // 'team_id' => 'required|exists:college_football_teams,id', // Ensure a valid team is selected
+        ]);
+
+        // Find the hypothetical by id
+        $hypothetical = CollegeFootballHypothetical::findOrFail($id);
+
+        // Update the 'correct' and 'team_id' fields
+        $hypothetical->update([
+            'correct' => $request->input('correct'),
+            'side' => $request->input('team_id'), // Store selected team's ID
+        ]);
+
+        return redirect()->route('cfb.hypothetical.show', $hypothetical->game_id)
+            ->with('success', 'Prediction outcome and team updated successfully.');
     }
 
 

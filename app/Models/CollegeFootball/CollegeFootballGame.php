@@ -81,6 +81,7 @@ class CollegeFootballGame extends Model
         return $this->belongsTo(CollegeFootballTeam::class, 'away_id');
     }
 
+
     public function pregame()
     {
         return $this->hasOne(CollegeFootballPregame::class, 'game_id');
