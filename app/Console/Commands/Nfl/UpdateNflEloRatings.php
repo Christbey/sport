@@ -5,6 +5,7 @@ namespace App\Console\Commands\Nfl;
 use App\Models\Nfl\NflTeamSchedule;
 use App\Services\EloRatingService;
 use Illuminate\Console\Command;
+use App\Models\NflEloPrediction;
 
 class UpdateNflEloRatings extends Command
 {
@@ -18,6 +19,7 @@ class UpdateNflEloRatings extends Command
         parent::__construct();
         $this->eloService = $eloService;
     }
+
 
     public function handle()
     {
@@ -38,10 +40,23 @@ class UpdateNflEloRatings extends Command
             $this->eloService->printExpectedWinsAndSpreadForTeam($team, $year);
 
             // Calculate the Elo rating for the team
-            $finalElo = $this->eloService->calculateTeamEloForSeason($team, $year);
+            $predictions = $this->eloService->calculateTeamEloForSeason($team, $year);
+
+            // Save each prediction to the database
+            foreach ($predictions['predictions'] as $prediction) {
+                NflEloPrediction::create([
+                    'team' => $prediction['team'],
+                    'opponent' => $prediction['opponent'],
+                    'year' => $year,
+                    'week' => $prediction['week'],
+                    'team_elo' => $prediction['team_elo'],
+                    'opponent_elo' => $prediction['opponent_elo'],
+                    'expected_outcome' => $prediction['expected_outcome'],
+                ]);
+            }
 
             // Print the result for the team
-            $this->info("Team: $team | Final Elo for $year season: $finalElo");
+            $this->info("Team: $team | Final Elo for $year season: {$predictions['final_elo']}");
         }
 
         $this->info('Elo calculation, expected wins, and spreads for all teams is completed.');
