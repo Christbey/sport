@@ -2,10 +2,9 @@
 
 namespace App\Console\Commands\Nfl;
 
-use App\Models\Nfl\NflTeamSchedule;
 use App\Services\EloRatingService;
 use Illuminate\Console\Command;
-use App\Models\NflEloPrediction;
+use Illuminate\Support\Carbon;
 
 class UpdateNflEloRatings extends Command
 {
@@ -20,42 +19,36 @@ class UpdateNflEloRatings extends Command
         $this->eloService = $eloService;
     }
 
-
     public function handle()
     {
-        // Get the season year from the command argument
         $year = $this->argument('year');
+        $today = Carbon::now();
+        $weeks = config('nfl.weeks'); // Load the weeks configuration
 
-        // Fetch all unique team abbreviations from the nfl_team_schedules table
-        $teams = NflTeamSchedule::select('home_team')
-            ->union(NflTeamSchedule::select('away_team'))
-            ->distinct()
-            ->pluck('home_team');
+        // Fetch all unique team abbreviations using the service
+        $teams = $this->eloService->fetchTeams();
 
-        // Iterate through each team and calculate their Elo for the season
         foreach ($teams as $team) {
             $this->info("Calculating Elo, expected wins, and spreads for team: $team");
 
-            // Print expected wins and predicted spreads for the team
-            $this->eloService->printExpectedWinsAndSpreadForTeam($team, $year);
-
-            // Calculate the Elo rating for the team
+            // Calculate the Elo rating and predictions for the team
             $predictions = $this->eloService->calculateTeamEloForSeason($team, $year);
 
-            // Save each prediction to the database
             foreach ($predictions['predictions'] as $prediction) {
-                NflEloPrediction::create([
-                    'team' => $prediction['team'],
-                    'opponent' => $prediction['opponent'],
-                    'year' => $year,
-                    'week' => $prediction['week'],
-                    'team_elo' => $prediction['team_elo'],
-                    'opponent_elo' => $prediction['opponent_elo'],
-                    'expected_outcome' => $prediction['expected_outcome'],
-                ]);
+                $week = $prediction['week'];
+
+                // Check if week exists in the config
+                if (!isset($weeks[$week])) {
+                    $this->eloService->logMissingWeek($week, $year);
+                    continue;
+                }
+
+                $weekEnd = Carbon::parse($weeks[$week]['end']);
+
+                // Find the game and handle prediction storage via the service
+                $this->eloService->storePredictionIfNeeded($team, $prediction, $year, $weekEnd, $today);
             }
 
-            // Print the result for the team
             $this->info("Team: $team | Final Elo for $year season: {$predictions['final_elo']}");
         }
 

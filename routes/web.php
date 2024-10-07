@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\EspnQbrController;
 use App\Http\Controllers\CollegeFootballHypotheticalController;
 use App\Http\Controllers\CollegeFootballNoteController;
 use App\Http\Controllers\CoversController;
+use App\Http\Controllers\NflEloRatingController;
 use App\Http\Controllers\NflSheetController;
 use App\Http\Controllers\NflStatsViewController;
 use App\Http\Controllers\PickemController;
@@ -62,5 +63,6 @@ Route::get('/covers/games', [CoversController::class, 'showGames'])->name('cover
 Route::get('/api/covers/game/{covers_game_id}', [CoversController::class, 'getGameData']);
 // In routes/web.php
 Route::get('/nfl/qbr/{week}', [EspnQbrController::class, 'fetchQbrData'])->name('espn.qbr');
-
+Route::get('/nfl-elo-ratings', [NflEloRatingController::class, 'index'])->name('nfl.elo');
+Route::get('/nfl-elo-predictions', [NflEloRatingController::class, 'prediction'])->name('nfl.elo.predictions');
 

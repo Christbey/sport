@@ -18,6 +18,8 @@ class NflEloPrediction extends Model
         'week',
         'team_elo',
         'opponent_elo',
-        'expected_outcome'
+        'expected_outcome',
+        'predicted_spread',
+        'game_id'
     ];
 }
