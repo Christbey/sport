@@ -1,12 +1,13 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Nfl;
 
+use App\Http\Controllers\Controller;
 use App\Models\Nfl\NflTeamSchedule;
 use App\Models\NflSheet;
 use App\Models\NflTeam;
-use Illuminate\Http\Request;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 
 class NflSheetController extends Controller
 {
@@ -65,7 +66,7 @@ class NflSheetController extends Controller
         // Validate the form data
         $request->validate([
             'team_id' => 'required|exists:nfl_teams,id',
-         // 'game_id' => 'required|exists:nfl_team_schedule,id',
+            // 'game_id' => 'required|exists:nfl_team_schedule,id',
             'user_inputted_notes' => 'nullable|string',
         ]);
 

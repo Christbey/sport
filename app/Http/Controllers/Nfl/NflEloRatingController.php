@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Nfl;
 
+use App\Http\Controllers\Controller;
 use App\Models\Nfl\NflEloRating;
 use App\Models\NflEloPrediction;
-use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class NflEloRatingController extends Controller

@@ -1,12 +1,15 @@
 <?php
 
-use App\Http\Controllers\Api\EspnQbrController;
-use App\Http\Controllers\Api\EspnTeamProjectionController;
+use App\Http\Controllers\Api\Espn\EspnQbrController;
+use App\Http\Controllers\Api\Espn\EspnTeamProjectionController;
+use App\Http\Controllers\Api\EspnAthleteController;
+use App\Http\Controllers\Api\EspnAthleteEventLogController;
+use App\Http\Controllers\Api\EspnAthleteSplitsController;
+use App\Http\Controllers\Api\TeamRankingController;
 use App\Http\Controllers\CollegeFootballDataController;
-use App\Http\Controllers\NflRapidApiController;
+use App\Http\Controllers\Nfl\NflRapidApiController;
+use App\Http\Controllers\Nfl\TeamStatsController;
 use App\Http\Controllers\PickemController;
-use App\Http\Controllers\TeamRankingController;
-use App\Http\Controllers\TeamStatsController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -85,3 +88,8 @@ Route::post('pickem/pick', [PickemController::class, 'pickWinner']);
 Route::get('pickem/leaderboard', [PickemController::class, 'showLeaderboard']);
 Route::get('/nfl/qbr/{week}', [EspnQbrController::class, 'fetchQbrData']);
 Route::get('/nfl/team/{teamId}/projection', [EspnTeamProjectionController::class, 'fetchTeamProjection']);
+Route::get('/nfl/athletes', [EspnAthleteController::class, 'fetchAthletes']);
+Route::get('/espn/athletes/{athleteId}/seasons/{season}/eventlog', [EspnAthleteEventLogController::class, 'fetchAthleteEventLog']);
+Route::get('/espn/athletes/{athleteId}/events/{eventId}/teams/{teamId}/statistics', [EspnAthleteEventLogController::class, 'fetchAthleteEventStatistics']);
+
+

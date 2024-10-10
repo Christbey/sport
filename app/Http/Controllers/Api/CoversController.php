@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Controller;
 use Exception;
 use GuzzleHttp\Client;
-use Symfony\Component\DomCrawler\Crawler;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Http\Request;
+use Symfony\Component\DomCrawler\Crawler;
 
 class CoversController extends Controller
 {

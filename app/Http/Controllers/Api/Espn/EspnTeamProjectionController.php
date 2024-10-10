@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers\Api\Espn;
 
+use App\Http\Controllers\Controller;
 use Exception;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
-use App\Http\Controllers\Controller;
 
 class EspnTeamProjectionController extends Controller
 {

@@ -1,6 +1,5 @@
 <x-app-layout>
-    <div class="max-w-7xl mx-auto py-6 px-6 lg:px-8">
-
+    <div class="max-w-5xl mx-auto py-6 px-6 lg:px-8">
         <form method="GET" action="{{ route('picks.leaderboard') }}" class="mb-6">
             <div class="mb-4">
                 <label for="game_week" class="block text-sm font-medium text-gray-700">Select Game Week</label>
@@ -9,7 +8,7 @@
                     <option value="">All Weeks</option>
                     @foreach($games as $game)
                         <option value="{{ $game->game_week }}" {{ request('game_week') == $game->game_week ? 'selected' : '' }}>
-                             {{ $game->game_week }}
+                            {{ $game->game_week }}
                         </option>
                     @endforeach
                 </select>
@@ -20,38 +19,35 @@
             </button>
         </form>
 
-
         <h2 class="text-2xl font-semibold mb-4">Leaderboard</h2>
-        <div class="overflow-x-auto">
-            <table class="min-w-full bg-white border border-gray-200 divide-y divide-gray-200 shadow-md rounded-lg">
-                <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Correct Picks</th>
-                </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
+        <x-table>
+            <x-slot name="header">
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Correct
+                    Picks
+                </th>
+            </x-slot>
+            <x-slot name="body">
                 @foreach($leaderboard as $entry)
                     <tr>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $entry->user->name }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $entry->correct_picks }}</td>
                     </tr>
                 @endforeach
-                </tbody>
-            </table>
-        </div>
+            </x-slot>
+        </x-table>
 
         <h2 class="text-2xl font-semibold mt-8 mb-4">All Picks for Game</h2>
-        <div class="overflow-x-auto">
-            <table class="min-w-full bg-white border border-gray-200 divide-y divide-gray-200 shadow-md rounded-lg">
-                <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Event</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team Picked</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Correct Pick</th>
-                </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
+        <x-table>
+            <x-slot name="header">
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Event</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team Picked
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Correct
+                    Pick
+                </th>
+            </x-slot>
+            <x-slot name="body">
                 @foreach($allPicks as $pick)
                     <tr>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -65,8 +61,7 @@
                         </td>
                     </tr>
                 @endforeach
-                </tbody>
-            </table>
-        </div>
+            </x-slot>
+        </x-table>
     </div>
 </x-app-layout>

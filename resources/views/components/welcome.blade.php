@@ -5,12 +5,13 @@
     </h1>
 
     <p class="mt-6 text-gray-500 leading-relaxed">
-        Elevate your sports experience with Picksports. Whether you're joining the fun for the NFL season or competing against your colleagues, Picksports offers an exciting way to enjoy every game.
+        Elevate your sports experience with Picksports. Whether you're joining the fun for the NFL season or competing
+        against your colleagues, Picksports offers an exciting way to enjoy every game.
     </p>
 </div>
 
 <div class="bg-gray-200 bg-opacity-25 py-6 lg:py-8">
-    <div class="max-w-2xl mx-auto p-6 lg:p-8 bg-white rounded-lg">
+    <div class="max-w-4xl mx-auto p-6 lg:p-8 bg-white rounded-lg">
 
         <!-- The Rules Section -->
         <div class="mb-8 text-left">
@@ -18,7 +19,9 @@
                 The Rules:
             </h2>
             <p class="mt-2 text-gray-500 text-sm leading-relaxed">
-                Each week, you’ll select the winners of NFL games. Make sure to submit your picks before they lock! The results will be available after Monday Night Football, so you can see how you performed against your colleagues.
+                Each week, you’ll select the winners of NFL games. Make sure to submit your picks before they lock! The
+                results will be available after Monday Night Football, so you can see how you performed against your
+                colleagues.
             </p>
         </div>
 

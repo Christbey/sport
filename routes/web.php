@@ -1,16 +1,19 @@
 <?php
 
-use App\Http\Controllers\Api\EspnQbrController;
+use App\Http\Controllers\Api\CoversController;
+use App\Http\Controllers\Api\Espn\EspnQbrController;
+use App\Http\Controllers\Api\EspnAthleteController;
+use App\Http\Controllers\Api\EspnAthleteEventLogController;
+use App\Http\Controllers\Api\EspnAthleteSplitsController;
+use App\Http\Controllers\Api\TeamRankingController;
 use App\Http\Controllers\CollegeFootballHypotheticalController;
 use App\Http\Controllers\CollegeFootballNoteController;
-use App\Http\Controllers\CoversController;
-use App\Http\Controllers\NflEloRatingController;
-use App\Http\Controllers\NflSheetController;
-use App\Http\Controllers\NflStatsViewController;
+use App\Http\Controllers\Nfl\NflEloRatingController;
+use App\Http\Controllers\Nfl\NflSheetController;
+use App\Http\Controllers\Nfl\NflStatsViewController;
+use App\Http\Controllers\Nfl\TeamStatsController;
 use App\Http\Controllers\PickemController;
-use App\Http\Controllers\TeamRankingController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\TeamStatsController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -65,4 +68,7 @@ Route::get('/api/covers/game/{covers_game_id}', [CoversController::class, 'getGa
 Route::get('/nfl/qbr/{week}', [EspnQbrController::class, 'fetchQbrData'])->name('espn.qbr');
 Route::get('/nfl-elo-ratings', [NflEloRatingController::class, 'index'])->name('nfl.elo');
 Route::get('/nfl-elo-predictions', [NflEloRatingController::class, 'prediction'])->name('nfl.elo.predictions');
+
+
+
 
