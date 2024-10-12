@@ -46,4 +46,6 @@ class CollegeFootballHypothetical extends Model
         return $query->where('home_division', 'fbs')
             ->where('away_division', 'fbs');
     }
+
+    
 }

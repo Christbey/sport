@@ -34,12 +34,14 @@
             {{-- Add pagination links --}}
             <div class="mt-6 flex justify-center">
                 @if(request()->get('page', 1) > 1)
-                    <a href="{{ url()->current() }}?page={{ request()->get('page', 1) - 1 }}" class="mr-4 bg-blue-500 hover:bg-blue-700 text-gray-800 font-bold py-2 px-4 rounded">
+                    <a href="{{ url()->current() }}?page={{ request()->get('page', 1) - 1 }}"
+                       class="mr-4 bg-blue-500 hover:bg-blue-700 text-gray-800 font-bold py-2 px-4 rounded">
                         Previous
                     </a>
                 @endif
                 @if($rushers['next_page_url'])
-                    <a href="{{ url()->current() }}?page={{ request()->get('page', 1) + 1 }}" class="bg-blue-500 hover:bg-blue-700 text-gray-800 font-bold py-2 px-4 rounded">
+                    <a href="{{ url()->current() }}?page={{ request()->get('page', 1) + 1 }}"
+                       class="bg-blue-500 hover:bg-blue-700 text-gray-800 font-bold py-2 px-4 rounded">
                         Next
                     </a>
                 @endif
@@ -47,4 +49,3 @@
         @endif
     </div>
 </x-app-layout>
-

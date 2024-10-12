@@ -17,7 +17,6 @@ class CollegeFootballGame extends Model
         'start_time_tbd',
         'completed',
         'neutral_site',
-
         'conference_game',
         'attendance',
         'venue_id',
@@ -85,5 +84,10 @@ class CollegeFootballGame extends Model
     public function pregame()
     {
         return $this->hasOne(CollegeFootballPregame::class, 'game_id');
+    }
+
+    public function hypothetical()
+    {
+        return $this->hasOne(CollegeFootballHypothetical::class, 'game_id', 'id');
     }
 }

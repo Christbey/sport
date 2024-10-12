@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models\Nfl;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -9,7 +10,7 @@ class NflBettingOdds extends Model
     use HasFactory;
 
     protected $fillable = [
-        'game_id',
+        'event_id',
         'game_date',
         'away_team',
         'home_team',

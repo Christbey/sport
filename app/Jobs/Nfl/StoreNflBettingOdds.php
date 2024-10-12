@@ -44,36 +44,49 @@ class StoreNflBettingOdds implements ShouldQueue
                 foreach ($oddsData['body'] as $game) {
                     if (isset($game['sportsBooks']) && is_array($game['sportsBooks'])) {
                         foreach ($game['sportsBooks'] as $sportsBook) {
-                            if (isset($sportsBook['odds']) && is_array($sportsBook['odds'])) {
-                                $odds = $sportsBook['odds'];
 
-                                // Store or update the data
-                                if (!empty($game['gameID'])) {
-                                    NflBettingOdds::updateOrCreate(
-                                        [
-                                            'event_id' => $game['gameID'], // Conditions to match an existing record
-                                            'source' => $sportsBook['sportsBook'],
-                                        ],
-                                        [
-                                            'game_date' => $game['gameDate'],
-                                            'away_team' => $game['awayTeam'],
-                                            'home_team' => $game['homeTeam'],
-                                            'away_team_id' => $game['teamIDAway'],
-                                            'home_team_id' => $game['teamIDHome'],
-                                            'spread_home' => isset($odds['homeTeamSpread']) ? floatval($odds['homeTeamSpread']) : null,
-                                            'spread_away' => isset($odds['awayTeamSpread']) ? floatval($odds['awayTeamSpread']) : null,
-                                            'total_over' => isset($odds['totalOver']) ? floatval($odds['totalOver']) : null,
-                                            'total_under' => isset($odds['totalUnder']) ? floatval($odds['totalUnder']) : null,
-                                            'moneyline_home' => isset($odds['homeTeamMLOdds']) ? floatval($odds['homeTeamMLOdds']) : null,
-                                            'moneyline_away' => isset($odds['awayTeamMLOdds']) ? floatval($odds['awayTeamMLOdds']) : null,
-                                            'implied_total_home' => $odds['impliedTotals']['homeTotal'] ?? null,
-                                            'implied_total_away' => $odds['impliedTotals']['awayTotal'] ?? null,
-                                        ]
-                                    );
-                                } else {
-                                    Log::warning('No event ID found for the game', ['game' => $game]);
+                            // *** Add this condition to check for 'draftkings' ***
+                            if (isset($sportsBook['sportsBook']) && strtolower($sportsBook['sportsBook']) === 'draftkings') {
+
+                                if (isset($sportsBook['odds']) && is_array($sportsBook['odds'])) {
+                                    $odds = $sportsBook['odds'];
+
+                                    // Store or update the data
+                                    if (!empty($game['gameID'])) {
+                                        NflBettingOdds::updateOrCreate(
+                                            [
+                                                'event_id' => $game['gameID'], // Conditions to match an existing record
+                                                'source' => $sportsBook['sportsBook'],
+                                            ],
+                                            [
+                                                'event_id' => $game['gameID'], // Conditions to match an existing record
+                                                'game_date' => $game['gameDate'],
+                                                'away_team' => $game['awayTeam'],
+                                                'home_team' => $game['homeTeam'],
+                                                'away_team_id' => $game['teamIDAway'],
+                                                'home_team_id' => $game['teamIDHome'],
+                                                'spread_home' => isset($odds['homeTeamSpread']) ? floatval($odds['homeTeamSpread']) : null,
+                                                'spread_away' => isset($odds['awayTeamSpread']) ? floatval($odds['awayTeamSpread']) : null,
+                                                'total_over' => isset($odds['totalOver']) ? floatval($odds['totalOver']) : null,
+                                                'total_under' => isset($odds['totalUnder']) ? floatval($odds['totalUnder']) : null,
+                                                'moneyline_home' => isset($odds['homeTeamMLOdds']) ? floatval($odds['homeTeamMLOdds']) : null,
+                                                'moneyline_away' => isset($odds['awayTeamMLOdds']) ? floatval($odds['awayTeamMLOdds']) : null,
+                                                'implied_total_home' => $odds['impliedTotals']['homeTotal'] ?? null,
+                                                'implied_total_away' => $odds['impliedTotals']['awayTotal'] ?? null,
+                                            ]
+                                        );
+                                    } else {
+                                        Log::warning('No event ID found for the game', ['game' => $game]);
+                                    }
                                 }
                             }
+                        }
+
+                        // *** Optionally, log if 'draftkings' data is not found for the game ***
+                        if (!array_filter($game['sportsBooks'], function ($sportsBook) {
+                            return isset($sportsBook['sportsBook']) && strtolower($sportsBook['sportsBook']) === 'draftkings';
+                        })) {
+                            Log::info('DraftKings data not available for game', ['gameID' => $game['gameID'] ?? 'Unknown']);
                         }
                     }
                 }
