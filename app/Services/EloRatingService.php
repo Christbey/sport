@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Nfl\EloRating;
+use App\Models\Nfl\NflEloRating;
 use App\Models\Nfl\NflTeamSchedule;
 use App\Models\Nfl\EloPrediction;
 use App\Models\NflEloPrediction;
@@ -347,7 +348,7 @@ class EloRatingService
      */
     private function storeFinalElo($teamAbv, $seasonYear, $currentElo)
     {
-        EloRating::updateOrCreate(
+        NflEloRating::updateOrCreate(
             ['team' => $teamAbv, 'year' => $seasonYear],
             ['final_elo' => round($currentElo)]
         );
