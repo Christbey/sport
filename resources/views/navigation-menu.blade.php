@@ -42,6 +42,8 @@
                                         href="{{ route('covers.games') }}">{{ __('Covers Games') }}</x-dropdown-link>
                                 <x-dropdown-link
                                         href="{{ route('espn.qbr', ['week' => 1]) }}">{{ __('ESPN QBR') }}</x-dropdown-link>
+                                <x-dropdown-link
+                                        href="{{ route('nfl.elo.predictions') }}">{{ __('Elo Predictions') }}</x-dropdown-link>
                             </div>
                         </x-slot>
                     </x-dropdown>
@@ -177,6 +179,8 @@
                                    :active="request()->routeIs('covers.games')">{{ __('Covers Games') }}</x-responsive-nav-link>
             <x-responsive-nav-link href="{{ route('espn.qbr', ['week' => 1]) }}"
                                    :active="request()->routeIs('espn.qbr')">{{ __('ESPN QBR') }}</x-responsive-nav-link>
+            <x-responsive-nav-link href="{{ route('nfl.elo.predictions') }}"
+                                   :active="request()->routeIs('nfl.elo.predictions')">{{ __('Elo Predictions') }}</x-responsive-nav-link>
         </div>
 
         <!-- Authenticated User -->
