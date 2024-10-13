@@ -5,28 +5,24 @@ namespace App\Http\Controllers\Nfl;
 use App\Http\Controllers\Controller;
 use App\Models\Nfl\NflEloRating;
 use App\Models\NflEloPrediction;
-use Illuminate\View\View;
+use Illuminate\Http\Request;
 
 class NflEloRatingController extends Controller
 {
-    /**
-     * Display a listing of the Elo ratings.
-     *
-     * @return View
-     */
-    public function index()
+    public function prediction(Request $request)
     {
-        // Fetch all Elo ratings
-        $eloRatings = NflEloRating::all();
+        $week = $request->input('week');
 
-        // Return the renamed view with the Elo ratings
-        return view('nfl.elo', compact('eloRatings'));
-    }
+        $eloPredictionsQuery = NflEloPrediction::query();
 
-    public function prediction()
-    {
-        $eloPredictions = NflEloPrediction::all(); // Get all predictions from the table
-        return view('nfl.elo_predictions', compact('eloPredictions'));
+        if ($week) {
+            $eloPredictionsQuery->where('week', $week);
+        }
 
+        $eloPredictions = $eloPredictionsQuery->orderBy('team')->get();
+
+        $weeks = NflEloPrediction::select('week')->distinct()->orderBy('week')->pluck('week');
+
+        return view('nfl.elo_predictions', compact('eloPredictions', 'weeks', 'week'));
     }
 }

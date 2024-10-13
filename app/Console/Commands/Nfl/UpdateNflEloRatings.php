@@ -32,26 +32,11 @@ class UpdateNflEloRatings extends Command
             $this->info("Calculating Elo, expected wins, and spreads for team: $team");
 
             // Calculate the Elo rating and predictions for the team
-            $predictions = $this->eloService->calculateTeamEloForSeason($team, $year);
+            $finalElo = $this->eloService->processTeamPredictions($team, $year, $weeks, $today);
 
-            foreach ($predictions['predictions'] as $prediction) {
-                $week = $prediction['week'];
-
-                // Check if week exists in the config
-                if (!isset($weeks[$week])) {
-                    $this->eloService->logMissingWeek($week, $year);
-                    continue;
-                }
-
-                $weekEnd = Carbon::parse($weeks[$week]['end']);
-
-                // Find the game and handle prediction storage via the service
-                $this->eloService->storePredictionIfNeeded($team, $prediction, $year, $weekEnd, $today);
-            }
-
-            $this->info("Team: $team | Final Elo for $year season: {$predictions['final_elo']}");
+            $this->info("Team: $team | Final Elo for $year season: {$finalElo}");
         }
 
-        $this->info('Elo calculation, expected wins, and spreads for all teams is completed.');
+        $this->info('Elo calculation, expected wins, and spreads for all teams are completed.');
     }
 }
