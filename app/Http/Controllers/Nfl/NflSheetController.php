@@ -42,7 +42,7 @@ class NflSheetController extends Controller
                 $query->where('home_team_id', $selectedTeamId)
                     ->orWhere('away_team_id', $selectedTeamId);
             })
-                ->whereBetween('game_date', [$weeks[$currentWeek]['start'], $weeks[$currentWeek]['end']])
+                // ->whereBetween('game_date', [$weeks[$currentWeek]['start'], $weeks[$currentWeek]['end']])
                 ->get();
 
             // If a game exists in the current week, set the first game as the default selected game

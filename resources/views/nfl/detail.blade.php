@@ -28,7 +28,7 @@
                             <option value="">-- Select Game --</option>
                             @foreach ($games as $game)
                                 <option value="{{ $game->id }}" {{ $selectedGameId == $game->id ? 'selected' : '' }}>
-                                    Game ID: {{ $game->id }}
+                                    {{ $game->name }}
                                 </option>
                             @endforeach
                         </select>
