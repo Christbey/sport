@@ -202,9 +202,9 @@ class EloRatingService
     {
         $expectedOutcome = $this->calculateExpectedOutcome($teamElo, $opponentElo);
         $eloDifference = -400 * log10((1 / $expectedOutcome) - 1);
-        $predictedSpread = $eloDifference * 0.03 + ($game->home_team === $teamAbv ? $this->homeFieldAdvantage : -$this->homeFieldAdvantage) + $restAdvantage;
+        $predictedSpread = $eloDifference * 0.03 + ($game->home_team === $teamAbv ? $this->homeFieldAdvantage : -$this->homeFieldAdvantage) + $restAdvantage / 10;
 
-        return round(max(min($predictedSpread, 50), -50), 1);
+        return round(max(min($predictedSpread, 19.5), -19.5), 1);
     }
 
     private function getGameResult(NflTeamSchedule $game, string $teamAbv): float
@@ -214,7 +214,7 @@ class EloRatingService
 
     private function calculateEloForGame(float $team1Elo, float $team2Elo, float $result, NflTeamSchedule $game): array
     {
-        $movMultiplier = log(abs($game->home_pts - $game->away_pts) + 1) * (2.2 / (($team1Elo - $team2Elo) * 0.0047 + 2.2));
+        $movMultiplier = log(abs($game->home_pts - $game->away_pts) + 1) * (2.2 / (($team1Elo - $team2Elo) * 0.00047 + 2.2));
         $expectedOutcome = $this->calculateExpectedOutcome($team1Elo, $team2Elo);
 
         return [

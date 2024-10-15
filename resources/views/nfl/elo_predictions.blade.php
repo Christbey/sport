@@ -40,7 +40,6 @@
                             <!-- Game Status and Points from API -->
                             <div class="mb-4">
                                 <p class="text-sm font-light text-gray-600">
-                                    <span class="font-medium">Status:</span>
                                     @if($prediction->gameStatus === 'Live - In Progress')
                                         <span class="inline-block bg-yellow-500 text-white px-2 py-1 rounded">Live</span>
                                     @elseif($prediction->gameStatus === 'Completed')

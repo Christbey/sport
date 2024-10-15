@@ -5,9 +5,10 @@ namespace App\Http\Controllers\Nfl;
 use App\Http\Controllers\Controller;
 use App\Models\Nfl\NflBettingOdds;
 use App\Models\NflEloPrediction;
+use App\Models\Nfl\NflTeamSchedule;
+
+// Add the model for team schedules
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
-use Log;
 
 class NflEloRatingController extends Controller
 {
@@ -28,45 +29,30 @@ class NflEloRatingController extends Controller
         // Fetch betting odds
         $nflBettingOdds = NflBettingOdds::whereIn('event_id', $eloPredictions->pluck('game_id'))->get()->keyBy('event_id');
 
-        // Make API request to get live game data
-        $response = Http::withHeaders([
-            'x-rapidapi-host' => 'tank01-nfl-live-in-game-real-time-statistics-nfl.p.rapidapi.com',
-            'x-rapidapi-key' => config('services.rapidapi.key'),
-        ])->get('https://tank01-nfl-live-in-game-real-time-statistics-nfl.p.rapidapi.com/getNFLScoresOnly', [
-            'gameDate' => '20241013', // Example date, adjust as needed
-        ]);
+        // Fetch home and away points from nfl_team_schedules
+        $teamSchedules = NflTeamSchedule::whereIn('game_id', $eloPredictions->pluck('game_id'))
+            ->get()->keyBy('game_id');
 
-        // Log the response to ensure we're getting the expected structure
-        Log::info('API Response:', $response->json());
+        // Process the Elo predictions and enrich with game data
+        foreach ($eloPredictions as $prediction) {
+            $game = $teamSchedules[$prediction->game_id] ?? null;
+            if ($game) {
+                // Attach homePts, awayPts from teamSchedules
+                $prediction->homePts = $game->home_pts ?? null;
+                $prediction->awayPts = $game->away_pts ?? null;
+                $prediction->gameStatus = $game->game_status ?? null;
 
-        // Check if the response is successful and has the body data
-        if ($response->successful() && isset($response->json()['body'])) {
-            $gamesData = $response->json()['body'];  // Access the "body" key
+                // Calculate if the prediction was correct (only if the game is completed)
+                if (isset($game->home_pts) && isset($game->away_pts)) {
+                    $actualSpread = $game->home_pts - $game->away_pts; // Actual point difference
+                    $predictedSpread = $prediction->predicted_spread;
 
-            // Process the Elo predictions and enrich with game data
-            foreach ($eloPredictions as $prediction) {
-                $game = $gamesData[$prediction->game_id] ?? null;
-                if ($game) {
-                    // Attach homePts, awayPts, etc., to the prediction
-                    $prediction->homePts = $game['homePts'] ?? null;
-                    $prediction->awayPts = $game['awayPts'] ?? null;
-                    $prediction->gameStatus = $game['gameStatus'] ?? null;
-                    $prediction->gameClock = $game['gameClock'] ?? null;
-
-                    // Calculate if the prediction was correct (only if the game is completed)
-                    if ($game['gameStatus'] === 'Completed' && isset($game['homePts']) && isset($game['awayPts'])) {
-                        $actualSpread = $game['homePts'] - $game['awayPts']; // Actual point difference
-                        $predictedSpread = $prediction->predicted_spread;
-
-                        // Determine if the prediction was correct
-                        $prediction->wasCorrect = ($predictedSpread > 0 && $actualSpread > $predictedSpread) || ($predictedSpread < 0 && $actualSpread < $predictedSpread);
-                    } else {
-                        $prediction->wasCorrect = null; // Game is not completed, so no result yet
-                    }
+                    // Determine if the prediction was correct
+                    $prediction->wasCorrect = ($predictedSpread > 0 && $actualSpread > $predictedSpread) || ($predictedSpread < 0 && $actualSpread < $predictedSpread);
+                } else {
+                    $prediction->wasCorrect = null; // Game is not completed, so no result yet
                 }
             }
-        } else {
-            Log::warning('Failed to fetch data from the API or missing "body" key.');
         }
 
         // Pass the enriched predictions and betting odds to the view
