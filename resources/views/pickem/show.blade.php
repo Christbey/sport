@@ -1,6 +1,5 @@
 <x-app-layout>
     <div class="max-w-5xl lg:mx-auto px-4 py-6 sm:px-6 lg:px-8">
-
         <!-- Success and Error Notifications -->
         @if(session('success'))
             <div class="mb-4 p-4 bg-green-100 text-green-700 rounded-lg">
@@ -13,10 +12,8 @@
                 {{ session('error') }}
             </div>
         @endif
-
         <!-- Form for filtering by week -->
         <div class="bg-white shadow-sm sm:rounded-lg p-6">
-            <h2 class="text-2xl font-semibold mb-6">Select Week</h2>
             <form id="weekForm" method="GET" action="{{ route('pickem.schedule') }}" class="mb-6">
                 <label for="game_week" class="block text-sm font-medium text-gray-700 mb-2">Select Week</label>
                 <select name="game_week" id="game_week"
@@ -32,7 +29,6 @@
             </form>
 
             <!-- Display matchups and submit form -->
-            <h2 class="text-2xl font-semibold mb-6">{{ $game_week ?? 'All' }} Matchups</h2>
             <form action="{{ route('pickem.pickWinner') }}" method="POST">
                 @csrf
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
@@ -52,19 +48,17 @@
                                             id="away_team_{{ $schedule->id }}"
                                             name="team_ids[{{ $schedule->espn_event_id }}]"
                                             value="{{ $schedule->away_team_id }}"
-                                            label="{{ $schedule->awayTeam->team_name ?? 'Unknown' }}"
+                                            label="{{ $schedule->awayTeam->team_name ?? 'Unknown' }} {{ $schedule->away_team_record ?? 'N/A' }}"
                                             :checked="$userPick == $schedule->away_team_id"
                                     />
-
                                     <!-- Home Team Radio Button -->
                                     <x-radio-button
                                             id="home_team_{{ $schedule->id }}"
                                             name="team_ids[{{ $schedule->espn_event_id }}]"
                                             value="{{ $schedule->home_team_id }}"
-                                            label="{{ $schedule->homeTeam->team_name ?? 'Unknown' }}"
+                                            label="{{ $schedule->homeTeam->team_name ?? 'Unknown' }} {{ $schedule->home_team_record ?? 'N/A' }}"
                                             :checked="$userPick == $schedule->home_team_id"
                                     />
-
                                     <!-- Game Status -->
                                     <div class="text-xs font-light text-gray-400 mt-4">
                                         <p>{{ $schedule->status_type_detail ?? 'No status available' }}</p>
