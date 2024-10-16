@@ -15,7 +15,7 @@ class CollegeFootballHypotheticalController extends Controller
     public function index(Request $request)
     {
         // Get the selected week from the request, default to the current week
-        $week = $request->input('week', 7);  // Default to week 6 if none selected
+        $week = $request->input('week', 8);  // Default to week 6 if none selected
 
         // Fetch all distinct weeks for the dropdown
         $weeks = CollegeFootballHypothetical::select('week')->distinct()->orderBy('week', 'asc')->get();

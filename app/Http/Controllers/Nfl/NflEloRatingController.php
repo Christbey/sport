@@ -41,6 +41,7 @@ class NflEloRatingController extends Controller
                 $prediction->homePts = $game->home_pts ?? null;
                 $prediction->awayPts = $game->away_pts ?? null;
                 $prediction->gameStatus = $game->game_status ?? null;
+                $prediction->gameStatusDetail = $game->status_type_detail ?? null;
 
                 // Calculate if the prediction was correct (only if the game is completed)
                 if (isset($game->home_pts) && isset($game->away_pts)) {

@@ -26,16 +26,20 @@
                             <!-- Team and Opponent Information -->
                             <div class="flex justify-between items-center mb-4">
                                 <div class="text-lg font-bold text-gray-800">
-                                    <span class="block text-gray-500 text-sm">Opponent:</span>
+                                    <span class="block text-gray-500 text-sm"></span>
                                     {{ $prediction->opponent }}
-                                    <p class="text-gray-400 text-sm">
+                                    <p class="text-sm text-gray-600"> <span
+                                                class="text-center font-bold">{{ $prediction->awayPts ?? 'N/A' }}</span>
+                                    </p>
                                 </div>
                                 <div class="text-lg font-bold text-gray-800">
-                                    <span class="block text-gray-500 text-sm">Team:</span>
+                                    <span class="block text-gray-500 text-sm"></span>
                                     {{ $prediction->team }}
-                                    <p class="text-gray-400 text-sm">
-                                </div>
+                                    <p class="text-sm text-gray-600"> <span
+                                                class="font-bold">{{ $prediction->homePts ?? 'N/A' }}</span></p></div>
+
                             </div>
+
 
                             <!-- Game Status and Points from API -->
                             <div class="mb-4">
@@ -43,20 +47,14 @@
                                     @if($prediction->gameStatus === 'Live - In Progress')
                                         <span class="inline-block bg-yellow-500 text-white px-2 py-1 rounded">Live</span>
                                     @elseif($prediction->gameStatus === 'Completed')
-                                        <span class="inline-block bg-green-600 text-white px-2 py-1 rounded">Completed</span>
+                                        <span class="inline-block bg-gray-200/80 text-gray-800 px-2 py-1 rounded">Completed</span>
                                     @else
                                         <span class="inline-block bg-gray-500 text-white px-2 py-1 rounded">Not Started</span>
                                     @endif
                                 </p>
-                                <p class="text-sm text-gray-600">
-                                    Clock: {{ $prediction->gameClock ?? 'Not Available' }}</p>
-                                <div class="flex justify-between mt-2">
-                                    <p class="text-sm text-gray-600">Away Points: <span
-                                                class="font-bold">{{ $prediction->awayPts ?? 'N/A' }}</span></p>
-                                    <p class="text-sm text-gray-600">Home Points: <span
-                                                class="font-bold">{{ $prediction->homePts ?? 'N/A' }}</span></p>
+                                <p class="text-sm text-gray-600 mt-2">
+                                    {{ $prediction->gameStatusDetail ?? 'Not Available' }}</p>
 
-                                </div>
                             </div>
 
                             <!-- Predicted Spread -->
