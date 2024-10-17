@@ -3,7 +3,6 @@
         <h1 class="text-2xl font-bold text-gray-800 mb-6">
             College Football Hypothetical Spreads - Week {{ $week }}
         </h1>
-
         <!-- Week Selection Form -->
         <form method="GET" action="{{ route('cfb.index') }}" class="mb-8">
             <label for="week" class="mr-2 text-gray-600">Select Week:</label>

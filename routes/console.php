@@ -14,5 +14,9 @@ Schedule::command('fetch:sp-ratings')->mondays()->at('19:10');
 Schedule::command('scrape:college-football-rankings')->mondays()->at('19:15');
 Schedule::command('calculate:hypothetical-spreads')->mondays()->at('19:20');
 
-// Fetch NFL data every day at 7:00 PM
-Schedule::command('nfl:fetch-boxscore', ['--all'])->dailyat('20:00');
+// Fetch NFL data every day at 7:00 PM CST/CDT
+Schedule::command('nfl:fetch-boxscore')
+    ->daily()
+    ->timezone('America/Chicago')
+    ->at('22:00'); // 10:00 PM CST/CDT
+

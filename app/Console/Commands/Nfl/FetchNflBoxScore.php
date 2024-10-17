@@ -13,10 +13,8 @@ use Illuminate\Support\Facades\Http;
 
 class FetchNflBoxScore extends Command
 {
-    // Command signature with an optional gameID and 'all' method
     protected $signature = 'nfl:fetch-boxscore {gameID?} {--all}';
 
-    // Command description
     protected $description = 'Fetch NFL box score for a specific game or all missing games before today, and store the data';
 
     public function __construct()
@@ -26,19 +24,16 @@ class FetchNflBoxScore extends Command
 
     public function handle()
     {
-        // Check if the 'all' option is used
-        if ($this->option('all')) {
+        $gameID = $this->argument('gameID');
+
+        // Default to 'all' behavior if no gameID is provided.
+        if ($this->option('all') || !$gameID) {
             $this->fetchAllBoxScoresBeforeToday();
-        } elseif ($gameID = $this->argument('gameID')) {
-            $this->fetchAndStoreBoxScore($gameID);
         } else {
-            $this->fetchBoxScoresForCurrentWeek();
+            $this->fetchAndStoreBoxScore($gameID);
         }
     }
 
-    /**
-     * Fetch all box scores before today's date.
-     */
     protected function fetchAllBoxScoresBeforeToday()
     {
         $today = Carbon::today();
@@ -57,15 +52,11 @@ class FetchNflBoxScore extends Command
             return;
         }
 
-        // Fetch box score for each missing game_id
         foreach ($games as $gameID) {
             $this->fetchAndStoreBoxScore($gameID);
         }
     }
 
-    /**
-     * Fetch and store a box score for a given game ID.
-     */
     protected function fetchAndStoreBoxScore($gameID)
     {
         $this->info("Fetching box score for game: {$gameID}");
@@ -81,16 +72,11 @@ class FetchNflBoxScore extends Command
         }
     }
 
-    /**
-     * Store the box score data, including player stats and team stats.
-     */
     protected function storeBoxScoreData(array $data)
     {
         $gameData = $data['body'];
 
-        // Use a DB transaction for safe multi-step database operations
         DB::transaction(function () use ($gameData) {
-            // Store Box Score
             NflBoxScore::updateOrCreate(
                 ['game_id' => $gameData['gameID']],
                 [
@@ -108,7 +94,6 @@ class FetchNflBoxScore extends Command
                 ]
             );
 
-            // Batch Insert/Update Player Stats
             if (isset($gameData['playerStats'])) {
                 $playerStatsData = [];
                 foreach ($gameData['playerStats'] as $playerID => $playerStats) {
@@ -128,7 +113,6 @@ class FetchNflBoxScore extends Command
                 NflPlayerStat::upsert($playerStatsData, ['player_id', 'game_id']);
             }
 
-            // Batch Insert/Update Team Stats
             if (isset($gameData['teamStats'])) {
                 $teamStatsData = [];
                 foreach ($gameData['teamStats'] as $teamStats) {
@@ -147,9 +131,6 @@ class FetchNflBoxScore extends Command
         });
     }
 
-    /**
-     * Fetch box scores for the current week based on the NFL schedule.
-     */
     protected function fetchBoxScoresForCurrentWeek()
     {
         $currentDate = Carbon::now();
@@ -169,15 +150,11 @@ class FetchNflBoxScore extends Command
             return;
         }
 
-        // Fetch and store box scores for each game
         foreach ($games as $gameID) {
             $this->fetchAndStoreBoxScore($gameID);
         }
     }
 
-    /**
-     * Get the current week configuration based on the date.
-     */
     protected function getCurrentWeekConfig($date)
     {
         return collect(config('nfl.weeks'))->first(function ($week) use ($date) {
