@@ -15,15 +15,19 @@ class CollegeFootballHypotheticalController extends Controller
     public function index(Request $request)
     {
         // Get the selected week from the request, default to the current week
-        $week = $request->input('week', 8);  // Default to week 6 if none selected
+        $week = $request->input('week', 8); // Default to week 8 if none selected
 
         // Fetch all distinct weeks for the dropdown
         $weeks = CollegeFootballHypothetical::select('week')->distinct()->orderBy('week', 'asc')->get();
 
-        // Fetch games for the selected week
-        $hypotheticals = CollegeFootballHypothetical::where('week', $week)->get();
+        // Fetch games for the selected week along with the 'completed' field from related games
+        $hypotheticals = CollegeFootballHypothetical::where('week', $week)
+            ->with(['game' => function ($query) {
+                $query->select('id', 'completed');
+            }])
+            ->get();
 
-        // Calculate home winning percentage for each game and determine the projected winner
+        // Calculate home winning percentage and determine the projected winner
         foreach ($hypotheticals as $hypothetical) {
             $homeElo = $hypothetical->home_elo;
             $awayElo = $hypothetical->away_elo;
@@ -35,7 +39,9 @@ class CollegeFootballHypotheticalController extends Controller
             $hypothetical->home_winning_percentage = $homeWinningPercentage;
 
             // Determine the projected winner and fetch their team color
-            $winnerTeam = $homeWinningPercentage > 0.5 ? CollegeFootballTeam::find($hypothetical->home_team_id) : CollegeFootballTeam::find($hypothetical->away_team_id);
+            $winnerTeam = $homeWinningPercentage > 0.5
+                ? CollegeFootballTeam::find($hypothetical->home_team_id)
+                : CollegeFootballTeam::find($hypothetical->away_team_id);
 
             // Attach the winner's color to the hypothetical
             $hypothetical->winner_color = $winnerTeam->color ?? '#000000'; // Default to black if no color is found

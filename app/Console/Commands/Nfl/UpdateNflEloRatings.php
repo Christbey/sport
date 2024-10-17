@@ -11,7 +11,7 @@ class UpdateNflEloRatings extends Command
     protected $signature = 'nfl:calculate-team-elo {year}';
     protected $description = 'Calculate Elo rating, expected wins, and spreads for all NFL teams for a given season';
 
-    protected $eloService;
+    protected EloRatingService $eloService;
 
     public function __construct(EloRatingService $eloService)
     {

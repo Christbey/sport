@@ -12,7 +12,7 @@ class CalculateHypotheticalSpread extends Command
     protected $signature = 'calculate:hypothetical-spreads';
     protected $description = 'Calculate hypothetical spreads for upcoming FBS games';
 
-    protected $spreadService;
+    protected HypotheticalSpreadService $spreadService;
 
     public function __construct(HypotheticalSpreadService $spreadService)
     {
