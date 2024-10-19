@@ -6,19 +6,12 @@
         </h1>
 
         <!-- Week Selection Form -->
-        <form method="GET" action="{{ route('cfb.index') }}" class="mb-8 flex items-center space-x-4">
-            <div>
-                <label for="week" class="mr-2 text-gray-600">Select Week:</label>
-                <select name="week" id="week" class="border border-gray-300 rounded p-2" onchange="this.form.submit()">
-                    <option value="">All Weeks</option>
-                    @foreach($weeks as $wk)
-                        <option value="{{ $wk->week }}" {{ $week == $wk->week ? 'selected' : '' }}>
-                            Week {{ $wk->week }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-        </form>
+        <x-week-selection-form
+                :weeks="$weeks"
+                :selected-week="$week"
+                action="{{ route('cfb.index') }}"
+        />
+
 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
             @if($hypotheticals->isEmpty())

@@ -39,8 +39,7 @@
                                                 class="font-bold">{{ $prediction->homePts ?? 'N/A' }}</span></p></div>
 
                             </div>
-
-
+                            
                             <!-- Game Status and Points from API -->
                             <div class="mb-4">
                                 <p class="text-sm font-light text-gray-600">

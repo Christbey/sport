@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\CollegeFootballNote;
@@ -22,4 +23,6 @@ class CollegeFootballNoteController extends Controller
 
         return redirect()->back()->with('success', 'Note added successfully.');
     }
+
+
 }

@@ -7,6 +7,7 @@ use App\Models\CollegeFootball\CollegeFootballGame;
 use App\Models\CollegeFootball\CollegeFootballHypothetical;
 use App\Models\CollegeFootball\CollegeFootballTeam;
 use App\Models\CollegeFootball\SpRating;
+use App\Models\CollegeFootballNote;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -78,7 +79,8 @@ class CollegeFootballHypotheticalController extends Controller
         // Fetch home and away team details
         $homeTeam = CollegeFootballTeam::find($hypothetical->home_team_id);
         $awayTeam = CollegeFootballTeam::find($hypothetical->away_team_id);
-
+        $homeTeamNotes = CollegeFootballNote::where('team_id', $homeTeam->id)->get();
+        $awayTeamNotes = CollegeFootballNote::where('team_id', $awayTeam->id)->get();
         // Ensure that both teams exist
         if (!$homeTeam || !$awayTeam) {
             abort(404, 'Team not found');
@@ -130,7 +132,7 @@ class CollegeFootballHypotheticalController extends Controller
             'ppaMismatch', 'successRateMismatch', 'explosivenessMismatch',
             'home_offense_trend', 'away_offense_trend',
             'homeWinningPercentage', 'winnerTeam', 'smartPick',
-            'homeTeamLast3Games', 'awayTeamLast3Games', 'recentMatchups', 'previousResults'
+            'homeTeamLast3Games', 'awayTeamLast3Games', 'recentMatchups', 'previousResults', 'homeTeamNotes', 'awayTeamNotes'
         ));
     }
 
@@ -143,6 +145,7 @@ class CollegeFootballHypotheticalController extends Controller
             'defense_ppa' => AdvancedGameStat::where('team_id', $teamId)->avg('defense_ppa') ?? 0,
             'defense_success_rate' => AdvancedGameStat::where('team_id', $teamId)->avg('defense_success_rate') ?? 0,
             'defense_explosiveness' => AdvancedGameStat::where('team_id', $teamId)->avg('defense_explosiveness') ?? 0,
+
         ];
     }
 

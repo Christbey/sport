@@ -65,67 +65,6 @@
             </ul>
         </div>
 
-        <!-- Notes Section -->
-        <div class="bg-white shadow-lg rounded-lg p-6">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Add a Note</h2>
-            <form action="{{ route('cfb.notes.store') }}" method="POST">
-                @csrf
-                <div class="mb-4">
-                    <label for="team_id" class="block text-sm font-medium text-gray-700">Select Team</label>
-                    <select name="team_id" id="team_id"
-                            class="form-select mt-1 block w-full border-gray-300 rounded-md">
-                        <option value="{{ $homeTeam->id }}">{{ $homeTeam->school }}</option>
-                        <option value="{{ $awayTeam->id }}">{{ $awayTeam->school }}</option>
-                    </select>
-                </div>
-                <input type="hidden" name="game_id" value="{{ $game->id }}">
-                <div class="mb-4">
-                    <label for="note" class="block text-sm font-medium text-gray-700">Note</label>
-                    <textarea name="note" id="note" rows="4"
-                              class="form-textarea mt-1 block w-full border-gray-300 rounded-md"
-                              placeholder="Add your notes here..."></textarea>
-                </div>
-                <div>
-                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save
-                        Note
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Hypothetical Outcome Section -->
-        <div class="bg-white shadow-lg rounded-lg p-6">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-6">{{ $homeTeam->school }}
-                vs {{ $awayTeam->school }}</h2>
-            <form action="{{ route('cfb.hypothetical.correct', $hypothetical->id) }}" method="POST">
-                @csrf
-                @method('PATCH')
-                <div class="mb-4">
-                    <label for="team_id" class="block text-sm font-medium text-gray-700">Select Team</label>
-                    <select name="team_id" id="team_id"
-                            class="form-select mt-1 block w-full border-gray-300 rounded-md">
-                        <option value="{{ $homeTeam->id }}">{{ $homeTeam->school }} (Home)</
-                        </option>
-                        <option value="{{ $awayTeam->id }}">{{ $awayTeam->school }} (Away)</option>
-                    </select>
-                </div>
-
-                <div class="mb-4">
-                    <label for="correct" class="block text-sm font-medium text-gray-700">Correct Prediction</label>
-                    <select name="correct" id="correct"
-                            class="form-select mt-1 block w-full border-gray-300 rounded-md">
-                        <option value="1" {{ $hypothetical->correct == 1 ? 'selected' : '' }}>Yes</option>
-                        <option value="0" {{ $hypothetical->correct == 0 ? 'selected' : '' }}>No</option>
-                    </select>
-                </div>
-
-                <button type="submit"
-                        class="mt-6 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500">
-                    Update Prediction
-                </button>
-            </form>
-        </div>
-
         <!-- Last 3 Matchups for Home Team -->
         <div class="bg-gray-50 shadow-lg rounded-lg p-6">
             <h2 class="text-xl font-semibold text-gray-800 mb-4">Last 3 Matchups for {{ $homeTeam->school }}</h2>
@@ -171,6 +110,70 @@
                     @endforeach
                 </ul>
             @endif
+        </div>
+
+        <!-- Notes Section -->
+        <div class="bg-white shadow-lg rounded-lg p-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Your Notes for {{ $homeTeam->school }}</h2>
+            @if($homeTeamNotes->isEmpty())
+                <p class="text-gray-500">No notes found for {{ $homeTeam->school }}.</p>
+            @else
+                <ul class="list-disc pl-5 space-y-2">
+                    @foreach($homeTeamNotes as $note)
+                        <li class="text-gray-600">
+                            <span class="font-semibold">{{ $note->created_at->format('M d, Y H:i') }}</span>:
+                            {{ $note->note }}
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </div>
+
+        <div class="bg-white shadow-lg rounded-lg p-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Your Notes for {{ $awayTeam->school }}</h2>
+            @if($awayTeamNotes->isEmpty())
+                <p class="text-gray-500">No notes found for {{ $awayTeam->school }}.</p>
+            @else
+                <ul class="list-disc pl-5 space-y-2">
+                    @foreach($awayTeamNotes as $note)
+                        <li class="text-gray-600">
+                            <span class="font-semibold">{{ $note->created_at->format('M d, Y H:i') }}</span>:
+                            {{ $note->note }}
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </div>
+
+        <!-- Add Note Form -->
+        <div class="bg-white shadow-lg rounded-lg p-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Add a Note</h2>
+            <form action="{{ route('cfb.notes.store') }}" method="POST">
+                @csrf
+                <div class="mb-4">
+                    <label for="team_id" class="block text-sm font-medium text-gray-700">Select Team</label>
+                    <select name="team_id" id="team_id"
+                            class="form-select mt-1 block w-full border-gray-300 rounded-md">
+                        <option value="{{ $homeTeam->id }}">{{ $homeTeam->school }}</option>
+                        <option value="{{ $awayTeam->id }}">{{ $awayTeam->school }}</option>
+                    </select>
+                </div>
+
+                <input type="hidden" name="game_id" value="{{ $game->id }}">
+
+                <div class="mb-4">
+                    <label for="note" class="block text-sm font-medium text-gray-700">Note</label>
+                    <textarea name="note" id="note" rows="4"
+                              class="form-textarea mt-1 block w-full border-gray-300 rounded-md"
+                              placeholder="Add your notes here..."></textarea>
+                </div>
+
+                <div>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                        Save Note
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </x-app-layout>
