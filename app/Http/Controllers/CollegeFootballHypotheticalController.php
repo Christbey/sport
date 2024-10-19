@@ -20,11 +20,17 @@ class CollegeFootballHypotheticalController extends Controller
         // Fetch all distinct weeks for the dropdown
         $weeks = CollegeFootballHypothetical::select('week')->distinct()->orderBy('week', 'asc')->get();
 
-        // Fetch games for the selected week along with the 'completed' field from related games
-        $hypotheticals = CollegeFootballHypothetical::where('week', $week)
-            ->with(['game' => function ($query) {
-                $query->select('id', 'completed');
-            }])
+        // Join with the college_football_games table and order by start_date
+        $hypotheticals = CollegeFootballHypothetical::where('college_football_hypotheticals.week', $week)
+            ->join('college_football_games', 'college_football_hypotheticals.game_id', '=', 'college_football_games.id')
+            ->orderBy('college_football_games.start_date', 'asc') // Order by game start_date
+            ->select(
+                'college_football_hypotheticals.*',
+                'college_football_games.start_date',
+                'college_football_games.completed',
+                'college_football_games.formatted_spread' // Select formatted_spreads
+            )
+            ->with('game') // Eager load the game relationship
             ->get();
 
         // Calculate home winning percentage and determine the projected winner
@@ -34,20 +40,17 @@ class CollegeFootballHypotheticalController extends Controller
             $homeFpi = $hypothetical->home_fpi;
             $awayFpi = $hypothetical->away_fpi;
 
-            // Calculate the home winning percentage using ELO and FPI values
             $homeWinningPercentage = $this->calculateHomeWinningPercentage($homeElo, $awayElo, $homeFpi, $awayFpi);
             $hypothetical->home_winning_percentage = $homeWinningPercentage;
 
-            // Determine the projected winner and fetch their team color
             $winnerTeam = $homeWinningPercentage > 0.5
                 ? CollegeFootballTeam::find($hypothetical->home_team_id)
                 : CollegeFootballTeam::find($hypothetical->away_team_id);
 
-            // Attach the winner's color to the hypothetical
             $hypothetical->winner_color = $winnerTeam->color ?? '#000000'; // Default to black if no color is found
         }
 
-        // Pass the games, weeks, and selected week to the view
+        // Pass data to the view
         return view('cfb.index', compact('hypotheticals', 'weeks', 'week'));
     }
 

@@ -35,7 +35,7 @@ class CollegeFootballHypothetical extends Model
      */
     public function game()
     {
-        return $this->belongsTo(CollegeFootballGame::class, 'game_id');
+        return $this->belongsTo(CollegeFootballGame::class, 'game_id', 'id');
     }
 
     /**
@@ -47,5 +47,5 @@ class CollegeFootballHypothetical extends Model
             ->where('away_division', 'fbs');
     }
 
-    
+
 }

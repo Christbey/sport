@@ -1,19 +1,23 @@
+@php use Carbon\Carbon; @endphp
 <x-app-layout>
     <div class="container mx-auto max-w-5xl">
         <h1 class="text-2xl font-bold text-gray-800 mb-6">
             College Football Hypothetical Spreads - Week {{ $week }}
         </h1>
+
         <!-- Week Selection Form -->
-        <form method="GET" action="{{ route('cfb.index') }}" class="mb-8">
-            <label for="week" class="mr-2 text-gray-600">Select Week:</label>
-            <select name="week" id="week" class="border border-gray-300 rounded p-2" onchange="this.form.submit()">
-                <option value="">All Weeks</option>
-                @foreach($weeks as $wk)
-                    <option value="{{ $wk->week }}" {{ $week == $wk->week ? 'selected' : '' }}>
-                        Week {{ $wk->week }}
-                    </option>
-                @endforeach
-            </select>
+        <form method="GET" action="{{ route('cfb.index') }}" class="mb-8 flex items-center space-x-4">
+            <div>
+                <label for="week" class="mr-2 text-gray-600">Select Week:</label>
+                <select name="week" id="week" class="border border-gray-300 rounded p-2" onchange="this.form.submit()">
+                    <option value="">All Weeks</option>
+                    @foreach($weeks as $wk)
+                        <option value="{{ $wk->week }}" {{ $week == $wk->week ? 'selected' : '' }}>
+                            Week {{ $wk->week }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
         </form>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
@@ -23,7 +27,6 @@
                 @foreach($hypotheticals as $game)
                     <div class="bg-white shadow-md rounded-lg overflow-hidden relative hover:shadow-lg transition-shadow duration-300">
                         <div class="p-4 sm:p-6">
-                            <!-- Team and Opponent Information -->
                             <div class="flex justify-between items-center mb-4">
                                 <div class="text-lg font-bold text-gray-800">
                                     {{ $game->away_team_school }}
@@ -39,7 +42,15 @@
                                 </div>
                             </div>
 
-                            <!-- Predicted Spread Logic -->
+                            <!-- Display Game Start Date in CST -->
+                            <div class="text-gray-600 mb-4">
+                                <p>Start Time:
+                                    {{ Carbon::parse($game->start_date)
+                                        ->setTimezone('America/Chicago')
+                                        ->format('l, F j, Y g:i A') }}
+                                </p>
+                            </div>
+
                             <div class="border-t border-gray-200 pt-4">
                                 <p class="text-gray-600 font-semibold text-small">
                                     @if($game->hypothetical_spread > 0)
@@ -52,10 +63,11 @@
                                         Even game, no predicted favorite
                                     @endif
                                 </p>
+                                <p>DraftKings: {{ $game->formatted_spread }}</p>
+
                             </div>
 
-                            <!-- Show Prediction Outcome Only If Game is Completed -->
-                            @if($game->game->completed == 1)
+                            @if($game->completed == 1)
                                 <div class="mt-4 border-t border-gray-200 pt-4">
                                     <p class="font-semibold text-gray-700">Prediction Outcome</p>
                                     <p class="text-gray-600">
@@ -73,7 +85,7 @@
                                     <p class="font-semibold text-gray-400">Prediction outcome pending...</p>
                                 </div>
                             @endif
-                            <!-- Detail Button -->
+
                             <div class="mt-4">
                                 <a href="{{ route('cfb.hypothetical.show', ['game_id' => $game->game_id]) }}"
                                    class="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
