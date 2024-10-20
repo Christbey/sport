@@ -27,14 +27,14 @@
                 <tbody class="divide-y divide-gray-200">
                 @foreach([
                     'Overall Ranking' => ['away' => optional($homeSpRating)->ranking, 'home' => optional($awaySpRating)->ranking],
-                    'Overall Rating' => ['away' => optional($homeSpRating)->overall_rating, 'home' => optional($awaySpRating)->overall_rating],
-                    'Elo Rating' => ['away' => $hypothetical->home_elo, 'home' => $hypothetical->away_elo],
-                    'FPI Rating' => ['away' => $hypothetical->home_fpi, 'home' => $hypothetical->away_fpi],
+                    //'Overall Rating' => ['away' => optional($homeSpRating)->overall_rating, 'home' => optional($awaySpRating)->overall_rating],
+                    //'Elo Rating' => ['away' => $hypothetical->home_elo, 'home' => $hypothetical->away_elo],
+                    //'FPI Rating' => ['away' => $hypothetical->home_fpi, 'home' => $hypothetical->away_fpi],
                     'Offense Ranking' => ['away' => optional($homeSpRating)->offense_ranking, 'home' => optional($awaySpRating)->offense_ranking],
-                    'Offense Rating' => ['away' => optional($homeSpRating)->offense_rating, 'home' => optional($awaySpRating)->offense_rating],
+                    //'Offense Rating' => ['away' => optional($homeSpRating)->offense_rating, 'home' => optional($awaySpRating)->offense_rating],
                     'Defense Ranking' => ['away' => optional($homeSpRating)->defense_ranking, 'home' => optional($awaySpRating)->defense_ranking],
-                    'Defense Rating' => ['away' => optional($homeSpRating)->defense_rating, 'home' => optional($awaySpRating)->defense_rating],
-                    'Special Teams Rating' => ['away' => optional($homeSpRating)->special_teams_rating, 'home' => optional($awaySpRating)->special_teams_rating],
+                    //'Defense Rating' => ['away' => optional($homeSpRating)->defense_rating, 'home' => optional($awaySpRating)->defense_rating],
+                    //'Special Teams Rating' => ['away' => optional($homeSpRating)->special_teams_rating, 'home' => optional($awaySpRating)->special_teams_rating],
                 ] as $metric => $ratings)
                     <tr>
                         <td class="px-6 py-4 text-sm font-medium text-gray-700">{{ $metric }}</td>
@@ -45,135 +45,161 @@
                 </tbody>
             </table>
         </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
 
-        <!-- Mismatch Analysis -->
-        <div class="bg-white shadow-lg rounded-lg p-6">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Mismatch Analysis</h2>
-            <ul class="list-disc pl-5 text-gray-700">
-                <li><strong>Net PPA Differential:</strong> {{ $ppaMismatch }}</li>
-                <li><strong>Success Rate Differential:</strong> {{ $successRateMismatch }}</li>
-                <li><strong>Explosiveness Differential:</strong> {{ $explosivenessMismatch }}</li>
-            </ul>
-        </div>
-
-        <!-- Performance Trends -->
-        <div class="bg-white shadow-lg rounded-lg p-6">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Performance Trends</h2>
-            <ul class="list-disc pl-5 text-gray-700">
-                <li><strong>Home Team Offense Trend:</strong> {{ $home_offense_trend }}</li>
-                <li><strong>Away Team Offense Trend:</strong> {{ $away_offense_trend }}</li>
-            </ul>
-        </div>
-
-        <!-- Last 3 Matchups for Home Team -->
-        <div class="bg-gray-50 shadow-lg rounded-lg p-6">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Last 3 Matchups for {{ $homeTeam->school }}</h2>
-            <ul class="list-disc pl-5 space-y-2">
-                @foreach($homeTeamLast3Games as $game)
-                    <li class="text-gray-600">
-                        <span class="font-semibold">{{ $game->homeTeam->school ?? 'Unknown Team' }}</span> vs
-                        <span class="font-semibold">{{ $game->awayTeam->school ?? 'Unknown Team' }}</span>
-                        on <span class="text-blue-600">{{ Carbon::parse($game->start_date)->format('M d, Y') }}</span>
-                    </li>
-                @endforeach
-            </ul>
-        </div>
-
-        <!-- Last 3 Matchups for Away Team -->
-        <div class="bg-gray-50 shadow-lg rounded-lg p-6">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Last 3 Matchups for {{ $awayTeam->school }}</h2>
-            <ul class="list-disc pl-5 space-y-2">
-                @foreach($awayTeamLast3Games as $game)
-                    <li class="text-gray-600">
-                        <span class="font-semibold">{{ $game->homeTeam->school ?? 'Unknown Team' }}</span> vs
-                        <span class="font-semibold">{{ $game->awayTeam->school ?? 'Unknown Team' }}</span>
-                        on <span class="text-blue-600">{{ Carbon::parse($game->start_date)->format('M d, Y') }}</span>
-                    </li>
-                @endforeach
-            </ul>
-        </div>
-
-        <!-- Previous Matchups Between the Two Teams -->
-        <div class="bg-gray-50 shadow-lg rounded-lg p-6">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Previous Matchups Between {{ $awayTeam->school }}
-                and {{ $homeTeam->school }}</h2>
-            @if($previousResults->isEmpty())
-                <p class="text-gray-500">No previous matchups found between these two teams.</p>
-            @else
-                <ul class="list-disc pl-5 space-y-2">
-                    @foreach($previousResults as $result)
-                        <li class="text-gray-600">
-                            <span class="text-blue-600">{{ Carbon::parse($result['date'])->format('M d, Y') }}</span> -
-                            Winner: <span class="font-semibold">{{ $result['winner'] }}</span> -
-                            Score: <span class="font-semibold">{{ $result['score'] }}</span>
-                        </li>
-                    @endforeach
+            <!-- Mismatch Analysis -->
+            <div class="bg-white shadow-lg rounded-lg p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Mismatch Analysis</h2>
+                <ul class="list-disc pl-5 text-gray-700">
+                    <li><strong>Net PPA Differential:</strong> {{ $ppaMismatch }}</li>
+                    <li><strong>Success Rate Differential:</strong> {{ $successRateMismatch }}</li>
+                    <li><strong>Explosiveness Differential:</strong> {{ $explosivenessMismatch }}</li>
                 </ul>
-            @endif
-        </div>
+            </div>
 
-        <!-- Notes Section -->
-        <div class="bg-white shadow-lg rounded-lg p-6">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Your Notes for {{ $homeTeam->school }}</h2>
-            @if($homeTeamNotes->isEmpty())
-                <p class="text-gray-500">No notes found for {{ $homeTeam->school }}.</p>
-            @else
-                <ul class="list-disc pl-5 space-y-2">
-                    @foreach($homeTeamNotes as $note)
-                        <li class="text-gray-600">
-                            <span class="font-semibold">{{ $note->created_at->format('M d, Y H:i') }}</span>:
-                            {{ $note->note }}
-                        </li>
-                    @endforeach
+            <!-- Performance Trends -->
+            <div class="bg-white shadow-lg rounded-lg p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Performance Trends</h2>
+                <ul class="list-disc pl-5 text-gray-700">
+                    <li><strong>Home Team Offense Trend:</strong> {{ $home_offense_trend }}</li>
+                    <li><strong>Away Team Offense Trend:</strong> {{ $away_offense_trend }}</li>
                 </ul>
-            @endif
+            </div>
         </div>
-
-        <div class="bg-white shadow-lg rounded-lg p-6">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Your Notes for {{ $awayTeam->school }}</h2>
-            @if($awayTeamNotes->isEmpty())
-                <p class="text-gray-500">No notes found for {{ $awayTeam->school }}.</p>
-            @else
-                <ul class="list-disc pl-5 space-y-2">
-                    @foreach($awayTeamNotes as $note)
-                        <li class="text-gray-600">
-                            <span class="font-semibold">{{ $note->created_at->format('M d, Y H:i') }}</span>:
-                            {{ $note->note }}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Last 3 Matchups for Home Team -->
+            <div class="bg-white shadow-md rounded-lg p-6">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-4">
+                    Last 3 Matchups for {{ $homeTeam->school }}
+                </h2>
+                <ul class="space-y-4">
+                    @forelse($homeTeamLast3Games as $game)
+                        <li class="text-gray-600 flex justify-between items-center">
+                            <div>
+                                <span class="font-semibold">{{ $game->homeTeam->school ?? 'Unknown Team' }}</span>
+                                vs
+                                <span class="font-semibold">{{ $game->awayTeam->school ?? 'Unknown Team' }}</span>
+                            </div>
+                            <span class="text-blue-600">{{ Carbon::parse($game->start_date)->format('M d, Y') }}</span>
                         </li>
-                    @endforeach
+                    @empty
+                        <li class="text-gray-500">No matchups found.</li>
+                    @endforelse
                 </ul>
-            @endif
+            </div>
+
+            <!-- Last 3 Matchups for Away Team -->
+            <div class="bg-white shadow-md rounded-lg p-6">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-4">
+                    Last 3 Matchups for {{ $awayTeam->school }}
+                </h2>
+                <ul class="space-y-4">
+                    @forelse($awayTeamLast3Games as $game)
+                        <li class="text-gray-600 flex justify-between items-center">
+                            <div>
+                                <span class="font-semibold">{{ $game->homeTeam->school ?? 'Unknown Team' }}</span>
+                                vs
+                                <span class="font-semibold">{{ $game->awayTeam->school ?? 'Unknown Team' }}</span>
+                            </div>
+                            <span class="text-blue-600">{{ Carbon::parse($game->start_date)->format('M d, Y') }}</span>
+                        </li>
+                    @empty
+                        <li class="text-gray-500">No matchups found.</li>
+                    @endforelse
+                </ul>
+            </div>
+
+            <!-- Previous Matchups Between the Two Teams -->
+            <div class="bg-white shadow-md rounded-lg p-6">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-4">
+                    Previous Matchups Between {{ $awayTeam->school }} and {{ $homeTeam->school }}
+                </h2>
+                @if($previousResults->isEmpty())
+                    <p class="text-gray-500">No previous matchups found between these two teams.</p>
+                @else
+                    <ul class="space-y-4">
+                        @foreach($previousResults as $result)
+                            <li class="text-gray-600 flex justify-between items-center">
+                                <span class="text-blue-600">{{ Carbon::parse($result['date'])->format('M d, Y') }}</span>
+                                <span class="font-semibold">Winner: {{ $result['winner'] }}</span>
+                                <span class="font-semibold">Score: {{ $result['score'] }}</span>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+            </div>
         </div>
 
-        <!-- Add Note Form -->
-        <div class="bg-white shadow-lg rounded-lg p-6">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Add a Note</h2>
-            <form action="{{ route('cfb.notes.store') }}" method="POST">
-                @csrf
-                <div class="mb-4">
-                    <label for="team_id" class="block text-sm font-medium text-gray-700">Select Team</label>
-                    <select name="team_id" id="team_id"
-                            class="form-select mt-1 block w-full border-gray-300 rounded-md">
-                        <option value="{{ $homeTeam->id }}">{{ $homeTeam->school }}</option>
-                        <option value="{{ $awayTeam->id }}">{{ $awayTeam->school }}</option>
-                    </select>
-                </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
 
-                <input type="hidden" name="game_id" value="{{ $game->id }}">
+            <div class="bg-white shadow-lg rounded-lg p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Your Notes for {{ $homeTeam->school }}</h2>
+                @php
+                    $userNotes = $homeTeamNotes->where('user_id', auth()->id());
+                @endphp
 
-                <div class="mb-4">
-                    <label for="note" class="block text-sm font-medium text-gray-700">Note</label>
-                    <textarea name="note" id="note" rows="4"
-                              class="form-textarea mt-1 block w-full border-gray-300 rounded-md"
-                              placeholder="Add your notes here..."></textarea>
-                </div>
+                @if($userNotes->isEmpty())
+                    <p class="text-gray-500">No notes found for {{ $homeTeam->school }}.</p>
+                @else
+                    <ul class="list-disc pl-5 space-y-2">
+                        @foreach($userNotes as $note)
+                            <li class="text-gray-600">
+                                <span class="font-semibold">{{ $note->created_at->format('M d, Y H:i') }}</span>:
+                                {{ $note->note }}
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+            </div>
 
-                <div>
-                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                        Save Note
-                    </button>
-                </div>
-            </form>
+
+            <div class="bg-white shadow-lg rounded-lg p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Your Notes for {{ $awayTeam->school }}</h2>
+                @if($awayTeamNotes->isEmpty())
+                    <p class="text-gray-500">No notes found for {{ $awayTeam->school }}.</p>
+                @else
+                    <ul class="list-disc pl-5 space-y-2">
+                        @foreach($awayTeamNotes as $note)
+                            <li class="text-gray-600">
+                                <span class="font-semibold">{{ $note->created_at->format('M d, Y H:i') }}</span>:
+                                {{ $note->note }}
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+            </div>
         </div>
+        @if(auth()->check())
+            <div class="bg-white shadow-lg rounded-lg p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Add a Note</h2>
+                <form action="{{ route('cfb.notes.store') }}" method="POST">
+                    @csrf
+                    <div class="mb-4">
+                        <label for="team_id" class="block text-sm font-medium text-gray-700">Select Team</label>
+                        <select name="team_id" id="team_id"
+                                class="form-select mt-1 block w-full border-gray-300 rounded-md">
+                            <option value="{{ $homeTeam->id }}">{{ $homeTeam->school }}</option>
+                            <option value="{{ $awayTeam->id }}">{{ $awayTeam->school }}</option>
+                        </select>
+                    </div>
+
+                    <input type="hidden" name="game_id" value="{{ $game->id }}">
+
+                    <div class="mb-4">
+                        <label for="note" class="block text-sm font-medium text-gray-700">Note</label>
+                        <textarea name="note" id="note" rows="4"
+                                  class="form-textarea mt-1 block w-full border-gray-300 rounded-md"
+                                  placeholder="Add your notes here..."></textarea>
+                    </div>
+
+                    <div>
+                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                            Save Note
+                        </button>
+                    </div>
+                </form>
+            </div>
+        @endif
+
     </div>
 </x-app-layout>

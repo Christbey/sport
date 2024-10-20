@@ -74,65 +74,59 @@ class CollegeFootballHypotheticalController extends Controller
 
         // Fetch the hypothetical spread details based on the game_id
         $hypothetical = CollegeFootballHypothetical::where('game_id', $game_id)->firstOrFail();
-        $game = CollegeFootballGame::find($game_id);
+        $game = CollegeFootballGame::findOrFail($game_id);
 
         // Fetch home and away team details
         $homeTeam = CollegeFootballTeam::find($hypothetical->home_team_id);
         $awayTeam = CollegeFootballTeam::find($hypothetical->away_team_id);
-        $homeTeamNotes = CollegeFootballNote::where('team_id', $homeTeam->id)->get();
-        $awayTeamNotes = CollegeFootballNote::where('team_id', $awayTeam->id)->get();
-        // Ensure that both teams exist
+
+        // Ensure both teams exist
         if (!$homeTeam || !$awayTeam) {
             abort(404, 'Team not found');
         }
+
+        // Fetch notes for the home and away teams
+        $homeTeamNotes = CollegeFootballNote::where('team_id', $homeTeam->id)->get();
+        $awayTeamNotes = CollegeFootballNote::where('team_id', $awayTeam->id)->get();
 
         // Fetch SP+ ratings for the home and away teams
         $homeSpRating = SpRating::where('team', $homeTeam->school)->first();
         $awaySpRating = SpRating::where('team', $awayTeam->school)->first();
 
-        // Fetch average advanced stats for the home and away teams by team_id
+        // Calculate mismatches and trends
         $homeAdvStatsAvg = $this->fetchAdvancedStats($homeTeam->id);
         $awayAdvStatsAvg = $this->fetchAdvancedStats($awayTeam->id);
-
-        // Calculate mismatches based on average advanced stats
         $ppaMismatch = $this->calculateMismatch($homeAdvStatsAvg['offense_ppa'], $awayAdvStatsAvg['defense_ppa']);
         $successRateMismatch = $this->calculateMismatch($homeAdvStatsAvg['offense_success_rate'], $awayAdvStatsAvg['defense_success_rate']);
         $explosivenessMismatch = $this->calculateMismatch($homeAdvStatsAvg['offense_explosiveness'], $awayAdvStatsAvg['defense_explosiveness']);
 
-        // Calculate offense trend (last 3 games)
         $home_offense_trend = $this->calculateTrend($homeTeam->id, 'offense_ppa');
         $away_offense_trend = $this->calculateTrend($awayTeam->id, 'offense_ppa');
 
-        // Determine the projected winner
+        // Determine projected winner
         $homeWinningPercentage = $this->calculateHomeWinningPercentage(
-            $hypothetical->home_elo,
-            $hypothetical->away_elo,
-            $hypothetical->home_fpi,
-            $hypothetical->away_fpi
+            $hypothetical->home_elo, $hypothetical->away_elo,
+            $hypothetical->home_fpi, $hypothetical->away_fpi
         );
         $winnerTeam = $homeWinningPercentage > 0.5 ? $homeTeam : $awayTeam;
 
-        // Fetch the last 3 matchups for each team (before today's date)
+        // Fetch last 3 matchups for each team
         $homeTeamLast3Games = $this->fetchLastThreeGames($homeTeam->id, $today);
         $awayTeamLast3Games = $this->fetchLastThreeGames($awayTeam->id, $today);
 
-        // Fetch recent matchups between the two teams (if applicable)
+        // Fetch recent matchups between the two teams
         $recentMatchups = $this->fetchRecentMatchups($homeTeam, $awayTeam);
-
-        // Calculate the outcomes of recent matchups and include scores
         $previousResults = $this->calculateOutcomes($recentMatchups);
 
-        // Compare spreads and determine the smart pick
-        $smartPick = $this->compareSpreads($game_id);
-
-        // Pass all the data to the view
+        // Pass all data to the view
         return view('cfb.detail', compact(
             'hypothetical', 'game', 'homeTeam', 'awayTeam',
-            'homeSpRating', 'awaySpRating',
-            'ppaMismatch', 'successRateMismatch', 'explosivenessMismatch',
+            'homeSpRating', 'awaySpRating', 'ppaMismatch',
+            'successRateMismatch', 'explosivenessMismatch',
             'home_offense_trend', 'away_offense_trend',
-            'homeWinningPercentage', 'winnerTeam', 'smartPick',
-            'homeTeamLast3Games', 'awayTeamLast3Games', 'recentMatchups', 'previousResults', 'homeTeamNotes', 'awayTeamNotes'
+            'homeWinningPercentage', 'winnerTeam',
+            'homeTeamLast3Games', 'awayTeamLast3Games',
+            'previousResults', 'homeTeamNotes', 'awayTeamNotes'
         ));
     }
 

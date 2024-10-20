@@ -113,7 +113,7 @@ class EspnQbrController extends Controller
     // Process only the desired stats from the response
     private function processStats($stats)
     {
-        $desiredStats = ['qbpaa', 'qbr', 'unqualifiedRank'];
+        $desiredStats = ['qbr', 'qbpaa', 'unqualifiedRank'];
         return array_filter($stats, fn($stat) => in_array($stat['name'], $desiredStats));
     }
 }

@@ -26,8 +26,8 @@
                         <th class="py-2 px-4 text-left font-medium text-gray-700">Athlete</th>
                         <th class="py-2 px-4 text-left font-medium text-gray-700">Team</th>
                         <th class="py-2 px-4 text-left font-medium text-gray-700">Opponent</th>
-                        <th class="py-2 px-4 text-left font-medium text-gray-700">QBR</th>
                         <th class="py-2 px-4 text-left font-medium text-gray-700">Points Added</th>
+                        <th class="py-2 px-4 text-left font-medium text-gray-700">QBR</th>
                         <th class="py-2 px-4 text-left font-medium text-gray-700">Unqualified Rank</th>
                     </tr>
                     </thead>
@@ -38,9 +38,9 @@
                             <td class="py-2 px-4">{{ $item['team']['name'] ?? 'N/A' }}</td>
                             <td class="py-2 px-4">{{ $item['opponent']['name'] ?? 'N/A' }}</td>
                             @foreach($item['stats'] as $stat)
-                                @if($stat['name'] === 'qbr')
+                                @if($stat['name'] === 'qbpaa')
                                     <td class="py-2 px-4">{{ $stat['value'] ?? 'N/A' }}</td>
-                                @elseif($stat['name'] === 'qbpaa')
+                                @elseif($stat['name'] === 'qbr')
                                     <td class="py-2 px-4">{{ $stat['value'] ?? 'N/A' }}</td>
                                 @elseif($stat['name'] === 'unqualifiedRank')
                                     <td class="py-2 px-4">{{ $stat['value'] ?? 'N/A' }}</td>

@@ -19,10 +19,9 @@ class CollegeFootballNoteController extends Controller
             'game_id' => $request->input('game_id'),
             'team_id' => $request->input('team_id'),
             'note' => $request->input('note'),
+            'user_id' => auth()->id(), // Store the authenticated user's ID
         ]);
 
         return redirect()->back()->with('success', 'Note added successfully.');
     }
-
-
 }
