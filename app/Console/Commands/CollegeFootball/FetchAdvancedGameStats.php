@@ -4,6 +4,7 @@ namespace App\Console\Commands\CollegeFootball;
 
 use App\Models\CollegeFootball\AdvancedGameStat;
 use App\Models\CollegeFootball\CollegeFootballTeam;
+use Exception;
 use GuzzleHttp\Client;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -17,8 +18,8 @@ class FetchAdvancedGameStats extends Command
     protected $description = 'Fetch advanced game stats for the year 2024';
 
     // Guzzle client and API key
-    protected $client;
-    protected $apiKey;
+    protected Client $client;
+    protected mixed $apiKey;
 
     // Constructor to initialize Guzzle client and API key
     public function __construct()
@@ -59,7 +60,7 @@ class FetchAdvancedGameStats extends Command
 
             $this->info('Advanced game stats fetched and saved successfully.');
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Log any errors
             Log::error('Failed to fetch advanced game stats. Error: ' . $e->getMessage());
             $this->error('Failed to fetch advanced game stats.');

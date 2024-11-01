@@ -1,8 +1,11 @@
 <?php
+
 namespace App\Console\Commands\CollegeFootball;
 
 use App\Jobs\CollegeFootball\StoreCollegeFootballGameLines;
+use App\Notifications\DiscordCommandCompletionNotification;
 use Illuminate\Console\Command;
+use Notification;
 
 class FetchCollegeFootballGameLines extends Command
 {
@@ -22,5 +25,7 @@ class FetchCollegeFootballGameLines extends Command
         StoreCollegeFootballGameLines::dispatch($year);
 
         $this->info('Job to fetch and store college football game lines has been dispatched.');
+
+
     }
 }

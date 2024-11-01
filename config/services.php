@@ -35,6 +35,12 @@ return [
         ],
     ],
 
+    'discord' => [
+        // 'webhook_url' => env('DISCORD_WEBHOOK_URL'),
+        'token' => env('DISCORD_BOT_TOKEN'),
+        'channel_id' => env('DISCORD_CHANNEL_ID'),
+    ],
+
     'rapidapi' => [
         'key' => env('RAPIDAPI_KEY'),
         'host' => env('RAPIDAPI_HOST'),

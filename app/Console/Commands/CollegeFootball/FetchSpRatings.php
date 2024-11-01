@@ -4,6 +4,7 @@ namespace App\Console\Commands\CollegeFootball;
 
 use App\Models\CollegeFootball\CollegeFootballTeam;
 use App\Models\CollegeFootball\SpRating;
+use Exception;
 use GuzzleHttp\Client;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -12,8 +13,8 @@ class FetchSpRatings extends Command
 {
     protected $signature = 'fetch:sp-ratings';
     protected $description = 'Fetch SP+ ratings for the year 2024';
-    protected $client;
-    protected $apiKey;
+    protected Client $client;
+    protected mixed $apiKey;
 
     public function __construct()
     {
@@ -58,7 +59,7 @@ class FetchSpRatings extends Command
                 $this->error('Failed to fetch SP+ ratings. Status code: ' . $response->getStatusCode());
             }
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Log error if an exception occurs
             Log::error('Failed to fetch SP+ ratings. Error: ' . $e->getMessage());
             $this->error('Failed to fetch SP+ ratings. Please check the logs.');

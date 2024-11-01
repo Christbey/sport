@@ -4,6 +4,8 @@ namespace App\Jobs\CollegeFootball;
 
 use App\Models\CollegeFootball\CollegeFootballElo;
 use App\Models\CollegeFootball\CollegeFootballTeam;
+use App\Notifications\DiscordCommandCompletionNotification;
+use Exception;
 use GuzzleHttp\Client;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -11,6 +13,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 
 class StoreCollegeFootballEloRatings implements ShouldQueue
 {
@@ -32,7 +35,7 @@ class StoreCollegeFootballEloRatings implements ShouldQueue
         $this->seasonType = $params['seasonType'] ?? null;
         $this->team = $params['team'] ?? null;
         $this->conference = $params['conference'] ?? null;
-        $this->apiKey =config('services.college_football_data.key');
+        $this->apiKey = config('services.college_football_data.key');
     }
 
     public function handle()
@@ -56,14 +59,12 @@ class StoreCollegeFootballEloRatings implements ShouldQueue
             $eloData = json_decode($response->getBody(), true);
 
             foreach ($eloData as $elo) {
-                // Lookup the team_id based on the team name
                 $team = CollegeFootballTeam::where('school', $elo['team'])->first();
 
                 if ($team) {
-                    // Use team_id as the primary key for the elo table
                     CollegeFootballElo::updateOrCreate(
                         [
-                            'team_id' => $team->id,  // Use team_id here instead of team name
+                            'team_id' => $team->id,
                             'year' => $elo['year'],
                         ],
                         [
@@ -79,8 +80,18 @@ class StoreCollegeFootballEloRatings implements ShouldQueue
 
             Log::info('ELO ratings fetched and stored successfully.');
 
-        } catch (\Exception $e) {
+            // Send success notification
+            $message = "ELO ratings fetched and stored successfully for year: {$this->year}, week: {$this->week}.";
+            Notification::route('discord', config('services.discord.channel_id'))
+                ->notify(new DiscordCommandCompletionNotification($message));
+
+        } catch (Exception $e) {
             Log::error('Failed to fetch and store ELO ratings: ' . $e->getMessage());
+
+            // Send failure notification
+            $message = "Failed to fetch and store ELO ratings for year: {$this->year}, week: {$this->week}. Error: " . $e->getMessage();
+            Notification::route('discord', config('services.discord.channel_id'))
+                ->notify(new DiscordCommandCompletionNotification($message));
         }
     }
 }

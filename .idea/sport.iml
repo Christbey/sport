@@ -128,6 +128,9 @@
       <excludeFolder url="file://$MODULE_DIR$/vendor/_laravel_idea" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/masterminds/html5" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/symfony/dom-crawler" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/league/csv" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/laravel-notification-channels/discord" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/textalk/websocket" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
