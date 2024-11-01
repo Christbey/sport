@@ -81,7 +81,9 @@ class StoreCollegeFootballEloRatings implements ShouldQueue
             Log::info('ELO ratings fetched and stored successfully.');
 
             // Send success notification
+
             $message = "ELO ratings fetched and stored successfully for year: {$this->year}, week: {$this->week}.";
+            Log::info('Sending Discord notification: ' . $message);
             Notification::route('discord', config('services.discord.channel_id'))
                 ->notify(new DiscordCommandCompletionNotification($message));
 
