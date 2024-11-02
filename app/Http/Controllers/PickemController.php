@@ -5,9 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Nfl\NflTeamSchedule;
 use App\Models\UserSubmission;
 use Carbon\Carbon;
+use DB;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Database\QueryException;
 
 class PickemController extends Controller
 {
@@ -151,10 +152,21 @@ class PickemController extends Controller
     {
         $game_week = $request->input('game_week');
         $userId = Auth::id();
+        $user = Auth::user();
+
+        // Check if the user's current_team_id is in the team_user table
+        $isAuthorized = DB::table('team_user')
+            ->where('user_id', $userId)
+            ->where('team_id', $user->current_team_id)
+            ->exists();
+
+        if (!$isAuthorized) {
+            abort(403, 'Unauthorized access to this team’s leaderboard.');
+        }
 
         $games = $this->getGameWeeks();
-        $leaderboard = $this->getLeaderboard($game_week);
-        $allPicks = $this->getUserPicksForWeek($userId, $game_week);
+        $leaderboard = $this->getLeaderboard($game_week, $user->current_team_id);
+        $allPicks = $this->getUserPicksForWeek($userId, $game_week, $user->current_team_id);
 
         if ($request->expectsJson()) {
             return response()->json(compact('leaderboard', 'allPicks', 'games', 'game_week'), 200);
@@ -163,9 +175,12 @@ class PickemController extends Controller
         return view('pickem.index', compact('leaderboard', 'allPicks', 'games', 'game_week'));
     }
 
-    private function getLeaderboard($game_week)
+    private function getLeaderboard($game_week, $team_id)
     {
         return UserSubmission::with('user')
+            ->whereHas('user', function ($query) use ($team_id) {
+                $query->whereHas('teams', fn($q) => $q->where('team_id', $team_id));
+            })
             ->selectRaw('user_id, COUNT(CASE WHEN is_correct THEN 1 END) as correct_picks')
             ->groupBy('user_id')
             ->when($game_week, function ($query) use ($game_week) {
@@ -175,13 +190,17 @@ class PickemController extends Controller
             ->get();
     }
 
-    private function getUserPicksForWeek($userId, $game_week)
+    private function getUserPicksForWeek($userId, $game_week, $team_id)
     {
         return UserSubmission::with(['user', 'event', 'team'])
+            ->whereHas('user', function ($query) use ($team_id) {
+                $query->whereHas('teams', fn($q) => $q->where('team_id', $team_id));
+            })
             ->where('user_id', $userId)
             ->when($game_week, function ($query) use ($game_week) {
                 $query->whereHas('event', fn($q) => $q->where('game_week', $game_week));
             })
             ->get();
     }
+
 }
