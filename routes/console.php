@@ -12,7 +12,7 @@ Schedule::command('fetch:college-football-elo')->mondays()->at('19:00');
 Schedule::command('fetch:college-football-fpi')->mondays()->at('19:05');
 Schedule::command('fetch:sp-ratings')->mondays()->at('19:10');
 Schedule::command('fetch:college-football-rankings')->mondays()->at('19:15');
-Schedule::command('calculate:hypothetical-spreads')->everyMinute();
+Schedule::command('calculate:hypothetical-spreads')->daily();
 
 // Fetch NFL data every day at 7:00 PM CST/CDT
 Schedule::command('nfl:fetch-boxscore')
