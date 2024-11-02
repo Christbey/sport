@@ -6,16 +6,18 @@ use App\Models\Nfl\NflTeamSchedule;
 use App\Models\NflBoxScore;
 use App\Models\NflPlayerStat;
 use App\Models\NflTeamStat;
+use App\Notifications\DiscordCommandCompletionNotification;
 use Carbon\Carbon;
+use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Notification;
 
 class FetchNflBoxScore extends Command
 {
-    protected $signature = 'nfl:fetch-boxscore {gameID?} {--all}';
-
-    protected $description = 'Fetch NFL box score for a specific game or all missing games before today, and store the data';
+    protected $signature = 'nfl:fetch-boxscore {gameID?} {--all} {--week=}';
+    protected $description = 'Fetch NFL box score for a specific game or for games in the specified week';
 
     public function __construct()
     {
@@ -24,13 +26,30 @@ class FetchNflBoxScore extends Command
 
     public function handle()
     {
-        $gameID = $this->argument('gameID');
+        try {
 
-        // Default to 'all' behavior if no gameID is provided.
-        if ($this->option('all') || !$gameID) {
-            $this->fetchAllBoxScoresBeforeToday();
-        } else {
-            $this->fetchAndStoreBoxScore($gameID);
+            $gameID = $this->argument('gameID');
+            $weekOption = $this->option('week');
+
+            // Determine which box scores to fetch based on options
+            if ($this->option('all')) {
+                $this->fetchAllBoxScoresBeforeToday();
+            } elseif ($gameID) {
+                $this->fetchAndStoreBoxScore($gameID);
+            } elseif ($weekOption) {
+                $this->fetchBoxScoresForSpecifiedWeek($weekOption);
+            } else {
+                $this->fetchBoxScoresForCurrentWeek();
+            }
+            // Send success notification
+            Notification::route('discord', config('services.discord.channel_id'))
+                ->notify(new DiscordCommandCompletionNotification('', 'success'));
+
+        } catch (Exception $e) {
+            // Send failure notification
+            Notification::route('discord', config('services.discord.channel_id'))
+                ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'error'));
+
         }
     }
 
@@ -74,17 +93,22 @@ class FetchNflBoxScore extends Command
 
     protected function storeBoxScoreData(array $data)
     {
-        $gameData = $data['body'];
+        $gameData = $data['body'] ?? [];
+
+        if (empty($gameData) || !isset($gameData['gameID'])) {
+            $this->info('Invalid game data received: "gameID" is missing.');
+            return;
+        }
 
         DB::transaction(function () use ($gameData) {
             NflBoxScore::updateOrCreate(
                 ['game_id' => $gameData['gameID']],
                 [
-                    'home_team' => $gameData['home'],
-                    'away_team' => $gameData['away'],
+                    'home_team' => $gameData['home'] ?? null,
+                    'away_team' => $gameData['away'] ?? null,
                     'home_points' => $gameData['homePts'] ?? 0,
                     'away_points' => $gameData['awayPts'] ?? 0,
-                    'game_date' => $gameData['gameDate'],
+                    'game_date' => $gameData['gameDate'] ?? null,
                     'location' => $gameData['gameLocation'] ?? null,
                     'home_line_score' => $gameData['lineScore']['home'] ?? null,
                     'away_line_score' => $gameData['lineScore']['away'] ?? null,
@@ -129,6 +153,31 @@ class FetchNflBoxScore extends Command
                 NflTeamStat::upsert($teamStatsData, ['team_id', 'game_id']);
             }
         });
+    }
+
+    protected function fetchBoxScoresForSpecifiedWeek($weekNumber)
+    {
+        $weeks = config('nfl.weeks');
+        $weekConfig = $weeks["Week {$weekNumber}"] ?? null;
+
+        if (!$weekConfig) {
+            $this->error("Invalid week number provided: {$weekNumber}");
+            return;
+        }
+
+        $this->info("Fetching box scores between {$weekConfig['start']} and {$weekConfig['end']} for Week {$weekNumber}");
+
+        $games = NflTeamSchedule::whereBetween('game_date', [$weekConfig['start'], $weekConfig['end']])
+            ->pluck('game_id');
+
+        if ($games->isEmpty()) {
+            $this->error("No games found for the date range {$weekConfig['start']} to {$weekConfig['end']}");
+            return;
+        }
+
+        foreach ($games as $gameID) {
+            $this->fetchAndStoreBoxScore($gameID);
+        }
     }
 
     protected function fetchBoxScoresForCurrentWeek()

@@ -8,8 +8,8 @@ use App\Models\CollegeFootball\CollegeFootballFpi;
 use App\Models\CollegeFootball\CollegeFootballGame;
 use App\Models\CollegeFootball\CollegeFootballHypothetical;
 use App\Models\CollegeFootball\Sagarin;
-use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class HypotheticalSpreadService
 {
@@ -19,8 +19,13 @@ class HypotheticalSpreadService
     public function fetchRelevantGames()
     {
         $today = Carbon::today();
-        $week = config('college_football.week');
+        $week = $this->determineCurrentWeek();
         $season = config('college_football.season');
+
+        if (!$week) {
+            Log::info('No valid week found based on the current date.');
+            return collect(); // Return empty collection if no week is found
+        }
 
         return CollegeFootballGame::where('home_division', 'fbs')
             ->where('away_division', 'fbs')
@@ -29,6 +34,29 @@ class HypotheticalSpreadService
             ->where('start_date', '>=', $today)
             ->with(['homeTeam', 'awayTeam'])
             ->get();
+    }
+
+    /**
+     * Determine the current week based on today's date and the configured date ranges.
+     *
+     * @return int|null
+     */
+    private function determineCurrentWeek(): ?int
+    {
+        $today = Carbon::today();
+        $weeks = config('college_football.weeks');
+
+        foreach ($weeks as $weekNumber => $dates) {
+            $start = Carbon::parse($dates['start']);
+            $end = Carbon::parse($dates['end']);
+
+            if ($today->between($start, $end)) {
+                return $weekNumber;
+            }
+        }
+
+        // Return null if no matching week is found
+        return null;
     }
 
     /**

@@ -1,13 +1,11 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Console\Commands\CollegeFootball;
 
-use App\Notifications\DiscordCommandCompletionNotification;
+use App\Jobs\CollegeFootball\CalculateHypotheticalSpreadJob;
 use App\Services\HypotheticalSpreadService;
-use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Notification;
 
 class CalculateHypotheticalSpread extends Command
 {
@@ -32,18 +30,8 @@ class CalculateHypotheticalSpread extends Command
         }
 
         foreach ($games as $game) {
-            try {
-                $this->spreadService->processGame($game);
-                // Send success notification
-                Notification::route('discord', config('services.discord.channel_id'))
-                    ->notify(new DiscordCommandCompletionNotification('', 'success'));
-
-            } catch (Exception $e) {
-                // Send failure notification
-                Notification::route('discord', config('services.discord.channel_id'))
-                    ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'error'));
-
-            }
+            CalculateHypotheticalSpreadJob::dispatch($game, $this->spreadService);
+            $this->info("Dispatched job to calculate spread for game ID {$game->id}");
         }
     }
 }

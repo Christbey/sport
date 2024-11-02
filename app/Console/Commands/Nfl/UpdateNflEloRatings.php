@@ -2,13 +2,16 @@
 
 namespace App\Console\Commands\Nfl;
 
+use App\Jobs\Nfl\CalculateTeamElo;
+use App\Notifications\DiscordCommandCompletionNotification;
 use App\Services\EloRatingService;
+use Exception;
 use Illuminate\Console\Command;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Notification;
 
 class UpdateNflEloRatings extends Command
 {
-    protected $signature = 'nfl:calculate-team-elo {year}';
+    protected $signature = 'nfl:calculate-team-elo {year?}';
     protected $description = 'Calculate Elo rating, expected wins, and spreads for all NFL teams for a given season';
 
     protected EloRatingService $eloService;
@@ -21,22 +24,28 @@ class UpdateNflEloRatings extends Command
 
     public function handle()
     {
-        $year = $this->argument('year');
-        $today = Carbon::now();
-        $weeks = config('nfl.weeks'); // Load the weeks configuration
+        try {
+            $year = $this->argument('year') ?? config('nfl.seasonYear'); // Get the year or fallback to config
+            $weeks = config('nfl.weeks');
+            $teams = $this->eloService->fetchTeams(); // Fetch all unique teams
 
-        // Fetch all unique team abbreviations using the service
-        $teams = $this->eloService->fetchTeams();
+            foreach ($teams as $team) {
+                CalculateTeamElo::dispatch($team, $year, $weeks); // Dispatch job for each team without passing current week separately
+                $this->info("Dispatched Elo calculation job for team: {$team}");
+            }
 
-        foreach ($teams as $team) {
-            $this->info("Calculating Elo, expected wins, and spreads for team: $team");
+            $this->info('Elo calculation jobs for all teams have been dispatched.');
 
-            // Calculate the Elo rating and predictions for the team
-            $finalElo = $this->eloService->processTeamPredictions($team, $year, $weeks, $today);
+            $this->info('All NFL team schedules dispatched successfully.');
+            // Send success notification
+            Notification::route('discord', config('services.discord.channel_id'))
+                ->notify(new DiscordCommandCompletionNotification('', 'success'));
 
-            $this->info("Team: $team | Final Elo for $year season: {$finalElo}");
+        } catch (Exception $e) {
+            // Send failure notification
+            Notification::route('discord', config('services.discord.channel_id'))
+                ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'error'));
+
         }
-
-        $this->info('Elo calculation, expected wins, and spreads for all teams are completed.');
     }
 }
