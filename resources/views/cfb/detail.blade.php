@@ -32,9 +32,9 @@
                     //'FPI Rating' => ['away' => $hypothetical->home_fpi, 'home' => $hypothetical->away_fpi],
                     'Offense Ranking' => ['away' => optional($awaySpRating)->offense_ranking, 'home' => optional($homeSpRating)->offense_ranking],
                     //'Offense Rating' => ['away' => optional($homeSpRating)->offense_rating, 'home' => optional($awaySpRating)->offense_rating],
-                    'Defense Ranking' => ['away' => optional($homeSpRating)->defense_ranking, 'home' => optional($homeSpRating)->defense_ranking],
+                    'Defense Ranking' => ['away' => optional($awaySpRating)->defense_ranking, 'home' => optional($homeSpRating)->defense_ranking],
                     //'Defense Rating' => ['away' => optional($homeSpRating)->defense_rating, 'home' => optional($awaySpRating)->defense_rating],
-                    //'Special Teams Rating' => ['away' => optional($homeSpRating)->special_teams_rating, 'home' => optional($awaySpRating)->special_teams_rating],
+                    'Special Teams Rating' => ['away' => optional($awaySpRating)->special_teams_rating, 'home' => optional($homeSpRating)->special_teams_rating],
                 ] as $metric => $ratings)
                     <tr>
                         <td class="px-6 py-4 text-sm font-medium text-gray-700">{{ $metric }}</td>

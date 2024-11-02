@@ -11,7 +11,7 @@ class CollegeFootballNote extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['game_id', 'team_id', 'note'];
+    protected $fillable = ['game_id', 'team_id', 'note', 'user_id'];
 
     public function team()
     {

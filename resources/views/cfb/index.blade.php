@@ -23,7 +23,7 @@
                         @endif">
 
                         <!-- Date and Time Display -->
-                        <div class=" text-gray-700 p-4 py-1 mt-2 rounded text-xs sm:text-sm font-semibold max-w-full sm:max-w-none">
+                        <div class="text-gray-700 p-4 py-1 mt-2 rounded text-xs sm:text-sm font-semibold max-w-full sm:max-w-none">
                             {{ Carbon::parse($game->start_date)
                                 ->setTimezone('America/Chicago')
                                 ->format('l, F j, Y g:i A') }}
@@ -34,19 +34,27 @@
                                 <div class="text-lg font-bold text-gray-800">
                                     {{ $game->away_team_school }}
                                     <p class="text-sm text-gray-600">
-                                        <span class="font-bold">{{ $game->hypothetical_spread }}</span>
+                                        <span class="font-bold">{{ $game->away_points ?? 'N/A' }}</span>
+                                        <!-- Away Team Points -->
+                                    </p>
+                                    <p class="text-sm text-gray-600">
+                                        Spread: <span class="font-bold">{{ $game->hypothetical_spread }}</span>
                                     </p>
                                 </div>
                                 <div class="text-lg font-bold text-gray-800">
                                     {{ $game->home_team_school }}
                                     <p class="text-sm text-gray-600">
-                                        <span class="font-bold">{{ $game->home_winning_percentage * 100 }}%</span>
+                                        <span class="font-bold">{{ $game->home_points ?? 'N/A' }}</span>
+                                        <!-- Home Team Points -->
+                                    </p>
+                                    <p class="text-sm text-gray-600">
+                                        Win Probability: <span class="font-bold">{{ $game->home_winning_percentage * 100 }}%</span>
                                     </p>
                                 </div>
                             </div>
 
                             <div class="border-t border-gray-200 pt-4">
-                                <p class="text-gray-600 font-semibold text-small">
+                                <p class="text-gray-600 font-semibold text-sm">
                                     @if($game->hypothetical_spread > 0)
                                         {{ $game->home_team_school }} favored
                                         by {{ number_format($game->hypothetical_spread, 2) }} points
@@ -57,10 +65,10 @@
                                         Even game, no predicted favorite
                                     @endif
                                 </p>
-                                <p class="text-sm italic font-semibold text-gray-500">
-                                    DraftKings: {{ $game->formatted_spread }}</p>
+                                <p class="text-sm italic text-green-600">
+                                    DraftKings: {{ $game->formatted_spread }}
+                                </p>
                             </div>
-
 
                             <div class="mt-4">
                                 <a href="{{ route('cfb.hypothetical.show', ['game_id' => $game->game_id]) }}"

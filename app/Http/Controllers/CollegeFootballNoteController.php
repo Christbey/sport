@@ -14,7 +14,12 @@ class CollegeFootballNoteController extends Controller
             'team_id' => 'required|exists:college_football_teams,id',
             'note' => 'required|string',
         ]);
-
+//        dd([
+//            'game_id' => $request->input('game_id'),
+//            'team_id' => $request->input('team_id'),
+//            'note' => $request->input('note'),
+//            'user_id' => auth()->id(),
+//        ]);
         CollegeFootballNote::create([
             'game_id' => $request->input('game_id'),
             'team_id' => $request->input('team_id'),

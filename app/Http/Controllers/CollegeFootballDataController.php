@@ -20,7 +20,7 @@ class CollegeFootballDataController extends Controller
         ]);
 
         // Set your API key (you should store this in your .env file)
-        $this->apiKey = env('COLLEGE_FOOTBALL_DATA_API_KEY');
+        $this->apiKey = config('services.college_football_data.key');
     }
 
     /**
@@ -32,12 +32,30 @@ class CollegeFootballDataController extends Controller
     public function getGames(Request $request)
     {
         $year = $request->input('year');
+        $week = $request->input('week', null);
+        $seasonType = $request->input('seasonType', null);
+        $classification = $request->input('classification', null);
+        $team = $request->input('team', null);
+        $home = $request->input('home', null);
+        $away = $request->input('away', null);
+        $conference = $request->input('conference', null);
+        $id = $request->input('id', null);
+
+        $query = array_filter([
+            'year' => $year,
+            'week' => $week,
+            'seasonType' => $seasonType,
+            'classification' => $classification,
+            'team' => $team,
+            'home' => $home,
+            'away' => $away,
+            'conference' => $conference,
+            'id' => $id,
+        ]);
 
         try {
             $response = $this->client->request('GET', 'games', [
-                'query' => [
-                    'year' => $year,
-                ],
+                'query' => $query,
                 'headers' => [
                     'Authorization' => 'Bearer ' . $this->apiKey,
                     'Accept' => 'application/json',

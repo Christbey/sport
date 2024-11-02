@@ -24,12 +24,14 @@ class CollegeFootballHypotheticalController extends Controller
         // Join with the college_football_games table and order by start_date
         $hypotheticals = CollegeFootballHypothetical::where('college_football_hypotheticals.week', $week)
             ->join('college_football_games', 'college_football_hypotheticals.game_id', '=', 'college_football_games.id')
-            ->orderBy('college_football_games.start_date', 'asc') // Order by game start_date
+            ->orderBy('college_football_games.start_date', 'asc')
             ->select(
                 'college_football_hypotheticals.*',
                 'college_football_games.start_date',
                 'college_football_games.completed',
-                'college_football_games.formatted_spread' // Select formatted_spreads
+                'college_football_games.formatted_spread',
+                'college_football_games.home_points',   // Added home points
+                'college_football_games.away_points'    // Added away points
             )
             ->with('game') // Eager load the game relationship
             ->get();
