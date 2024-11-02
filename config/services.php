@@ -49,6 +49,7 @@ return [
     'college_football_data' => [
         'key' => env('COLLEGE_FOOTBALL_DATA_API_KEY'),
         'host' => env('COLLEGE_FOOTBALL_DATA_HOST'),
+        'fpi_url' => env('COLLEGE_FOOTBALL_FPI_URL', 'https://apinext.collegefootballdata.com/ratings/fpi'), // Add the FPI URL here
     ],
 
 ];

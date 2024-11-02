@@ -1,43 +1,56 @@
 <?php
 
-namespace App\Console\Commands\CollegeFootball;
+namespace App\Jobs\CollegeFootball;
 
 use App\Models\CollegeFootball\CollegeFootballTeam;
 use App\Models\CollegeFootball\CollegeFootballTeamAlias;
 use App\Models\CollegeFootball\Sagarin;
+use App\Notifications\DiscordCommandCompletionNotification;
+use Exception;
 use GuzzleHttp\Client;
-use Illuminate\Console\Command;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 
-class ScrapeCollegeFootballRankings extends Command
+class StoreCollegeFootballRankingsJob implements ShouldQueue
 {
-    protected $signature = 'scrape:college-football-rankings';
-    protected $description = 'Scrapes college football rankings and saves them in the Sagarin table';
-
-    private $client;
-
-    public function __construct(Client $client)
-    {
-        parent::__construct();
-        $this->client = $client;
-    }
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public function handle()
     {
-        $response = $this->fetchRankings();
+        // Initialize the Guzzle client here to avoid serialization issues
+        $client = new Client(['base_uri' => 'http://sagarin.com']);
 
-        if ($response->getStatusCode() === 200) {
-            $this->processRankings($response->getBody()->getContents());
-        } else {
-            $this->error('Failed to fetch the page. Status code: ' . $response->getStatusCode());
+        try {
+            $response = $this->fetchRankings($client);
+
+            if ($response->getStatusCode() === 200) {
+                $this->processRankings($response->getBody()->getContents());
+            } else {
+                Log::error('Failed to fetch the page. Status code: ' . $response->getStatusCode());
+            }
+            // Send success notification
+            Notification::route('discord', config('services.discord.channel_id'))
+                ->notify(new DiscordCommandCompletionNotification('', 'success'));
+
+        } catch (Exception $e) {
+            // Send failure notification
+            Notification::route('discord', config('services.discord.channel_id'))
+                ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'error'));
+
         }
     }
 
     /**
      * Fetch the rankings from the Sagarin website.
      */
-    private function fetchRankings()
+    private function fetchRankings(Client $client)
     {
-        return $this->client->get('http://sagarin.com/sports/cfsend.htm');
+        return $client->get('/sports/cfsend.htm');
     }
 
     /**
@@ -52,7 +65,7 @@ class ScrapeCollegeFootballRankings extends Command
                 $this->saveTeamRanking($teamData['name'], $teamData['rating']);
             }
         } else {
-            $this->error('No rankings found on the page.');
+            Log::error('No rankings found on the page.');
         }
     }
 
@@ -84,17 +97,17 @@ class ScrapeCollegeFootballRankings extends Command
         $team = $this->findTeamByAlias($scrapedTeam);
 
         if ($team) {
-            $this->info("Scraped Team: {$scrapedTeam} | Matched to: {$team->school} | Rating: {$rating}");
+            Log::info("Scraped Team: {$scrapedTeam} | Matched to: {$team->school} | Rating: {$rating}");
 
             Sagarin::updateOrCreate(
-                ['id' => $team->id],  // Use team ID for matching
+                ['id' => $team->id],
                 [
                     'team_name' => $scrapedTeam,
                     'rating' => $rating,
                 ]
             );
         } else {
-            $this->warn("Scraped Team: {$scrapedTeam} | No match found | Rating: {$rating}");
+            Log::warning("Scraped Team: {$scrapedTeam} | No match found | Rating: {$rating}");
         }
     }
 
@@ -103,20 +116,13 @@ class ScrapeCollegeFootballRankings extends Command
      */
     private function findTeamByAlias($scrapedTeam)
     {
-        // First try to find the team by the exact school name
         $team = CollegeFootballTeam::where('school', $scrapedTeam)->first();
 
-        // If no exact match is found, search in the aliases table
         if (!$team) {
             $alias = CollegeFootballTeamAlias::where('alias_name', $scrapedTeam)->first();
-            if ($alias) {
-                $team = $alias->team;
-            }
+            $team = $alias?->team;
         }
 
         return $team;
     }
 }
-
-
-# @TODO: 'combine records'

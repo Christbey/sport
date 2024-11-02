@@ -4,13 +4,15 @@ namespace App\Jobs\CollegeFootball;
 
 use App\Models\CollegeFootball\CollegeFootballTeam;
 use App\Models\CollegeFootball\CollegeFootballVenue;
+use App\Notifications\DiscordCommandCompletionNotification;
+use Exception;
 use GuzzleHttp\Client;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 
 class StoreCollegeFootballTeams implements ShouldQueue
 {
@@ -27,7 +29,7 @@ class StoreCollegeFootballTeams implements ShouldQueue
     public function __construct()
     {
         $this->apiUrl = 'https://api.collegefootballdata.com/teams';
-        $this->apiKey =config('services.college_football_data.key');
+        $this->apiKey = config('services.college_football_data.key');
     }
 
     /**
@@ -103,8 +105,15 @@ class StoreCollegeFootballTeams implements ShouldQueue
                     ]
                 );
             }
-        } catch (\Exception $e) {
-            Log::error('Failed to store college football teams: ' . $e->getMessage());
+            // Send success notification
+            Notification::route('discord', config('services.discord.channel_id'))
+                ->notify(new DiscordCommandCompletionNotification('', 'success'));
+
+        } catch (Exception $e) {
+            // Send failure notification
+            Notification::route('discord', config('services.discord.channel_id'))
+                ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'error'));
+
         }
     }
 }

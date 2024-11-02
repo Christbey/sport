@@ -3,13 +3,15 @@
 namespace App\Jobs\CollegeFootball;
 
 use App\Models\CollegeFootball\CollegeFootballPregame;
+use App\Notifications\DiscordCommandCompletionNotification;
+use Exception;
 use GuzzleHttp\Client;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 
 class StoreCollegeFootballPregameWinProbabilities implements ShouldQueue
 {
@@ -28,7 +30,7 @@ class StoreCollegeFootballPregameWinProbabilities implements ShouldQueue
     {
         $this->year = $year;
         $this->apiUrl = 'https://api.collegefootballdata.com/metrics/wp/pregame';
-        $this->apiKey =config('services.college_football_data.key');
+        $this->apiKey = config('services.college_football_data.key');
     }
 
     /**
@@ -68,8 +70,15 @@ class StoreCollegeFootballPregameWinProbabilities implements ShouldQueue
                     ]
                 );
             }
-        } catch (\Exception $e) {
-            Log::error('Failed to store pregame win probabilities: ' . $e->getMessage());
+            // Send success notification
+            Notification::route('discord', config('services.discord.channel_id'))
+                ->notify(new DiscordCommandCompletionNotification('', 'success'));
+
+        } catch (Exception $e) {
+            // Send failure notification
+            Notification::route('discord', config('services.discord.channel_id'))
+                ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'error'));
+
         }
     }
 }

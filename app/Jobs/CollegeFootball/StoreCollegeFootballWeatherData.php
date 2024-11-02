@@ -3,6 +3,8 @@
 namespace App\Jobs\CollegeFootball;
 
 use App\Models\CollegeFootball\CollegeFootballGame;
+use App\Notifications\DiscordCommandCompletionNotification;
+use Exception;
 use GuzzleHttp\Client;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -10,6 +12,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 
 class StoreCollegeFootballWeatherData implements ShouldQueue
 {
@@ -68,8 +71,15 @@ class StoreCollegeFootballWeatherData implements ShouldQueue
                     Log::info('No game found for ID: ' . $weather['id']);
                 }
             }
-        } catch (\Exception $e) {
-            Log::error('Error updating weather data: ' . $e->getMessage());
+            // Send success notification
+            Notification::route('discord', config('services.discord.channel_id'))
+                ->notify(new DiscordCommandCompletionNotification('', 'success'));
+
+        } catch (Exception $e) {
+            // Send failure notification
+            Notification::route('discord', config('services.discord.channel_id'))
+                ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'error'));
+
         }
     }
 }

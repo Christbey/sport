@@ -3,13 +3,11 @@
 namespace App\Console\Commands\CollegeFootball;
 
 use App\Jobs\CollegeFootball\StoreCollegeFootballGameLines;
-use App\Notifications\DiscordCommandCompletionNotification;
 use Illuminate\Console\Command;
-use Notification;
 
 class FetchCollegeFootballGameLines extends Command
 {
-    protected $signature = 'fetch:college-football-lines {year}';
+    protected $signature = 'fetch:college-football-lines {year?}';
     protected $description = 'Fetch and store college football game lines from DraftKings';
 
     public function __construct()
@@ -19,7 +17,7 @@ class FetchCollegeFootballGameLines extends Command
 
     public function handle()
     {
-        $year = $this->argument('year');
+        $year = $this->argument('year') ?? config('college_football.season');
 
         // Dispatch the job
         StoreCollegeFootballGameLines::dispatch($year);

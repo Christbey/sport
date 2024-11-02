@@ -11,8 +11,8 @@ Artisan::command('inspire', function () {
 Schedule::command('fetch:college-football-elo')->mondays()->at('19:00');
 Schedule::command('fetch:college-football-fpi')->mondays()->at('19:05');
 Schedule::command('fetch:sp-ratings')->mondays()->at('19:10');
-Schedule::command('scrape:college-football-rankings')->mondays()->at('19:15');
-Schedule::command('calculate:hypothetical-spreads')->mondays()->at('19:20');
+Schedule::command('fetch:college-football-rankings')->mondays()->at('19:15');
+Schedule::command('calculate:hypothetical-spreads')->at('21:02');
 
 // Fetch NFL data every day at 7:00 PM CST/CDT
 Schedule::command('nfl:fetch-boxscore')

@@ -12,7 +12,7 @@ class FetchCollegeFootballTalent extends Command
      *
      * @var string
      */
-    protected $signature = 'fetch:college-football-talent {year}';
+    protected $signature = 'fetch:college-football-talent {year?}';
 
     /**
      * The console command description.
@@ -28,7 +28,7 @@ class FetchCollegeFootballTalent extends Command
      */
     public function handle()
     {
-        $year = $this->argument('year');
+        $year = $this->argument('year') ?? config('college_football.season');
 
         // Dispatch the job to store talent data for the specified year
         StoreCollegeFootballTalent::dispatch($year);

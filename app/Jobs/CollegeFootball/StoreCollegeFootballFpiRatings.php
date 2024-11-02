@@ -4,6 +4,8 @@ namespace App\Jobs\CollegeFootball;
 
 use App\Models\CollegeFootball\CollegeFootballFpi;
 use App\Models\CollegeFootball\CollegeFootballTeam;
+use App\Notifications\DiscordCommandCompletionNotification;
+use Exception;
 use GuzzleHttp\Client;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -11,6 +13,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 
 class StoreCollegeFootballFpiRatings implements ShouldQueue
 {
@@ -28,7 +31,7 @@ class StoreCollegeFootballFpiRatings implements ShouldQueue
     public function __construct(int $year)
     {
         $this->year = $year;
-        $this->apiKey =config('services.college_football_data.key');
+        $this->apiKey = config('services.college_football_data.key');
     }
 
     /**
@@ -63,7 +66,7 @@ class StoreCollegeFootballFpiRatings implements ShouldQueue
                             'year' => $this->year,
                         ],
                         [
-                            'team' => $fpiData['team'],  // Keeping team name as per your request
+                            'team' => $fpiData['team'],
                             'conference' => $fpiData['conference'] ?? null,
                             'fpi' => $fpiData['fpi'] ?? null,
                             'strength_of_record' => $fpiData['resumeRanks']['strengthOfRecord'] ?? null,
@@ -82,10 +85,16 @@ class StoreCollegeFootballFpiRatings implements ShouldQueue
                 }
             }
 
-            Log::info('College Football FPI data fetched and stored successfully.');
+            // Send success notification
+            Notification::route('discord', config('services.discord.channel_id'))
+                ->notify(new DiscordCommandCompletionNotification('success'));
 
-        } catch (\Exception $e) {
-            Log::error('Failed to fetch and store College Football FPI data: ' . $e->getMessage());
+        } catch (Exception $e) {
+            // Log::error('Failed to fetch and store College Football FPI data: ' . $e->getMessage());
+
+            // Send failure notification with error details
+            Notification::route('discord', config('services.discord.channel_id'))
+                ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'error'));
         }
     }
 }

@@ -78,22 +78,15 @@ class StoreCollegeFootballEloRatings implements ShouldQueue
                 }
             }
 
-            Log::info('ELO ratings fetched and stored successfully.');
-
             // Send success notification
-
-            $message = "ELO ratings fetched and stored successfully for year: {$this->year}, week: {$this->week}.";
-            Log::info('Sending Discord notification: ' . $message);
             Notification::route('discord', config('services.discord.channel_id'))
-                ->notify(new DiscordCommandCompletionNotification($message));
+                ->notify(new DiscordCommandCompletionNotification('', 'success'));
 
         } catch (Exception $e) {
-            Log::error('Failed to fetch and store ELO ratings: ' . $e->getMessage());
-
             // Send failure notification
-            $message = "Failed to fetch and store ELO ratings for year: {$this->year}, week: {$this->week}. Error: " . $e->getMessage();
             Notification::route('discord', config('services.discord.channel_id'))
-                ->notify(new DiscordCommandCompletionNotification($message));
+                ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'error'));
+
         }
     }
 }
