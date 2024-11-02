@@ -25,7 +25,7 @@
                         <x-slot name="content">
                             <div class="">
                                 <x-dropdown-link
-                                        href="{{ route('pickem.schedule') }}">{{ __('View Schedule') }}</x-dropdown-link>
+                                        href="{{ route('pickem.schedule') }}">{{ __('Submit Picks') }}</x-dropdown-link>
                                 <x-dropdown-link
                                         href="{{ route('picks.leaderboard') }}">{{ __('Leaderboard') }}</x-dropdown-link>
                                 <x-dropdown-link

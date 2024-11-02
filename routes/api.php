@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\EspnAthleteController;
 use App\Http\Controllers\Api\EspnAthleteEventLogController;
 use App\Http\Controllers\Api\TeamRankingController;
 use App\Http\Controllers\Cfb\CollegeFootballDataController;
+use App\Http\Controllers\ForgeApiController;
 use App\Http\Controllers\Nfl\NflRapidApiController;
 use App\Http\Controllers\Nfl\TeamStatsController;
 use App\Http\Controllers\PickemController;
@@ -91,4 +92,10 @@ Route::get('/nfl/athletes', [EspnAthleteController::class, 'fetchAthletes']);
 Route::get('/espn/athletes/{athleteId}/seasons/{season}/eventlog', [EspnAthleteEventLogController::class, 'fetchAthleteEventLog']);
 Route::get('/espn/athletes/{athleteId}/events/{eventId}/teams/{teamId}/statistics', [EspnAthleteEventLogController::class, 'fetchAthleteEventStatistics']);
 
-
+Route::get('/forge/servers', [ForgeApiController::class, 'listServers']);
+Route::get('/forge/servers/{serverId}/sites', [ForgeApiController::class, 'listSites']);
+Route::post('/forge/servers/{serverId}/sites/{siteId}/commands', [ForgeApiController::class, 'runSiteCommand']);
+Route::post('/forge/servers/{serverId}/sites/{siteId}/deploy', [ForgeApiController::class, 'deploySite']);
+Route::get('/forge/servers/{serverId}/sites/{siteId}/commands', [ForgeApiController::class, 'listCommandHistory']);
+Route::get('/forge/servers/{serverId}/events/{eventId}', [ForgeApiController::class, 'getCommandOutput']);
+Route::get('/forge/servers/{serverId}/sites/{siteId}/commands/{commandId}', [ForgeApiController::class, 'getCommandStatus']);

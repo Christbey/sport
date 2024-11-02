@@ -52,4 +52,10 @@ return [
         'fpi_url' => env('COLLEGE_FOOTBALL_FPI_URL', 'https://apinext.collegefootballdata.com/ratings/fpi'), // Add the FPI URL here
     ],
 
+    'forge' => [
+        'token' => env('FORGE_API_TOKEN'),
+        'base_uri' => 'https://forge.laravel.com/api/v1/', // Forge API base URL
+    ],
+
+
 ];

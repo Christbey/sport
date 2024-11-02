@@ -31,7 +31,7 @@
             <!-- Display matchups and submit form -->
             <form action="{{ route('pickem.pickWinner') }}" method="POST">
                 @csrf
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     @if($schedules->isEmpty())
                         <p class="text-gray-500">No events found for this week.</p>
                     @else

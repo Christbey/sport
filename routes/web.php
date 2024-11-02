@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\Espn\EspnQbrController;
 use App\Http\Controllers\Api\TeamRankingController;
 use App\Http\Controllers\Cfb\CollegeFootballHypotheticalController;
 use App\Http\Controllers\Cfb\CollegeFootballNoteController;
+use App\Http\Controllers\ForgeApiController;
 use App\Http\Controllers\Nfl\NflEloRatingController;
 use App\Http\Controllers\Nfl\NflSheetController;
 use App\Http\Controllers\Nfl\NflStatsViewController;
@@ -66,6 +67,11 @@ Route::get('/nfl/qbr/{week}', [EspnQbrController::class, 'fetchQbrData'])->name(
 Route::get('/nfl-elo-ratings', [NflEloRatingController::class, 'index'])->name('nfl.elo');
 Route::get('/nfl-elo-predictions', [NflEloRatingController::class, 'prediction'])->name('nfl.elo.predictions');
 
+Route::get('/forge/servers', [ForgeApiController::class, 'listServers'])->name('forge.servers.index');
+Route::get('/forge/servers/{serverId}/sites', [ForgeApiController::class, 'listSites'])->name('forge.sites.index');
+Route::post('/forge/servers/{serverId}/sites/{siteId}/commands', [ForgeApiController::class, 'runSiteCommand'])->name('forge.commands.run');
+Route::post('/forge/servers/{serverId}/sites/{siteId}/deploy', [ForgeApiController::class, 'deploySite'])->name('forge.sites.deploy');
+Route::get('/forge/servers/{serverId}/sites/{siteId}/commands', [ForgeApiController::class, 'listCommands'])->name('forge.commands.index');
 
 
 

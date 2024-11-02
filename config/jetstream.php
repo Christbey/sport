@@ -78,4 +78,43 @@ return [
 
     'profile_photo_disk' => 'public',
 
+    'roles' => [
+        'owner' => [
+            'key' => 'owner',
+            'name' => 'Team Owner',
+            'permissions' => [
+                '*',
+            ],
+        ],
+
+        'admin' => [
+            'key' => 'admin',
+            'name' => 'Administrator',
+            'permissions' => [
+                'create',
+                'read',
+                'update',
+                'delete',
+            ],
+        ],
+
+        'editor' => [
+            'key' => 'editor',
+            'name' => 'Editor',
+            'permissions' => [
+                'read',
+                'create',
+                'update',
+            ],
+        ],
+
+        'viewer' => [
+            'key' => 'viewer',
+            'name' => 'Viewer',
+            'permissions' => [
+                'read',
+            ],
+        ],
+    ],
+
 ];
