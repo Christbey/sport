@@ -2,10 +2,12 @@
 
 namespace App\Console\Commands;
 
+use App\Notifications\DiscordCommandCompletionNotification;
 use App\Services\HypotheticalSpreadService;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 
 class CalculateHypotheticalSpread extends Command
 {
@@ -32,8 +34,15 @@ class CalculateHypotheticalSpread extends Command
         foreach ($games as $game) {
             try {
                 $this->spreadService->processGame($game);
+                // Send success notification
+                Notification::route('discord', config('services.discord.channel_id'))
+                    ->notify(new DiscordCommandCompletionNotification('', 'success'));
+
             } catch (Exception $e) {
-                Log::error("Error processing game ID {$game->id}: " . $e->getMessage());
+                // Send failure notification
+                Notification::route('discord', config('services.discord.channel_id'))
+                    ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'error'));
+
             }
         }
     }
