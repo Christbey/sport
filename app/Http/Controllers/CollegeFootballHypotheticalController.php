@@ -15,8 +15,8 @@ class CollegeFootballHypotheticalController extends Controller
 {
     public function index(Request $request)
     {
-        // Get the selected week from the request, default to the current week
-        $week = $request->input('week', 9); // Default to week 8 if none selected
+        // Determine the current week based on the date, defaulting to the configured week if none is provided
+        $week = $request->input('week', $this->getCurrentWeek());
 
         // Fetch all distinct weeks for the dropdown
         $weeks = CollegeFootballHypothetical::select('week')->distinct()->orderBy('week', 'asc')->get();
@@ -53,6 +53,27 @@ class CollegeFootballHypotheticalController extends Controller
 
         // Pass data to the view
         return view('cfb.index', compact('hypotheticals', 'weeks', 'week'));
+    }
+
+    /**
+     * Determine the current week based on today's date.
+     *
+     * @return int
+     */
+    private function getCurrentWeek()
+    {
+        $today = Carbon::today();
+
+        foreach (config('college_football.weeks') as $weekNumber => $range) {
+            $start = Carbon::parse($range['start']);
+            $end = Carbon::parse($range['end']);
+
+            if ($today->between($start, $end)) {
+                return $weekNumber;
+            }
+        }
+
+        return 1; // Default to week 1 if no matching range is found
     }
 
     private function calculateHomeWinningPercentage($homeElo, $awayElo, $homeFpi, $awayFpi)
