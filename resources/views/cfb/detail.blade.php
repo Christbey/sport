@@ -26,13 +26,13 @@
                 </thead>
                 <tbody class="divide-y divide-gray-200">
                 @foreach([
-                    'Overall Ranking' => ['away' => optional($homeSpRating)->ranking, 'home' => optional($awaySpRating)->ranking],
+                    'Overall Ranking' => ['away' => optional($awaySpRating)->ranking, 'home' => optional($homeSpRating)->ranking],
                     //'Overall Rating' => ['away' => optional($homeSpRating)->overall_rating, 'home' => optional($awaySpRating)->overall_rating],
                     //'Elo Rating' => ['away' => $hypothetical->home_elo, 'home' => $hypothetical->away_elo],
                     //'FPI Rating' => ['away' => $hypothetical->home_fpi, 'home' => $hypothetical->away_fpi],
-                    'Offense Ranking' => ['away' => optional($homeSpRating)->offense_ranking, 'home' => optional($awaySpRating)->offense_ranking],
+                    'Offense Ranking' => ['away' => optional($awaySpRating)->offense_ranking, 'home' => optional($homeSpRating)->offense_ranking],
                     //'Offense Rating' => ['away' => optional($homeSpRating)->offense_rating, 'home' => optional($awaySpRating)->offense_rating],
-                    'Defense Ranking' => ['away' => optional($homeSpRating)->defense_ranking, 'home' => optional($awaySpRating)->defense_ranking],
+                    'Defense Ranking' => ['away' => optional($homeSpRating)->defense_ranking, 'home' => optional($homeSpRating)->defense_ranking],
                     //'Defense Rating' => ['away' => optional($homeSpRating)->defense_rating, 'home' => optional($awaySpRating)->defense_rating],
                     //'Special Teams Rating' => ['away' => optional($homeSpRating)->special_teams_rating, 'home' => optional($awaySpRating)->special_teams_rating],
                 ] as $metric => $ratings)
