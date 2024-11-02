@@ -24,6 +24,5 @@ class FetchCollegeFootballGameLines extends Command
 
         $this->info('Job to fetch and store college football game lines has been dispatched.');
 
-
     }
 }

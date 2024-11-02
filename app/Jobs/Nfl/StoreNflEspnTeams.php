@@ -2,7 +2,7 @@
 
 namespace App\Jobs\Nfl;
 
-use App\Models\NFLTeam;
+use App\Models\Nfl\NFLTeam;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;

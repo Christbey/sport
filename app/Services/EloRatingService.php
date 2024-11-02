@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\Nfl\NflEloPrediction;
 use App\Models\Nfl\NflEloRating;
 use App\Models\Nfl\NflTeamSchedule;
-use App\Models\NflEloPrediction;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;

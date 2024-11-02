@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Nfl;
 
 use App\Http\Controllers\Controller;
+use App\Models\Nfl\NflSheet;
+use App\Models\Nfl\NflTeam;
 use App\Models\Nfl\NflTeamSchedule;
-use App\Models\NflSheet;
-use App\Models\NflTeam;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 

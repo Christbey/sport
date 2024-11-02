@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Nfl\NflTeam;
 use App\Models\Nfl\NflTeamSchedule;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -38,6 +39,7 @@ class UserSubmission extends Model
     {
         return $this->belongsTo(NflTeam::class, 'team_id');
     }
+
     // In UserSubmission model
     public function event()
     {

@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Cfb;
 
+use App\Http\Controllers\Controller;
 use Exception;
 use GuzzleHttp\Client;
 use Illuminate\Http\JsonResponse;

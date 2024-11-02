@@ -1,8 +1,9 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Cfb;
 
-use App\Models\CollegeFootballNote;
+use App\Http\Controllers\Controller;
+use App\Models\CollegeFootball\CollegeFootballNote;
 use Illuminate\Http\Request;
 
 class CollegeFootballNoteController extends Controller

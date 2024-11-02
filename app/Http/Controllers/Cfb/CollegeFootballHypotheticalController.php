@@ -1,13 +1,14 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Cfb;
 
+use App\Http\Controllers\Controller;
 use App\Models\CollegeFootball\AdvancedGameStat;
 use App\Models\CollegeFootball\CollegeFootballGame;
 use App\Models\CollegeFootball\CollegeFootballHypothetical;
+use App\Models\CollegeFootball\CollegeFootballNote;
 use App\Models\CollegeFootball\CollegeFootballTeam;
 use App\Models\CollegeFootball\SpRating;
-use App\Models\CollegeFootballNote;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 

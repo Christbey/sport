@@ -1,6 +1,9 @@
 <?php
-namespace App\Models;
 
+namespace App\Models\Nfl;
+
+use App\Models\NflTeamSchedule;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 

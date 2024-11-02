@@ -2,10 +2,10 @@
 
 namespace App\Console\Commands\Nfl;
 
+use App\Models\Nfl\NflBoxScore;
+use App\Models\Nfl\NflPlayerStat;
 use App\Models\Nfl\NflTeamSchedule;
-use App\Models\NflBoxScore;
-use App\Models\NflPlayerStat;
-use App\Models\NflTeamStat;
+use App\Models\Nfl\NflTeamStat;
 use App\Notifications\DiscordCommandCompletionNotification;
 use Carbon\Carbon;
 use Exception;

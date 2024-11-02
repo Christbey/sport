@@ -1,9 +1,7 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\CollegeFootball;
 
-use App\Models\CollegeFootball\CollegeFootballGame;
-use App\Models\CollegeFootball\CollegeFootballTeam;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 

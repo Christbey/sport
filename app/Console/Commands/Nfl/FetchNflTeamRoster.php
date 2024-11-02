@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands\Nfl;
 
-use App\Models\NflPlayerData;
+use App\Models\Nfl\NflPlayerData;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 

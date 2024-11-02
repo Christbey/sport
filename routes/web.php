@@ -2,12 +2,9 @@
 
 use App\Http\Controllers\Api\CoversController;
 use App\Http\Controllers\Api\Espn\EspnQbrController;
-use App\Http\Controllers\Api\EspnAthleteController;
-use App\Http\Controllers\Api\EspnAthleteEventLogController;
-use App\Http\Controllers\Api\EspnAthleteSplitsController;
 use App\Http\Controllers\Api\TeamRankingController;
-use App\Http\Controllers\CollegeFootballHypotheticalController;
-use App\Http\Controllers\CollegeFootballNoteController;
+use App\Http\Controllers\Cfb\CollegeFootballHypotheticalController;
+use App\Http\Controllers\Cfb\CollegeFootballNoteController;
 use App\Http\Controllers\Nfl\NflEloRatingController;
 use App\Http\Controllers\Nfl\NflSheetController;
 use App\Http\Controllers\Nfl\NflStatsViewController;

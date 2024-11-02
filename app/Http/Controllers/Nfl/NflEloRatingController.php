@@ -4,11 +4,11 @@ namespace App\Http\Controllers\Nfl;
 
 use App\Http\Controllers\Controller;
 use App\Models\Nfl\NflBettingOdds;
-use App\Models\NflEloPrediction;
+use App\Models\Nfl\NflEloPrediction;
 use App\Models\Nfl\NflTeamSchedule;
+use Illuminate\Http\Request;
 
 // Add the model for team schedules
-use Illuminate\Http\Request;
 
 class NflEloRatingController extends Controller
 {
