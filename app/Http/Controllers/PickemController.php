@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\PicksSubmittedMail;
 use App\Models\Nfl\NflTeamSchedule;
 use App\Models\UserSubmission;
 use Carbon\Carbon;
@@ -9,6 +10,7 @@ use DB;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Mail;
 
 class PickemController extends Controller
 {
@@ -81,11 +83,19 @@ class PickemController extends Controller
         $now = Carbon::now();
         $eventIds = $request->input('event_ids');
         $teamIds = $request->input('team_ids');
+        $gameWeek = $request->input('game_week') ?? $this->determineGameWeek($request, null);
 
         try {
             foreach ($eventIds as $eventId) {
                 $this->processPick($eventId, $teamIds[$eventId] ?? null, $now, $userId, $request);
             }
+
+            // Fetch the user's picks to include in the email
+            $userPicks = $this->getUserPicksForEmail($userId, $eventIds);
+
+            // Send the email to the user
+            $user = Auth::user();
+            Mail::to($user->email)->send(new PicksSubmittedMail($user, $userPicks, $gameWeek));
 
             return $this->pickResponse($request, 'Your picks have been submitted successfully!', 200);
         } catch (QueryException $e) {
@@ -146,6 +156,28 @@ class PickemController extends Controller
         }
 
         return false;
+    }
+
+    private function getUserPicksForEmail($userId, $eventIds)
+    {
+        $picks = UserSubmission::with(['event', 'team'])
+            ->where('user_id', $userId)
+            ->whereIn('espn_event_id', $eventIds)
+            ->get();
+
+        $pickData = [];
+
+        foreach ($picks as $pick) {
+            $game = $pick->event->short_name ?? 'Unknown Game';
+            $teamName = $pick->team->team_name ?? 'Unknown Team';
+
+            $pickData[] = [
+                'game' => $game,
+                'team_name' => $teamName,
+            ];
+        }
+
+        return $pickData;
     }
 
     public function showLeaderboard(Request $request)

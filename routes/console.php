@@ -18,6 +18,12 @@ Schedule::command('calculate:hypothetical-spreads')->daily();
 // Fetch NFL data every day at 7:00 PM CST/CDT
 Schedule::command('nfl:fetch-boxscore')
     ->daily()
-    ->timezone('America/Chicago')
-    ->at('22:00'); // 10:00 PM CST/CDT
+    ->at('22:00');
 
+// Fetch NFL news.
+Schedule::command('nfl:news')
+    ->everyThirtyMinutes();
+
+// Fetch Draftkings Odds.
+Schedule::command('nfl:fetch-betting-odds')
+    ->hourly();
