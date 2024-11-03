@@ -27,7 +27,6 @@ class FetchNflBoxScore extends Command
     public function handle()
     {
         try {
-
             $gameID = $this->argument('gameID');
             $weekOption = $this->option('week');
 
@@ -41,6 +40,7 @@ class FetchNflBoxScore extends Command
             } else {
                 $this->fetchBoxScoresForCurrentWeek();
             }
+
             // Send success notification
             Notification::route('discord', config('services.discord.channel_id'))
                 ->notify(new DiscordCommandCompletionNotification('', 'success'));
@@ -49,7 +49,6 @@ class FetchNflBoxScore extends Command
             // Send failure notification
             Notification::route('discord', config('services.discord.channel_id'))
                 ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'error'));
-
         }
     }
 
@@ -101,6 +100,7 @@ class FetchNflBoxScore extends Command
         }
 
         DB::transaction(function () use ($gameData) {
+            // Store or update the box score
             NflBoxScore::updateOrCreate(
                 ['game_id' => $gameData['gameID']],
                 [
@@ -118,15 +118,16 @@ class FetchNflBoxScore extends Command
                 ]
             );
 
+            // Store or update player stats
             if (isset($gameData['playerStats'])) {
                 $playerStatsData = [];
                 foreach ($gameData['playerStats'] as $playerID => $playerStats) {
                     $playerStatsData[] = [
-                        'player_id' => $playerID,
-                        'game_id' => $gameData['gameID'],
-                        'team_id' => $playerStats['teamID'] ?? null,
-                        'team_abv' => $playerStats['teamAbv'] ?? null,
-                        'long_name' => $playerStats['longName'] ?? null,
+                        'player_id' => (int)$playerID,
+                        'game_id' => (int)$gameData['gameID'],
+                        'team_id' => isset($playerStats['teamID']) ? (int)$playerStats['teamID'] : null,
+                        'team_abv' => isset($playerStats['teamAbv']) ? trim($playerStats['teamAbv']) : null,
+                        'long_name' => isset($playerStats['longName']) ? trim($playerStats['longName']) : null,
                         'receiving' => isset($playerStats['Receiving']) ? json_encode($playerStats['Receiving']) : null,
                         'rushing' => isset($playerStats['Rushing']) ? json_encode($playerStats['Rushing']) : null,
                         'kicking' => isset($playerStats['Kicking']) ? json_encode($playerStats['Kicking']) : null,
@@ -134,23 +135,49 @@ class FetchNflBoxScore extends Command
                         'defense' => isset($playerStats['Defense']) ? json_encode($playerStats['Defense']) : null,
                     ];
                 }
-                NflPlayerStat::upsert($playerStatsData, ['player_id', 'game_id']);
+
+                // Specify the columns to update to prevent duplicates
+                $playerUpdateColumns = [
+                    'team_id',
+                    'team_abv',
+                    'long_name',
+                    'receiving',
+                    'rushing',
+                    'kicking',
+                    'punting',
+                    'defense',
+                    'updated_at',
+                ];
+
+                NflPlayerStat::upsert($playerStatsData, ['player_id', 'game_id'], $playerUpdateColumns);
             }
 
+            // Store or update team stats
             if (isset($gameData['teamStats'])) {
                 $teamStatsData = [];
                 foreach ($gameData['teamStats'] as $teamStats) {
                     $teamStatsData[] = [
-                        'team_id' => $teamStats['teamID'],
-                        'game_id' => $gameData['gameID'],
-                        'team_abv' => $teamStats['teamAbv'] ?? null,
-                        'total_yards' => $teamStats['totalYards'] ?? null,
-                        'rushing_yards' => $teamStats['rushingYards'] ?? null,
-                        'passing_yards' => $teamStats['passingYards'] ?? null,
-                        'points_allowed' => $teamStats['ptsAllowed'] ?? null,
+                        'team_id' => isset($teamStats['teamID']) ? (int)$teamStats['teamID'] : null,
+                        'game_id' => (int)$gameData['gameID'],
+                        'team_abv' => isset($teamStats['teamAbv']) ? trim($teamStats['teamAbv']) : null,
+                        'total_yards' => isset($teamStats['totalYards']) ? (int)$teamStats['totalYards'] : null,
+                        'rushing_yards' => isset($teamStats['rushingYards']) ? (int)$teamStats['rushingYards'] : null,
+                        'passing_yards' => isset($teamStats['passingYards']) ? (int)$teamStats['passingYards'] : null,
+                        'points_allowed' => isset($teamStats['ptsAllowed']) ? (int)$teamStats['ptsAllowed'] : null,
                     ];
                 }
-                NflTeamStat::upsert($teamStatsData, ['team_id', 'game_id']);
+
+                // Specify the columns to update to prevent duplicates
+                $teamUpdateColumns = [
+                    'team_abv',
+                    'total_yards',
+                    'rushing_yards',
+                    'passing_yards',
+                    'points_allowed',
+                    'updated_at',
+                ];
+
+                NflTeamStat::upsert($teamStatsData, ['team_id', 'game_id'], $teamUpdateColumns);
             }
         });
     }

@@ -10,6 +10,7 @@ use App\Http\Controllers\Nfl\NflEloRatingController;
 use App\Http\Controllers\Nfl\NflSheetController;
 use App\Http\Controllers\Nfl\NflStatsViewController;
 use App\Http\Controllers\Nfl\TeamStatsController;
+use App\Http\Controllers\NflNewsController;
 use App\Http\Controllers\PickemController;
 use Illuminate\Support\Facades\Route;
 
@@ -73,5 +74,6 @@ Route::post('/forge/servers/{serverId}/sites/{siteId}/commands', [ForgeApiContro
 Route::post('/forge/servers/{serverId}/sites/{siteId}/deploy', [ForgeApiController::class, 'deploySite'])->name('forge.sites.deploy');
 Route::get('/forge/servers/{serverId}/sites/{siteId}/commands', [ForgeApiController::class, 'listCommands'])->name('forge.commands.index');
 
+Route::get('/nfl/news', [NflNewsController::class, 'index'])->name('nfl.news.index');
 
 
