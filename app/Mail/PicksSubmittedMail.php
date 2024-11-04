@@ -23,7 +23,7 @@ class PicksSubmittedMail extends Mailable implements ShouldQueue
      * @param array $picks
      * @param string $gameWeek
      */
-    public function __construct(User $user, $picks, $gameWeek)
+    public function __construct(User $user, array $picks, $gameWeek)
     {
         $this->user = $user;
         $this->picks = $picks;
@@ -33,7 +33,7 @@ class PicksSubmittedMail extends Mailable implements ShouldQueue
     /**
      * Build the message.
      */
-    public function build()
+    public function build(): PicksSubmittedMail
     {
         return $this->subject('Your Picks for ' . $this->gameWeek)
             ->markdown('emails.picks_submitted');

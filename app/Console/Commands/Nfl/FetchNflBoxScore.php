@@ -118,14 +118,26 @@ class FetchNflBoxScore extends Command
                 ]
             );
 
+            // Fetch game information to determine opponent IDs
+            $gameSchedule = NflTeamSchedule::where('game_id', $gameData['gameID'])->first();
+            if (!$gameSchedule) {
+                $this->error("No schedule found for game_id {$gameData['gameID']}");
+                return;
+            }
+
             // Store or update player stats
             if (isset($gameData['playerStats'])) {
                 $playerStatsData = [];
                 foreach ($gameData['playerStats'] as $playerID => $playerStats) {
+                    // Determine the opponent ID
+                    $teamId = isset($playerStats['teamID']) ? (int)$playerStats['teamID'] : null;
+                    $opponentId = ($teamId === $gameSchedule->home_team_id) ? $gameSchedule->away_team_id : $gameSchedule->home_team_id;
+
                     $playerStatsData[] = [
                         'player_id' => (int)$playerID,
                         'game_id' => (int)$gameData['gameID'],
-                        'team_id' => isset($playerStats['teamID']) ? (int)$playerStats['teamID'] : null,
+                        'team_id' => $teamId,
+                        'opponent_id' => $opponentId,  // New field
                         'team_abv' => isset($playerStats['teamAbv']) ? trim($playerStats['teamAbv']) : null,
                         'long_name' => isset($playerStats['longName']) ? trim($playerStats['longName']) : null,
                         'receiving' => isset($playerStats['Receiving']) ? json_encode($playerStats['Receiving']) : null,
@@ -139,6 +151,7 @@ class FetchNflBoxScore extends Command
                 // Specify the columns to update to prevent duplicates
                 $playerUpdateColumns = [
                     'team_id',
+                    'opponent_id',  // Ensure opponent_id is updated
                     'team_abv',
                     'long_name',
                     'receiving',
@@ -152,7 +165,7 @@ class FetchNflBoxScore extends Command
                 NflPlayerStat::upsert($playerStatsData, ['player_id', 'game_id'], $playerUpdateColumns);
             }
 
-            // Store or update team stats
+            // Store or update team stats (unchanged)
             if (isset($gameData['teamStats'])) {
                 $teamStatsData = [];
                 foreach ($gameData['teamStats'] as $teamStats) {

@@ -21,6 +21,7 @@ class NflPlayerStat extends Model
         'receiving',
         'long_name',
         'rushing',
+        'opponent_id',
         'kicking',
         'punting',
         'defense',

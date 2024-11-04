@@ -2,7 +2,6 @@
 
 namespace App\Jobs;
 
-use App\Models\NflNews;
 use App\Notifications\DiscordCommandCompletionNotification;
 use Exception;
 use Illuminate\Bus\Queueable;
@@ -41,13 +40,22 @@ class FetchNflNewsJob implements ShouldQueue
                 $data = $response->json();
 
                 if (isset($data['body']) && is_array($data['body'])) {
+                    // Build formatted message as before
+                    $formattedMessage = "[FetchNflNewsJob] NFL News fetched:\n\n";
                     foreach ($data['body'] as $newsItem) {
-                        NflNews::updateOrCreate(
-                            ['link' => $newsItem['link']],
-                            ['title' => $newsItem['title']]
-                        );
+                        $formattedMessage .= '- **' . ($newsItem['title'] ?? 'Unknown') . "**\n";
+                        $formattedMessage .= '  ' . ($newsItem['link'] ?? 'No link provided') . "\n\n";
                     }
-                    Log::info('NFL News fetched and stored successfully.');
+
+                    // Log the full message for debugging
+                    Log::info("Full message before splitting:\n" . $formattedMessage);
+
+                    // Split if necessary and send
+                    $chunkedMessages = str_split($formattedMessage, 2000);
+                    foreach ($chunkedMessages as $chunk) {
+                        Notification::route('discord', config('services.discord.channel_id'))
+                            ->notify(new DiscordCommandCompletionNotification($chunk, 'success'));
+                    }
                 } else {
                     Log::error('Invalid data format received.');
                 }
@@ -55,14 +63,10 @@ class FetchNflNewsJob implements ShouldQueue
                 Log::error('Failed to fetch NFL news. Status Code: ' . $response->status());
                 Log::error('Response Body: ' . $response->body());
             }
-            Notification::route('discord', config('services.discord.channel_id'))
-                ->notify(new DiscordCommandCompletionNotification('', 'success'));
-
         } catch (Exception $e) {
             // Send failure notification
             Notification::route('discord', config('services.discord.channel_id'))
                 ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'error'));
-
         }
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Jobs\Nfl;
 
 use App\Models\Nfl\NFLTeam;
+use GuzzleHttp\Client;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -22,7 +23,7 @@ class StoreNflTeams implements ShouldQueue
     public function __construct()
     {
         $this->apiUrl = 'https://tank01-nfl-live-in-game-real-time-statistics-nfl.p.rapidapi.com/getNFLTeams';
-        $this->apiKey = env('RAPIDAPI_KEY');
+        $this->apiKey = config('services.rapidapi.key');
     }
 
     /**
@@ -32,7 +33,7 @@ class StoreNflTeams implements ShouldQueue
      */
     public function handle()
     {
-        $client = new \GuzzleHttp\Client();
+        $client = new Client();
         $response = $client->request('GET', 'https://tank01-nfl-live-in-game-real-time-statistics-nfl.p.rapidapi.com/getNFLTeams', [
             'headers' => [
                 'x-rapidapi-host' => 'tank01-nfl-live-in-game-real-time-statistics-nfl.p.rapidapi.com',

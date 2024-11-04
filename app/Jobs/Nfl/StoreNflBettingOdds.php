@@ -82,7 +82,7 @@ class StoreNflBettingOdds implements ShouldQueue
                             }
                         }
 
-                        // *** Optionally, log if 'draftkings' data is not found for the game ***
+                        //  log if 'draftkings' data is not found for the game ***
                         if (!array_filter($game['sportsBooks'], function ($sportsBook) {
                             return isset($sportsBook['sportsBook']) && strtolower($sportsBook['sportsBook']) === 'draftkings';
                         })) {

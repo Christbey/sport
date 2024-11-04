@@ -9,6 +9,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Http;
+use Log;
 
 class StoreNflEspnTeams implements ShouldQueue
 {
@@ -67,9 +68,9 @@ class StoreNflEspnTeams implements ShouldQueue
                 }
             }
 
-            \Log::info('ESPN NFL teams data has been successfully updated.');
+            Log::info('ESPN NFL teams data has been successfully updated.');
         } else {
-            \Log::error('Failed to fetch ESPN NFL teams data.');
+            Log::error('Failed to fetch ESPN NFL teams data.');
         }
     }
 }

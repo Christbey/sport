@@ -24,7 +24,7 @@ class CalculateHypotheticalSpreadJob implements ShouldQueue
     public function __construct($game)
     {
         $this->game = $game;
-        $this->spreadService = app(HypotheticalSpreadService::class); // Resolve service through the container
+        $this->spreadService = app(HypotheticalSpreadService::class);
     }
 
     /**
