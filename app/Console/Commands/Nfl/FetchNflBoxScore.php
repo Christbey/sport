@@ -135,7 +135,7 @@ class FetchNflBoxScore extends Command
 
                     $playerStatsData[] = [
                         'player_id' => (int)$playerID,
-                        'game_id' => (int)$gameData['gameID'],
+                        'game_id' => $gameData['gameID'],
                         'team_id' => $teamId,
                         'opponent_id' => $opponentId,  // New field
                         'team_abv' => isset($playerStats['teamAbv']) ? trim($playerStats['teamAbv']) : null,
@@ -171,7 +171,7 @@ class FetchNflBoxScore extends Command
                 foreach ($gameData['teamStats'] as $teamStats) {
                     $teamStatsData[] = [
                         'team_id' => isset($teamStats['teamID']) ? (int)$teamStats['teamID'] : null,
-                        'game_id' => (int)$gameData['gameID'],
+                        'game_id' => $gameData['gameID'],
                         'team_abv' => isset($teamStats['teamAbv']) ? trim($teamStats['teamAbv']) : null,
                         'total_yards' => isset($teamStats['totalYards']) ? (int)$teamStats['totalYards'] : null,
                         'rushing_yards' => isset($teamStats['rushingYards']) ? (int)$teamStats['rushingYards'] : null,

@@ -5,6 +5,7 @@ namespace App\Console\Commands\Nfl;
 use App\Models\Nfl\NflPlayerData;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
+use Log;
 
 class FetchNflTeamRoster extends Command
 {
@@ -22,8 +23,8 @@ class FetchNflTeamRoster extends Command
     public function handle()
     {
         // Get optional arguments and provide default values if not provided
-        $teamID = $this->argument('teamID') ?? 6;   // Default to team ID 6 (example)
-        $teamAbv = $this->argument('teamAbv') ?? 'CHI'; // Default to Chicago Bears
+        $teamID = $this->argument('teamID') ?? 5;   // Default to team ID 6 (example)
+        $teamAbv = $this->argument('teamAbv') ?? 'BAL'; // Default to Chicago Bears
 
         // Make an HTTP request to the route you've defined
         $response = Http::get(route('nfl.teamRoster'), [
@@ -38,7 +39,7 @@ class FetchNflTeamRoster extends Command
             $data = $response->json();
 
             // Log the response to inspect its structure
-            \Log::info('API Response:', $data);
+            Log::info('API Response:', $data);
 
             // Verify the structure contains 'body' and 'roster'
             if (isset($data['body']['roster']) && is_array($data['body']['roster'])) {
@@ -47,7 +48,7 @@ class FetchNflTeamRoster extends Command
                 $this->info('Team roster data has been saved successfully.');
             } else {
                 $this->error('Unexpected response structure: no roster data found.');
-                \Log::error('Unexpected API response structure', ['response' => $data]);
+                Log::error('Unexpected API response structure', ['response' => $data]);
             }
         } else {
             $this->error('Failed to fetch team roster.');
@@ -59,7 +60,7 @@ class FetchNflTeamRoster extends Command
         foreach ($players as $player) {
             // Check if the player data is in the expected format
             if (!isset($player['playerID'])) {
-                \Log::warning('Player data missing playerID', ['player' => $player]);
+                Log::warning('Player data missing playerID', ['player' => $player]);
                 continue; // Skip this player if playerID is missing
             }
 

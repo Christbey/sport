@@ -169,7 +169,7 @@
                                    :active="request()->routeIs('picks.leaderboard')">{{ __('Leaderboard') }}</x-responsive-nav-link>
             <x-responsive-nav-link href="{{ route('cfb.index') }}"
                                    :active="request()->routeIs('cfb.index')">{{ __('CFB Hypotheticals') }}</x-responsive-nav-link>
-            <x-responsive-nav-link href="{{ route('nfl.detail') }}"
+            <x-responsive-nav-link href="{{ route('nfl.news.index') }}"
                                    :active="request()->routeIs('nfl.news.index')">{{ __('Nfl News') }}</x-responsive-nav-link>
             <x-responsive-nav-link href="{{ route('nfl.news.index') }}"
                                    :active="request()->routeIs('nfl.detail')">{{ __('Nfl Sheet') }}</x-responsive-nav-link>

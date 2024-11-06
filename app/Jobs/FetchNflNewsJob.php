@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\NflNews;
 use App\Notifications\DiscordCommandCompletionNotification;
 use Exception;
 use Illuminate\Bus\Queueable;
@@ -40,22 +41,30 @@ class FetchNflNewsJob implements ShouldQueue
                 $data = $response->json();
 
                 if (isset($data['body']) && is_array($data['body'])) {
-                    // Build formatted message as before
-                    $formattedMessage = "[FetchNflNewsJob] NFL News fetched:\n\n";
+                    $newArticles = 0;
+
                     foreach ($data['body'] as $newsItem) {
-                        $formattedMessage .= '- **' . ($newsItem['title'] ?? 'Unknown') . "**\n";
-                        $formattedMessage .= '  ' . ($newsItem['link'] ?? 'No link provided') . "\n\n";
+                        // Check if the news item already exists based on both link and title
+                        $existingNews = NflNews::where('link', $newsItem['link'])
+                            ->orWhere('title', $newsItem['title'])
+                            ->first();
+
+                        if (!$existingNews) {
+                            NflNews::create([
+                                'title' => $newsItem['title'] ?? 'Unknown',
+                                'link' => $newsItem['link'] ?? null,
+                            ]);
+                            $newArticles++;
+                        }
                     }
 
-                    // Log the full message for debugging
-                    Log::info("Full message before splitting:\n" . $formattedMessage);
+                    $message = $newArticles > 0
+                        ? "$newArticles new NFL news articles fetched and stored successfully."
+                        : 'No new NFL news articles to store.';
 
-                    // Split if necessary and send
-                    $chunkedMessages = str_split($formattedMessage, 2000);
-                    foreach ($chunkedMessages as $chunk) {
-                        Notification::route('discord', config('services.discord.channel_id'))
-                            ->notify(new DiscordCommandCompletionNotification($chunk, 'success'));
-                    }
+                    // Notify completion on Discord
+                    Notification::route('discord', config('services.discord.channel_id'))
+                        ->notify(new DiscordCommandCompletionNotification($message, 'success'));
                 } else {
                     Log::error('Invalid data format received.');
                 }
@@ -64,7 +73,6 @@ class FetchNflNewsJob implements ShouldQueue
                 Log::error('Response Body: ' . $response->body());
             }
         } catch (Exception $e) {
-            // Send failure notification
             Notification::route('discord', config('services.discord.channel_id'))
                 ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'error'));
         }

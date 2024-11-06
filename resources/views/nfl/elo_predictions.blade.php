@@ -39,7 +39,7 @@
                                                 class="font-bold">{{ $prediction->homePts ?? 'N/A' }}</span></p></div>
 
                             </div>
-                            
+
                             <!-- Game Status and Points from API -->
                             <div class="mb-4">
                                 <p class="text-sm font-light text-gray-600">
@@ -117,6 +117,12 @@
                                     <p class="font-semibold text-gray-400">No betting odds available</p>
                                 </div>
                             @endif
+                            <div class="mt-4">
+                                <a href="{{ route('nfl.elo.show', ['gameId' => $prediction->game_id]) }}"
+                                   class="inline-block px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-700">
+                                    View Details
+                                </a>
+                            </div>
                         </div>
                     </div>
                 @endforeach

@@ -76,4 +76,4 @@ Route::get('/forge/servers/{serverId}/sites/{siteId}/commands', [ForgeApiControl
 
 Route::get('/nfl/news', [NflNewsController::class, 'index'])->name('nfl.news.index');
 
-
+Route::get('/nfl/elo/show/{gameId}', [NflEloRatingController::class, 'show'])->name('nfl.elo.show');

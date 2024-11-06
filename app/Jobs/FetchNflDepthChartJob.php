@@ -84,6 +84,7 @@ class FetchNflDepthChartJob implements ShouldQueue
                                         'position' => $position,
                                         'player_id' => $playerId,
                                     ],
+                                    
                                     [
                                         'team_name' => $teamAbv,
                                         'player_name' => $playerName,

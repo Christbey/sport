@@ -5,13 +5,12 @@ namespace App\Console\Commands;
 use Exception;
 use GuzzleHttp\Client;
 use Illuminate\Console\Command;
-use Symfony\Component\DomCrawler\Crawler;
 use League\Csv\Writer;
-use SplTempFileObject;
+use Symfony\Component\DomCrawler\Crawler;
 
 class ScrapeProducts extends Command
 {
-    protected $signature = 'scrape:products {--pages=50}';
+    protected $signature = 'scrape:products {--pages=3}';
     protected $description = 'Scrape product details from Teachers Pay Teachers and save them to a CSV';
 
     protected $products = []; // Store scraped data
@@ -20,8 +19,9 @@ class ScrapeProducts extends Command
     {
         $client = new Client();
         $baseUrl = 'https://www.teacherspayteachers.com/store/tara-west-little-minds-at-work';
-        $totalPages = (int)$this->option('pages'); // Default to 50 pages
+        $totalPages = (int)$this->option('pages');
 
+        // Primary Scraping: Gather initial data
         for ($page = 1; $page <= $totalPages; $page++) {
             $this->info("Scraping page $page...");
             $url = $baseUrl . '?page=' . $page;
@@ -33,12 +33,10 @@ class ScrapeProducts extends Command
                     ],
                 ]);
                 $html = (string)$response->getBody();
-
-                // Parse the HTML with DomCrawler
                 $crawler = new Crawler($html);
 
                 // Check if any products are found
-                $products = $crawler->filter('.ProductRowLayout');
+                $products = $crawler->filter('.ProductRowCard-module__card--xTOd6');
                 if ($products->count() === 0) {
                     $this->error("No products found on page $page.");
                     continue;
@@ -53,7 +51,7 @@ class ScrapeProducts extends Command
                     $image = $this->extractAttribute($node, '.ProductThumbnail-module__img--HRIPw', 'src');
                     $link = $this->extractAttribute($node, '.ProductRowCard-module__linkArea--aCqXC', 'href');
 
-                    // Store product data in array
+                    // Store product data in array with a placeholder for additional details
                     $this->products[] = [
                         'title' => $title,
                         'price' => $price,
@@ -61,22 +59,16 @@ class ScrapeProducts extends Command
                         'description' => $description,
                         'image' => $image,
                         'link' => "https://www.teacherspayteachers.com$link",
+                        'detailed_description' => '',  // Placeholder for secondary scraping
+                        'preview_images' => '',        // Placeholder for secondary scraping
                     ];
 
-                    // Print product information to console
-                    $this->info("Product: $title");
-                    $this->info("Price: $price");
-                    $this->info("Seller: $seller");
-                    $this->info("Description: $description");
-                    $this->info("Image: $image");
-                    $this->info("Link: https://www.teacherspayteachers.com$link");
-                    $this->info('--------------------------------------------');
+                    $this->info("Scraped product: $title");
                 });
 
-                // Add a 7-second delay between page changes
                 if ($page < $totalPages) {
                     $this->info('Waiting 7 seconds before scraping the next page...');
-                    sleep(7); // Wait for 7 seconds
+                    sleep(7);
                 }
 
             } catch (Exception $e) {
@@ -84,7 +76,39 @@ class ScrapeProducts extends Command
             }
         }
 
-        // Save the scraped data to a CSV
+        // Secondary Scraping: Visit each product link to gather additional details
+        foreach ($this->products as &$product) {
+            $this->info('Scraping additional details for: ' . $product['title']);
+            try {
+                $response = $client->request('GET', $product['link'], [
+                    'headers' => [
+                        'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                    ],
+                ]);
+
+                $html = (string)$response->getBody();
+                $crawler = new Crawler($html);
+
+                // Extract Detailed Description
+                $detailedDescription = $this->extractText($crawler, '.ProductDescriptionLayout__htmlDisplay--fromNewEditor');
+                $product['detailed_description'] = $detailedDescription;
+
+                // Extract Preview Images
+                $imageUrls = [];
+                $crawler->filter('.ProductPreviewSlider__slidesContainer img')->each(function (Crawler $imageNode) use (&$imageUrls) {
+                    $imageUrls[] = $imageNode->attr('src');
+                });
+                $product['preview_images'] = implode(', ', $imageUrls); // Join image URLs as comma-separated string
+
+                $this->info('Detailed description and images scraped for: ' . $product['title']);
+                sleep(2);
+
+            } catch (Exception $e) {
+                $this->error('Error scraping additional details for: ' . $product['title'] . ' - ' . $e->getMessage());
+            }
+        }
+
+        // Save all scraped data to a CSV file
         $this->saveToCsv();
 
         $this->info('Scraping completed and data saved to products.csv!');
@@ -98,6 +122,7 @@ class ScrapeProducts extends Command
         try {
             return $node->filter($selector)->text();
         } catch (Exception $e) {
+            $this->error("Error extracting text for selector $selector: " . $e->getMessage());
             return 'N/A';
         }
     }
@@ -110,6 +135,7 @@ class ScrapeProducts extends Command
         try {
             return $node->filter($selector)->attr($attribute);
         } catch (Exception $e) {
+            $this->error("Error extracting attribute '$attribute' for selector $selector: " . $e->getMessage());
             return 'N/A';
         }
     }
@@ -117,30 +143,31 @@ class ScrapeProducts extends Command
     /**
      * Saves the scraped data to a CSV file.
      */
-    /**
-     * Saves the scraped data to a CSV file.
-     */
-    /**
-     * Saves the scraped data to a CSV file.
-     */
     private function saveToCsv()
     {
-        // Use League CSV Writer to create a CSV file at the correct path
-        $csv = Writer::createFromPath(storage_path('products.csv'), 'w+');
+        try {
+            $csv = Writer::createFromPath(storage_path('products.csv'), 'w+');
 
-        // Insert the header row
-        $csv->insertOne(['Title', 'Price', 'Seller', 'Description', 'Image', 'Link']);
+            // Insert the header row
+            $csv->insertOne(['Title', 'Price', 'Seller', 'Description', 'Image', 'Link', 'Detailed Description', 'Preview Images']);
 
-        // Insert each product's data
-        foreach ($this->products as $product) {
-            $csv->insertOne([
-                $product['title'],
-                $product['price'],
-                $product['seller'],
-                $product['description'],
-                $product['image'],
-                $product['link'],
-            ]);
+            // Insert each product's data
+            foreach ($this->products as $product) {
+                $csv->insertOne([
+                    $product['title'],
+                    $product['price'],
+                    $product['seller'],
+                    $product['description'],
+                    $product['image'],
+                    $product['link'],
+                    $product['detailed_description'] ?? 'N/A',
+                    $product['preview_images'] ?? 'N/A',
+                ]);
+            }
+
+            $this->info('Data successfully written to products.csv');
+        } catch (Exception $e) {
+            $this->error('Error saving CSV: ' . $e->getMessage());
         }
     }
 }
