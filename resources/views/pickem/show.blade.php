@@ -13,7 +13,7 @@
             </div>
         @endif
         <!-- Form for filtering by week -->
-        <div class="bg-white shadow-sm sm:rounded-lg p-6">
+        <div class=" ">
             <form id="weekForm" method="GET" action="{{ route('pickem.schedule') }}" class="mb-6">
                 <label for="game_week" class="block text-sm font-medium text-gray-700 mb-2">Select Week</label>
                 <select name="game_week" id="game_week"
@@ -31,7 +31,7 @@
             <!-- Display matchups and submit form -->
             <form action="{{ route('pickem.pickWinner') }}" method="POST">
                 @csrf
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     @if($schedules->isEmpty())
                         <p class="text-gray-500">No events found for this week.</p>
                     @else

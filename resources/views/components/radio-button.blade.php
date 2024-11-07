@@ -7,7 +7,7 @@
                value="{{ $value }}"
                class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300"
                 {{ $checked ? 'checked' : '' }}>
-        <label for="{{ $id }}" class="ml-3 block text-sm font-medium {{ $checked ? 'font-bold' : '' }}">
+        <label for="{{ $id }}" class="ml-3 block text-sm text-gray-600 font-medium {{ $checked ? 'font-bold' : '' }}">
             {{ $label }}
         </label>
     </div>

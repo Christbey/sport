@@ -186,7 +186,6 @@ class PickemController extends Controller
         $userId = Auth::id();
         $user = Auth::user();
 
-        // Check if the user's current_team_id is in the team_user table
         $isAuthorized = DB::table('team_user')
             ->where('user_id', $userId)
             ->where('team_id', $user->current_team_id)
@@ -197,17 +196,22 @@ class PickemController extends Controller
         }
 
         $games = $this->getGameWeeks();
-        $leaderboard = $this->getLeaderboard($game_week, $user->current_team_id);
+
+        // Capture sort parameters from the request
+        $sort = $request->input('sort', 'correct_picks'); // Default to correct picks
+        $direction = $request->input('direction', 'desc'); // Default to descending
+
+        $leaderboard = $this->getLeaderboard($game_week, $user->current_team_id, $sort, $direction);
         $allPicks = $this->getUserPicksForWeek($userId, $game_week, $user->current_team_id);
 
         if ($request->expectsJson()) {
             return response()->json(compact('leaderboard', 'allPicks', 'games', 'game_week'), 200);
         }
 
-        return view('pickem.index', compact('leaderboard', 'allPicks', 'games', 'game_week'));
+        return view('pickem.index', compact('leaderboard', 'allPicks', 'games', 'game_week', 'sort', 'direction'));
     }
 
-    private function getLeaderboard($game_week, $team_id)
+    private function getLeaderboard($game_week, $team_id, $sort = 'correct_picks', $direction = 'desc')
     {
         return UserSubmission::with('user')
             ->whereHas('user', function ($query) use ($team_id) {
@@ -218,7 +222,7 @@ class PickemController extends Controller
             ->when($game_week, function ($query) use ($game_week) {
                 $query->whereHas('event', fn($q) => $q->where('game_week', $game_week));
             })
-            ->orderByDesc('correct_picks')
+            ->orderBy($sort, $direction) // Apply dynamic sorting
             ->get();
     }
 
