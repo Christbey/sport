@@ -1,85 +1,81 @@
 <x-app-layout>
     <div class="max-w-3xl mx-auto py-12">
-        <h1 class="text-3xl font-semibold mb-8 text-gray-800">NFL Sheet Management</h1>
+        <h1 class="text-3xl font-semibold mb-8 text-gray-800 text-center">NFL Sheet Management</h1>
 
-        <!-- Filter Form -->
+        <!-- Filter Form with Add Note Button -->
         <form action="{{ route('nfl.detail') }}" method="GET" class="mb-8 space-y-4">
             <div class="flex items-center space-x-4">
-                <div class="w-1/2">
-                    <label for="team_id" class="block text-sm font-medium text-gray-700">Select Team</label>
-                    <select name="team_id" id="team_id"
-                            class="mt-1 block w-full pl-3 pr-10 py-2 border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-                            onchange="this.form.submit()">
-                        <option value="">-- Select Team --</option>
-                        @foreach ($teams as $team)
-                            <option value="{{ $team->id }}" {{ $selectedTeamId == $team->id ? 'selected' : '' }}>
-                                {{ $team->team_name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
+                <!-- Team and Game Select Dropdowns -->
+                <x-nfl.team-select-dropdown :teams="$teams" :selectedTeamId="$selectedTeamId"/>
+                <x-nfl.game-select-dropdown :games="$games" :selectedGameId="$selectedGameId"/>
 
-                @if (!empty($games))
-                    <div class="w-1/2">
-                        <label for="game_id" class="block text-sm font-medium text-gray-700">Select Game</label>
-                        <select name="game_id" id="game_id"
-                                class="mt-1 block w-full pl-3 pr-10 py-2 border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-                                required>
-                            <option value="">-- Select Game --</option>
-                            @foreach ($games as $game)
-                                <option value="{{ $game->id }}" {{ $selectedGameId == $game->id ? 'selected' : '' }}>
-                                    {{ $game->name }}
-                                </option>
-                            @endforeach
-                        </select>
+                <!-- Add Notes Button -->
+                <button id="defaultModalButton" data-modal-target="defaultModal" data-modal-toggle="defaultModal"
+                        class="text-white bg-blue-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center"
+                        type="button">
+                    Add Notes
+                </button>
+            </div>
+        </form>
+
+        <!-- Main modal -->
+        <div id="defaultModal" tabindex="-1" aria-hidden="true"
+             class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-modal md:h-full">
+            <div class="relative p-4 w-full max-w-2xl h-full md:h-auto">
+                <div class="relative p-6 bg-white rounded-lg shadow dark:bg-gray-800 sm:p-8">
+                    <div class="flex justify-between items-center pb-4 mb-4 rounded-t border-b sm:mb-5 dark:border-gray-600">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                            Add Notes for Selected Game
+                        </h3>
+                        <button type="button"
+                                class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center dark:hover:bg-gray-600 dark:hover:text-white"
+                                data-modal-toggle="defaultModal">
+                            <svg aria-hidden="true" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"
+                                 xmlns="http://www.w3.org/2000/svg">
+                                <path fill-rule="evenodd"
+                                      d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414 1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                      clip-rule="evenodd"></path>
+                            </svg>
+                            <span class="sr-only">Close modal</span>
+                        </button>
                     </div>
-                @endif
+
+                    <!-- Modal body -->
+                    <form action="{{ route('nfl.sheet.store') }}" method="POST">
+                        @csrf
+                        <div class="mb-4">
+                            <label for="user_inputted_notes"
+                                   class="block text-sm font-medium text-gray-900">User Inputted
+                                Notes</label>
+                            <textarea name="user_inputted_notes" id="user_inputted_notes" rows="4"
+                                      class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500"
+                                      placeholder="Add your notes here"></textarea>
+                        </div>
+
+                        <input type="hidden" name="team_id" value="{{ $selectedTeamId }}">
+                        <input type="hidden" name="game_id" id="hidden_game_id" value="{{ $selectedGameId }}">
+
+                        <button type="submit"
+                                class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800">
+                            Save Notes
+                        </button>
+                    </form>
+                </div>
             </div>
-        </form>
-
-        <!-- Form to add values to nfl_sheet table -->
-        <form action="{{ route('nfl.sheet.store') }}" method="POST" class="bg-white shadow rounded-lg p-6 space-y-4">
-            @csrf
-            <!-- User inputted notes -->
-            <div>
-                <label for="user_inputted_notes" class="block text-sm font-medium text-gray-700">User Inputted
-                    Notes</label>
-                <textarea name="user_inputted_notes" id="user_inputted_notes" rows="4"
-                          class="mt-1 block w-full shadow-sm border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"></textarea>
-            </div>
-
-            <input type="hidden" name="team_id" value="{{ $selectedTeamId }}">
-            <input type="hidden" name="game_id" value="{{ $selectedGameId }}">
-
-            <button type="submit"
-                    class="inline-flex justify-center mt-3 py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                Save
-            </button>
-        </form>
-
-        <!-- Table displaying nfl_sheet records -->
-        <div class="mt-10">
-            <table class="min-w-full table-auto bg-white shadow-md rounded-lg overflow-hidden">
-                <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Game ID
-                    </th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User
-                        Inputted Notes
-                    </th>
-                </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                @foreach ($nflSheets as $sheet)
-                    <tr>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ $sheet->nflTeam->team_name }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ $sheet->game_id }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ $sheet->user_inputted_notes }}</td>
-                    </tr>
-                @endforeach
-                </tbody>
-            </table>
         </div>
+
+        <!-- Conditional Table Display -->
+        @if($selectedTeamId)
+            <div class="mt-10">
+                <x-nfl.nfl-sheet-table :nflSheets="$nflSheets"/>
+            </div>
+        @endif
+
+        <!-- Script to set hidden game_id based on selection in modal -->
+        <script>
+            document.getElementById('game_id').addEventListener('change', function () {
+                document.getElementById('hidden_game_id').value = this.value;
+            });
+        </script>
     </div>
 </x-app-layout>

@@ -11,6 +11,27 @@ use Illuminate\Http\Request;
 
 class NflSheetController extends Controller
 {
+    public function store(Request $request)
+    {
+        // Validate the form data
+        $request->validate([
+            'team_id' => 'required|exists:nfl_teams,id',
+            //'game_id' => 'required|exists:nfl_team_schedule,game_id',
+            'user_inputted_notes' => 'nullable|string',
+        ]);
+
+        // Create a new NflSheet entry
+        NflSheet::create([
+            'team_id' => $request->team_id,
+            'game_id' => $request->game_id,
+            'user_id' => auth()->id(),
+            'user_inputted_notes' => $request->user_inputted_notes,
+        ]);
+
+        // Fetch data again to refresh the page with updated records
+        return $this->index($request)->with('success', 'Data saved successfully.');
+    }
+
     public function index(Request $request)
     {
         // Fetch all NFL teams for the filter
@@ -59,26 +80,5 @@ class NflSheetController extends Controller
         })->get();
 
         return view('nfl.detail', compact('nflSheets', 'teams', 'selectedTeamId', 'games', 'selectedGameId'));
-    }
-
-    public function store(Request $request)
-    {
-        // Validate the form data
-        $request->validate([
-            'team_id' => 'required|exists:nfl_teams,id',
-            // 'game_id' => 'required|exists:nfl_team_schedule,id',
-            'user_inputted_notes' => 'nullable|string',
-        ]);
-
-        // Create a new NflSheet entry
-        NflSheet::create([
-            'team_id' => $request->team_id,
-            'game_id' => $request->game_id,  // Ensure game_id is passed here
-            'user_id' => auth()->id(),
-            'user_inputted_notes' => $request->user_inputted_notes,
-        ]);
-
-        // Redirect back with a success message
-        return redirect()->route('nfl.detail')->with('success', 'Data saved successfully.');
     }
 }

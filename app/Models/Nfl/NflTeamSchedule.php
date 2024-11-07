@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class NflTeamSchedule extends Model
 {
+    protected $table = 'nfl_team_schedules';
     protected $fillable = [
         'team_abv',
         'game_id',
