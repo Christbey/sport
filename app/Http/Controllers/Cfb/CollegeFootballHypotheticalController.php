@@ -93,78 +93,125 @@ class CollegeFootballHypotheticalController extends Controller
 
     public function show($game_id)
     {
-        // Fetch today's date for filtering games
-        $today = Carbon::today();
-
-        // Fetch the hypothetical spread details based on the game_id
+        // Fetch the necessary game, team, and stats data (as you already have)
         $hypothetical = CollegeFootballHypothetical::where('game_id', $game_id)->firstOrFail();
         $game = CollegeFootballGame::findOrFail($game_id);
-
-        // Fetch home and away team details
         $homeTeam = CollegeFootballTeam::find($hypothetical->home_team_id);
         $awayTeam = CollegeFootballTeam::find($hypothetical->away_team_id);
 
-        // Ensure both teams exist
-        if (!$homeTeam || !$awayTeam) {
-            abort(404, 'Team not found');
-        }
+        // Fetch advanced stats for home and away teams
+        $homeStats = $this->fetchAdvancedStats($homeTeam->id);
+        $awayStats = $this->fetchAdvancedStats($awayTeam->id);
 
-        // Fetch notes for the home and away teams
-        $homeTeamNotes = CollegeFootballNote::where('team_id', $homeTeam->id)->get();
-        $awayTeamNotes = CollegeFootballNote::where('team_id', $awayTeam->id)->get();
+
+        // Calculate winning percentage for home team
+        $homeElo = $hypothetical->home_elo;
+        $awayElo = $hypothetical->away_elo;
+        $homeFpi = $hypothetical->home_fpi;
+        $awayFpi = $hypothetical->away_fpi;
 
         // Fetch SP+ ratings for the home and away teams
         $homeSpRating = SpRating::where('team', $homeTeam->school)->first();
         $awaySpRating = SpRating::where('team', $awayTeam->school)->first();
 
-        // Calculate mismatches and trends
-        $homeAdvStatsAvg = $this->fetchAdvancedStats($homeTeam->id);
-        $awayAdvStatsAvg = $this->fetchAdvancedStats($awayTeam->id);
-        $ppaMismatch = $this->calculateMismatch($homeAdvStatsAvg['offense_ppa'], $awayAdvStatsAvg['defense_ppa']);
-        $successRateMismatch = $this->calculateMismatch($homeAdvStatsAvg['offense_success_rate'], $awayAdvStatsAvg['defense_success_rate']);
-        $explosivenessMismatch = $this->calculateMismatch($homeAdvStatsAvg['offense_explosiveness'], $awayAdvStatsAvg['defense_explosiveness']);
+        // Fetch notes for the home and away teams
+        $homeTeamNotes = CollegeFootballNote::where('team_id', $homeTeam->id)->get();
+        $awayTeamNotes = CollegeFootballNote::where('team_id', $awayTeam->id)->get();
 
+
+        $homeWinningPercentage = $this->calculateHomeWinningPercentage($homeElo, $awayElo, $homeFpi, $awayFpi);
+
+
+        $winnerTeam = $homeWinningPercentage > 0.5 ? $homeTeam : $awayTeam;
+
+
+        // Define all metrics to include in the view
+        $metrics = [
+            'offense_plays', 'offense_drives', 'offense_ppa', 'offense_total_ppa', 'offense_success_rate',
+            'offense_explosiveness', 'offense_power_success', 'offense_stuff_rate', 'offense_line_yards',
+            'offense_line_yards_total', 'offense_second_level_yards', 'offense_second_level_yards_total',
+            'offense_open_field_yards', 'offense_open_field_yards_total', 'offense_standard_downs_ppa',
+            'offense_standard_downs_success_rate', 'offense_standard_downs_explosiveness', 'offense_passing_downs_ppa',
+            'offense_passing_downs_success_rate', 'offense_passing_downs_explosiveness', 'offense_rushing_ppa',
+            'offense_rushing_total_ppa', 'offense_rushing_success_rate', 'offense_rushing_explosiveness',
+            'offense_passing_ppa', 'offense_passing_total_ppa', 'offense_passing_success_rate',
+            'offense_passing_explosiveness', 'defense_plays', 'defense_drives', 'defense_ppa', 'defense_total_ppa',
+            'defense_success_rate', 'defense_explosiveness', 'defense_power_success', 'defense_stuff_rate',
+            'defense_line_yards', 'defense_line_yards_total', 'defense_second_level_yards',
+            'defense_second_level_yards_total', 'defense_open_field_yards', 'defense_open_field_yards_total',
+            'defense_standard_downs_ppa', 'defense_standard_downs_success_rate', 'defense_standard_downs_explosiveness',
+            'defense_passing_downs_ppa', 'defense_passing_downs_success_rate', 'defense_passing_downs_explosiveness',
+            'defense_rushing_ppa', 'defense_rushing_total_ppa', 'defense_rushing_success_rate',
+            'defense_rushing_explosiveness', 'defense_passing_ppa', 'defense_passing_total_ppa',
+            'defense_passing_success_rate', 'defense_passing_explosiveness'
+        ];
+        $mismatches = [
+            'Net PPA Differential' => $this->calculateMismatch($homeStats['offense_ppa'], $awayStats['defense_ppa']),
+            'Success Rate Differential' => $this->calculateMismatch($homeStats['offense_success_rate'], $awayStats['defense_success_rate']),
+            'Explosiveness Differential' => $this->calculateMismatch($homeStats['offense_explosiveness'], $awayStats['defense_explosiveness']),
+            // Add additional mismatches as required
+        ];
+
+        // Calculate trends based on recent offensive stats
         $home_offense_trend = $this->calculateTrend($homeTeam->id, 'offense_ppa');
         $away_offense_trend = $this->calculateTrend($awayTeam->id, 'offense_ppa');
 
-        // Determine projected winner
-        $homeWinningPercentage = $this->calculateHomeWinningPercentage(
-            $hypothetical->home_elo, $hypothetical->away_elo,
-            $hypothetical->home_fpi, $hypothetical->away_fpi
-        );
-        $winnerTeam = $homeWinningPercentage > 0.5 ? $homeTeam : $awayTeam;
 
-        // Fetch last 3 matchups for each team
-        $homeTeamLast3Games = $this->fetchLastThreeGames($homeTeam->id, $today);
-        $awayTeamLast3Games = $this->fetchLastThreeGames($awayTeam->id, $today);
+        // Prepare the stats array for the view
+        $statsData = [];
+        foreach ($metrics as $metric) {
+            $awayValue = $awayStats[$metric] ?? 0;
+            $homeValue = $homeStats[$metric] ?? 0;
+            $statsData[$metric] = [
+                'home' => $homeValue,
+                'away' => $awayValue,
+                'total' => $awayValue - $homeValue,
+            ];
+        }
 
-        // Fetch recent matchups between the two teams
-        $recentMatchups = $this->fetchRecentMatchups($homeTeam, $awayTeam);
-        $previousResults = $this->calculateOutcomes($recentMatchups);
+        // Fetch the last three games for each team
+        $beforeDate = $game->start_date; // Assuming `start_date` is the date to compare against
+        $homeTeamLast3Games = $this->fetchLastThreeGames($homeTeam->id, $beforeDate);
+        $awayTeamLast3Games = $this->fetchLastThreeGames($awayTeam->id, $beforeDate);
 
-        // Pass all data to the view
-        return view('cfb.detail', compact(
-            'hypothetical', 'game', 'homeTeam', 'awayTeam',
-            'homeSpRating', 'awaySpRating', 'ppaMismatch',
-            'successRateMismatch', 'explosivenessMismatch',
-            'home_offense_trend', 'away_offense_trend',
-            'homeWinningPercentage', 'winnerTeam',
-            'homeTeamLast3Games', 'awayTeamLast3Games',
-            'previousResults', 'homeTeamNotes', 'awayTeamNotes'
-        ));
+        // Fetch previous matchups between the teams
+        $previousResults = $this->fetchRecentMatchups($homeTeam, $awayTeam);
+
+        return view('cfb.detail', compact('hypothetical', 'game', 'homeTeamLast3Games', 'previousResults', 'awayTeamLast3Games', 'homeTeam', 'awayTeam', 'statsData', 'winnerTeam', 'homeWinningPercentage', 'homeSpRating', 'awaySpRating', 'homeTeamNotes', 'awayTeamNotes', 'mismatches', 'home_offense_trend', 'away_offense_trend'));
     }
 
     private function fetchAdvancedStats($teamId)
     {
-        return [
-            'offense_ppa' => AdvancedGameStat::where('team_id', $teamId)->avg('offense_ppa') ?? 0,
-            'offense_success_rate' => AdvancedGameStat::where('team_id', $teamId)->avg('offense_success_rate') ?? 0,
-            'offense_explosiveness' => AdvancedGameStat::where('team_id', $teamId)->avg('offense_explosiveness') ?? 0,
-            'defense_ppa' => AdvancedGameStat::where('team_id', $teamId)->avg('defense_ppa') ?? 0,
-            'defense_success_rate' => AdvancedGameStat::where('team_id', $teamId)->avg('defense_success_rate') ?? 0,
-            'defense_explosiveness' => AdvancedGameStat::where('team_id', $teamId)->avg('defense_explosiveness') ?? 0,
-
+        // List of all metrics expected in the stats arrays
+        $metrics = [
+            'offense_plays', 'offense_drives', 'offense_ppa', 'offense_total_ppa', 'offense_success_rate',
+            'offense_explosiveness', 'offense_power_success', 'offense_stuff_rate', 'offense_line_yards',
+            'offense_line_yards_total', 'offense_second_level_yards', 'offense_second_level_yards_total',
+            'offense_open_field_yards', 'offense_open_field_yards_total', 'offense_standard_downs_ppa',
+            'offense_standard_downs_success_rate', 'offense_standard_downs_explosiveness', 'offense_passing_downs_ppa',
+            'offense_passing_downs_success_rate', 'offense_passing_downs_explosiveness', 'offense_rushing_ppa',
+            'offense_rushing_total_ppa', 'offense_rushing_success_rate', 'offense_rushing_explosiveness',
+            'offense_passing_ppa', 'offense_passing_total_ppa', 'offense_passing_success_rate',
+            'offense_passing_explosiveness', 'defense_plays', 'defense_drives', 'defense_ppa', 'defense_total_ppa',
+            'defense_success_rate', 'defense_explosiveness', 'defense_power_success', 'defense_stuff_rate',
+            'defense_line_yards', 'defense_line_yards_total', 'defense_second_level_yards',
+            'defense_second_level_yards_total', 'defense_open_field_yards', 'defense_open_field_yards_total',
+            'defense_standard_downs_ppa', 'defense_standard_downs_success_rate', 'defense_standard_downs_explosiveness',
+            'defense_passing_downs_ppa', 'defense_passing_downs_success_rate', 'defense_passing_downs_explosiveness',
+            'defense_rushing_ppa', 'defense_rushing_total_ppa', 'defense_rushing_success_rate',
+            'defense_rushing_explosiveness', 'defense_passing_ppa', 'defense_passing_total_ppa',
+            'defense_passing_success_rate', 'defense_passing_explosiveness'
         ];
+
+        // Initialize all metrics with default values (0 or any other placeholder)
+        $stats = array_fill_keys($metrics, 0);
+
+        // Fill in actual averages for each metric
+        foreach ($metrics as $metric) {
+            $stats[$metric] = AdvancedGameStat::where('team_id', $teamId)->avg($metric) ?? 0;
+        }
+
+        return $stats;
     }
 
     // Additional helper functions to encapsulate data fetching and calculations

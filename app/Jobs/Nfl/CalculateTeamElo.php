@@ -42,8 +42,6 @@ class CalculateTeamElo implements ShouldQueue
      */
     public function handle(EloRatingService $eloService)
     {
-        Log::info("Calculating Elo, expected wins, and spreads for team: {$this->team}");
-
         // Process team predictions using the Elo service
         $finalElo = $eloService->processTeamPredictions($this->team, $this->year, $this->weeks, $this->today);
 

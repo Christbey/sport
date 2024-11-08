@@ -128,6 +128,7 @@ class EloRatingService
             'predictions' => $predictions,
             'actual_wins' => $actualWins,
             'predicted_wins' => $predictedWins,
+
             'total_expected_wins' => $totalExpectedWins, // Include total expected wins in the return
         ];
     }
@@ -223,13 +224,14 @@ class EloRatingService
         ];
     }
 
-    private function storeFinalElo(string $teamAbv, int $seasonYear, float $currentElo, float $totalExpectedWins): void
+    private function storeFinalElo(string $teamAbv, int $seasonYear, float $currentElo, float $totalExpectedWins, float $predictedSpread = 0): void
     {
         NflEloRating::updateOrCreate(
             ['team' => $teamAbv, 'year' => $seasonYear],
             [
                 'final_elo' => round($currentElo),
-                'expected_wins' => $totalExpectedWins // Store total expected wins
+                'expected_wins' => $totalExpectedWins,
+                'predicted_spread' => $predictedSpread // Include predicted_spread here
             ]
         );
     }
