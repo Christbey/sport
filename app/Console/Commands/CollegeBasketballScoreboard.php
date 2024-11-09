@@ -40,7 +40,7 @@ class CollegeBasketballScoreboard extends Command
 
             $data = json_decode($response->getBody()->getContents(), true);
 
-            if (!isset($data['events']) || empty($data['events'])) {
+            if (empty($data['events'])) {
                 $this->error("No games found for date: $date.");
                 return;
             }
@@ -65,27 +65,13 @@ class CollegeBasketballScoreboard extends Command
                     $isWinner = isset($competitor['winner']) ? (bool)$competitor['winner'] : null;
                     $teamRank = $competitor['rank'] ?? null;
 
-                    // Find or create team by `team_id`
-                    $team = CollegeBasketballTeam::firstOrCreate(
-                        ['team_id' => $teamId],
-                        [
-                            'uid' => $teamData['uid'] ?? null,
-                            'slug' => $teamData['slug'] ?? null,
-                            'abbreviation' => $teamData['abbreviation'] ?? null,
-                            'display_name' => $teamData['displayName'] ?? null,
-                            'name' => $teamData['name'] ?? null,
-                            'nickname' => $teamData['nickname'] ?? null,
-                            'location' => $teamData['location'] ?? null,
-                            'color' => $teamData['color'] ?? null,
-                            'alternate_color' => $teamData['alternateColor'] ?? null,
-                            'is_active' => $teamData['isActive'] ?? true,
-                            'is_all_star' => $teamData['isAllStar'] ?? false,
-                            'logo_url' => $teamData['logos'][0]['href'] ?? null,
-                        ]
-                    );
+                    // Find existing team by `team_id` only
+                    $team = CollegeBasketballTeam::where('team_id', $teamId)->first();
 
-                    if ($team->wasRecentlyCreated) {
-                        $this->info("Created new team: {$team->display_name} with ID: {$teamId}");
+                    // Skip if team is not found in the database
+                    if (!$team) {
+                        $this->warn("Team with ID {$teamId} not found in database. Skipping team.");
+                        continue;
                     }
 
                     if ($homeAway === 'home') {
@@ -111,7 +97,7 @@ class CollegeBasketballScoreboard extends Command
                     continue;
                 }
 
-                // Retrieve the existing game record, if any
+                // Retrieve or create the game record
                 $game = CollegeBasketballGame::firstOrNew([
                     'home_team_id' => $homeTeamId,
                     'away_team_id' => $awayTeamId,

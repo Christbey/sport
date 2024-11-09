@@ -49,20 +49,12 @@ class ScrapeTeamRankingsSchedule extends Command
                     $homeRank = (int)$matches[4][0];
                     $homeTeamName = trim($matches[5][0]);
 
-                    // Find or create the away team using `team_id` as unique identifier
-                    $awayTeam = CollegeBasketballTeam::firstOrCreate(
-                        ['team_id' => $awayRank],
-                        ['name' => $awayTeamName]
-                    );
-
-                    // Find or create the home team using `team_id` as unique identifier
-                    $homeTeam = CollegeBasketballTeam::firstOrCreate(
-                        ['team_id' => $homeRank],
-                        ['name' => $homeTeamName]
-                    );
+                    // Retrieve existing teams by name
+                    $awayTeam = CollegeBasketballTeam::where('name', $awayTeamName)->first();
+                    $homeTeam = CollegeBasketballTeam::where('name', $homeTeamName)->first();
 
                     // Skip if either `home_team_id` or `away_team_id` is null
-                    if (is_null($homeTeam->id) || is_null($awayTeam->id)) {
+                    if (is_null($homeTeam) || is_null($awayTeam)) {
                         $this->warn("Skipping game $matchup for date $currentDate due to missing team IDs.");
                         return;
                     }

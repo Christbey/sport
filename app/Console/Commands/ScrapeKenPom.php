@@ -55,12 +55,24 @@ class ScrapeKenPom extends Command
                     $defenseRating = $node->filter('.td-left')->eq(3)->count() ? (float)$node->filter('.td-left')->eq(3)->text() : null;
                     $tempo = $node->filter('.td-left.divide')->eq(5)->count() ? $node->filter('.td-left.divide')->eq(5)->text() : null;
 
-                    // Attempt to find a matching team in the college_basketball_teams table or its aliases
-                    $teamRecord = CollegeBasketballTeam::where('name', 'LIKE', "%$team%")
-                        ->orWhereHas('aliases', function ($query) use ($team) {
-                            $query->where('alias', 'LIKE', "%$team%");
+                    // Standardize the team name for better matching (convert to lowercase and replace "St" with "State")
+                    $standardizedTeamName = strtolower(str_replace(['St', 'St.'], 'State', $team));
+
+                    // Attempt exact match first in `college_basketball_teams`
+                    $teamRecord = CollegeBasketballTeam::whereRaw('LOWER(REPLACE(name, "St", "State")) = ?', [$standardizedTeamName])
+                        ->orWhereHas('aliases', function ($query) use ($standardizedTeamName) {
+                            $query->whereRaw('LOWER(REPLACE(alias, "St", "State")) = ?', [$standardizedTeamName]);
                         })
                         ->first();
+
+                    // Fallback to sound-based matching (Soundex/Metaphone) only if exact match is not found
+                    if (!$teamRecord) {
+                        $teamRecord = CollegeBasketballTeam::whereRaw('SOUNDEX(name) = SOUNDEX(?)', [$team])
+                            ->orWhereHas('aliases', function ($query) use ($team) {
+                                $query->whereRaw('SOUNDEX(alias) = SOUNDEX(?)', [$team]);
+                            })
+                            ->first();
+                    }
 
                     // Determine match status for display
                     if ($teamRecord) {
