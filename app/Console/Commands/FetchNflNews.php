@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Jobs\Nfl\FetchNflNewsJob;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 
 class FetchNflNews extends Command
 {
@@ -12,7 +13,11 @@ class FetchNflNews extends Command
 
     public function handle()
     {
-        FetchNflNewsJob::dispatch();
+        $runId = 'run_' . now()->timestamp;
+        Cache::put('nfl_news_last_run', $runId, now()->addHour());
+
+        FetchNflNewsJob::dispatch($runId);
+
         $this->info('NFL News fetch job dispatched successfully.');
         return 0;
     }
