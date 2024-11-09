@@ -2,186 +2,195 @@
 
 namespace App\Services;
 
-use App\Models\CollegeFootball\AdvancedGameStat;
-use App\Models\CollegeFootball\CollegeFootballElo;
-use App\Models\CollegeFootball\CollegeFootballFpi;
-use App\Models\CollegeFootball\CollegeFootballGame;
-use App\Models\CollegeFootball\CollegeFootballHypothetical;
-use App\Models\CollegeFootball\Sagarin;
+use App\DataTransferObjects\GameRatingsDTO;
+use App\Models\CollegeFootball\{AdvancedGameStat,
+    CollegeFootballElo,
+    CollegeFootballFpi,
+    CollegeFootballGame,
+    CollegeFootballHypothetical,
+    Sagarin};
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
 
 class HypotheticalSpreadService
 {
+    // Constants for spread calculations
+    private const CONFERENCE_MULTIPLIER = 1.4;
+    private const ELO_DIVISOR = 40;
+    private const FPI_DIVISOR = 1.4;
+    private const SAGARIN_DIVISOR = 1.1;
+    private const ADVANCED_STATS_MULTIPLIER = 1.6;
+    private const PPA_MULTIPLIER = 0.01;
+
     /**
-     * Fetch the relevant games for the current week and season.
+     * Fetch games for current week and season.
      */
-    public function fetchRelevantGames()
+    public function fetchRelevantGames(): Collection
     {
-        $today = Carbon::today();
         $week = $this->determineCurrentWeek();
-        $season = config('college_football.season');
 
         if (!$week) {
             Log::info('No valid week found based on the current date.');
-            return collect(); // Return empty collection if no week is found
+            return $this->fetchRelevantGames();
         }
 
-        return CollegeFootballGame::where('home_division', 'fbs')
+        return CollegeFootballGame::query()
+            ->where('home_division', 'fbs')
             ->where('away_division', 'fbs')
             ->where('week', $week)
-            ->where('season', $season)
-            ->where('start_date', '>=', $today)
+            ->where('season', config('college_football.season'))
+            ->where('start_date', '>=', Carbon::today())
             ->with(['homeTeam', 'awayTeam'])
             ->get();
     }
 
     /**
-     * Determine the current week based on today's date and the configured date ranges.
-     *
-     * @return int|null
+     * Determine current week from config.
      */
     private function determineCurrentWeek(): ?int
     {
         $today = Carbon::today();
-        $weeks = config('college_football.weeks');
 
-        foreach ($weeks as $weekNumber => $dates) {
-            $start = Carbon::parse($dates['start']);
-            $end = Carbon::parse($dates['end']);
-
-            if ($today->between($start, $end)) {
-                return $weekNumber;
-            }
-        }
-
-        // Return null if no matching week is found
-        return null;
+        return collect(config('college_football.weeks'))
+            ->filter(function ($dates, $weekNumber) use ($today) {
+                return $today->between(
+                    Carbon::parse($dates['start']),
+                    Carbon::parse($dates['end'])
+                );
+            })
+            ->keys()
+            ->first();
     }
 
     /**
-     * Process the game and calculate the hypothetical spread.
+     * Process game and calculate spread.
      */
-    public function processGame($game)
+    public function processGame(CollegeFootballGame $game): void
     {
-        $homeTeam = $game->homeTeam;
-        $awayTeam = $game->awayTeam;
-
-        if (!$homeTeam || !$awayTeam) {
-            Log::warning("Missing team data for game ID {$game->id}.");
+        if (!$this->validateTeams($game)) {
             return;
         }
 
-        // Fetch ratings and stats
-        $ratings = $this->fetchRatingsAndStats($game, $homeTeam, $awayTeam);
+        $ratings = $this->fetchRatingsAndStats($game);
 
-        // Validate the ratings
         if (!$this->ratingsAreValid($ratings)) {
-            Log::warning("Incomplete ratings for game ID {$game->id} between {$homeTeam->school} and {$awayTeam->school}.");
+            Log::warning("Incomplete ratings for game ID {$game->id} between {$game->homeTeam->school} and {$game->awayTeam->school}.");
             return;
         }
 
-        // Determine if teams are in the same conference
-        $multiplier = $this->getConferenceMultiplier($homeTeam, $awayTeam);
-
-        // Calculate the spread
+        $multiplier = $this->getConferenceMultiplier($game->homeTeam, $game->awayTeam);
         $spread = $this->calculateHypotheticalSpread($ratings, $multiplier, $game->id);
 
-        // Store the calculated spread
-        $this->storeHypotheticalSpread($game, $homeTeam, $awayTeam, $spread, $ratings);
+        $this->storeHypotheticalSpread($game, $spread, $ratings);
     }
 
-    private function fetchRatingsAndStats($game, $homeTeam, $awayTeam): array
+    /**
+     * Validate teams exist.
+     */
+    private function validateTeams(CollegeFootballGame $game): bool
     {
-        return [
-            'elo' => $this->fetchEloRatings($game, $homeTeam, $awayTeam),
-            'fpi' => $this->fetchFpiRatings($game, $homeTeam, $awayTeam),
-            'sagarin' => $this->fetchSagarinRatings($homeTeam, $awayTeam),
-            'advancedStats' => $this->fetchAdvancedStats($homeTeam, $awayTeam),
-            'strengthOfSchedule' => $this->fetchStrengthOfSchedule($game, $homeTeam, $awayTeam),
-        ];
+        if (!$game->homeTeam || !$game->awayTeam) {
+            Log::warning("Missing team data for game ID {$game->id}.");
+            return false;
+        }
+        return true;
     }
 
-    private function fetchEloRatings($game, $homeTeam, $awayTeam): array
+    /**
+     * Fetch all ratings and stats in parallel using eager loading.
+     */
+    private function fetchRatingsAndStats(CollegeFootballGame $game): GameRatingsDTO
     {
-        return [
-            'home' => CollegeFootballElo::where('team_id', $homeTeam->id)->where('year', $game->season)->value('elo'),
-            'away' => CollegeFootballElo::where('team_id', $awayTeam->id)->where('year', $game->season)->value('elo'),
-        ];
+        $season = $game->season;
+        $homeId = $game->homeTeam->id;
+        $awayId = $game->awayTeam->id;
+
+        // Eager load all ratings in a single query per model
+        $elos = CollegeFootballElo::whereIn('team_id', [$homeId, $awayId])
+            ->where('year', $season)
+            ->get()
+            ->keyBy('team_id');
+
+        $fpis = CollegeFootballFpi::whereIn('team_id', [$homeId, $awayId])
+            ->where('year', $season)
+            ->get()
+            ->keyBy('team_id');
+
+        $sagarins = Sagarin::whereIn('id', [$homeId, $awayId])
+            ->get()
+            ->keyBy('id');
+
+        $advancedStats = AdvancedGameStat::whereIn('team_id', [$homeId, $awayId])
+            ->get()
+            ->keyBy('team_id');
+
+        return new GameRatingsDTO([
+            'elo' => [
+                'home' => $elos[$homeId]->elo ?? null,
+                'away' => $elos[$awayId]->elo ?? null,
+            ],
+            'fpi' => [
+                'home' => $fpis[$homeId]->fpi ?? null,
+                'away' => $fpis[$awayId]->fpi ?? null,
+                'home_special_teams' => $fpis[$homeId]->special_teams ?? null,
+                'away_special_teams' => $fpis[$awayId]->special_teams ?? null,
+            ],
+            'sagarin' => [
+                'home' => $sagarins[$homeId]->rating ?? null,
+                'away' => $sagarins[$awayId]->rating ?? null,
+            ],
+            'advancedStats' => [
+                'home' => $advancedStats[$homeId] ?? null,
+                'away' => $advancedStats[$awayId] ?? null,
+            ],
+            'strengthOfSchedule' => [
+                'home' => $fpis[$homeId]->strength_of_schedule ?? null,
+                'away' => $fpis[$awayId]->strength_of_schedule ?? null,
+            ],
+        ]);
     }
 
-    private function fetchFpiRatings($game, $homeTeam, $awayTeam): array
-    {
-        $homeFpi = CollegeFootballFpi::where('team_id', $homeTeam->id)->where('year', $game->season)->first();
-        $awayFpi = CollegeFootballFpi::where('team_id', $awayTeam->id)->where('year', $game->season)->first();
-
-        return [
-            'home' => $homeFpi->fpi ?? null,
-            'away' => $awayFpi->fpi ?? null,
-            'home_special_teams' => $homeFpi->special_teams ?? null,
-            'away_special_teams' => $awayFpi->special_teams ?? null,
-        ];
-    }
-
-    private function fetchSagarinRatings($homeTeam, $awayTeam): array
-    {
-        return [
-            'home' => Sagarin::where('id', $homeTeam->id)->value('rating'),
-            'away' => Sagarin::where('id', $awayTeam->id)->value('rating'),
-        ];
-    }
-
-    private function fetchAdvancedStats($homeTeam, $awayTeam): array
-    {
-        return [
-            'home' => AdvancedGameStat::where('team_id', $homeTeam->id)->first(),
-            'away' => AdvancedGameStat::where('team_id', $awayTeam->id)->first(),
-        ];
-    }
-
-    private function fetchStrengthOfSchedule($game, $homeTeam, $awayTeam): array
-    {
-        return [
-            'home' => CollegeFootballFpi::where('team_id', $homeTeam->id)->where('year', $game->season)->value('strength_of_schedule'),
-            'away' => CollegeFootballFpi::where('team_id', $awayTeam->id)->where('year', $game->season)->value('strength_of_schedule'),
-        ];
-    }
-
-    private function ratingsAreValid($ratings)
+    /**
+     * Validate all required ratings exist.
+     */
+    private function ratingsAreValid(GameRatingsDTO $ratings): bool
     {
         $requiredFields = array_merge(
-            $ratings['elo'],
-            $ratings['fpi'],
-            $ratings['sagarin'],
-            $ratings['strengthOfSchedule']
+            $ratings->elo,
+            $ratings->fpi,
+            $ratings->sagarin,
+            $ratings->strengthOfSchedule
         );
 
-        $advancedStatsPresent = !is_null($ratings['advancedStats']['home']) && !is_null($ratings['advancedStats']['away']);
-
-        return !in_array(null, $requiredFields, true) && $advancedStatsPresent;
+        return !in_array(null, $requiredFields, true)
+            && $ratings->advancedStats['home']
+            && $ratings->advancedStats['away'];
     }
 
-    private function getConferenceMultiplier($homeTeam, $awayTeam): float|int
+    /**
+     * Calculate conference multiplier.
+     */
+    private function getConferenceMultiplier($homeTeam, $awayTeam): float
     {
-        return ($homeTeam->conference === $awayTeam->conference) ? 1.4 : 1;
+        return ($homeTeam->conference === $awayTeam->conference)
+            ? self::CONFERENCE_MULTIPLIER
+            : 1;
     }
 
-    private function calculateHypotheticalSpread($ratings, $multiplier, $gameId): float
+    /**
+     * Calculate hypothetical spread using all components.
+     */
+    private function calculateHypotheticalSpread(GameRatingsDTO $ratings, float $multiplier, int $gameId): float
     {
-        // Calculate different spreads
-        $fpiSpread = $this->calculateFpiSpread($ratings['fpi']);
-        $eloSpread = $this->calculateEloSpread($ratings['elo']);
-        $sagarinSpread = $this->calculateSagarinSpread($ratings['sagarin']);
-        $advancedSpreads = $this->calculateAdvancedSpreads($ratings['advancedStats']);
+        $spreadComponents = [
+            $this->calculateFpiSpread($ratings->fpi),
+            $this->calculateEloSpread($ratings->elo),
+            $this->calculateSagarinSpread($ratings->sagarin),
+            $this->calculateAdvancedSpreads($ratings->advancedStats)
+        ];
 
-        // Combine all the spread components
-        $totalSpread = $fpiSpread + $eloSpread + $sagarinSpread + $advancedSpreads;
-
-        // Normalize the total spread
-        $spread = $totalSpread / 5;
-
-        // Apply conference multiplier
-        $spread *= $multiplier;
+        $spread = (array_sum($spreadComponents) / 5) * $multiplier;
 
         Log::info("Calculated spread after applying multiplier for Game ID {$gameId}: {$spread}");
 
@@ -189,71 +198,76 @@ class HypotheticalSpreadService
     }
 
     /**
-     * Calculate FPI spread.
+     * Calculate FPI spread component.
      */
-    private function calculateFpiSpread($fpi)
+    private function calculateFpiSpread(array $fpi): float
     {
-        return ($fpi['home'] - $fpi['away']) / 1.4;
+        return ($fpi['home'] - $fpi['away']) / self::FPI_DIVISOR;
     }
 
     /**
-     * Calculate Elo spread.
+     * Calculate ELO spread component.
      */
-    private function calculateEloSpread($elo)
+    private function calculateEloSpread(array $elo): float
     {
-        return ($elo['home'] - $elo['away']) / 40;
+        return ($elo['home'] - $elo['away']) / self::ELO_DIVISOR;
     }
 
     /**
-     * Calculate Sagarin spread.
+     * Calculate Sagarin spread component.
      */
-    private function calculateSagarinSpread($sagarin)
+    private function calculateSagarinSpread(array $sagarin): float
     {
-        return ($sagarin['home'] - $sagarin['away']) / 1.1;
+        return ($sagarin['home'] - $sagarin['away']) / self::SAGARIN_DIVISOR;
     }
 
     /**
-     * Calculate spreads using advanced stats.
+     * Calculate advanced stats spread components.
      */
-    private function calculateAdvancedSpreads($advancedStats): float
+    private function calculateAdvancedSpreads(array $stats): float
     {
-        $homeStats = $advancedStats['home'];
-        $awayStats = $advancedStats['away'];
+        $home = $stats['home'];
+        $away = $stats['away'];
 
-        $offenseDefenseSpread = (($homeStats->offense_ppa - $awayStats->defense_ppa) + ($awayStats->offense_ppa - $homeStats->defense_ppa)) * 1.6;
-        $successRateSpread = (($homeStats->offense_success_rate - $awayStats->defense_success_rate) + ($awayStats->offense_success_rate - $homeStats->defense_success_rate)) * 1.6;
-        $explosivenessSpread = (($homeStats->offense_explosiveness - $awayStats->defense_explosiveness) + ($awayStats->offense_explosiveness - $homeStats->defense_explosiveness)) * 1.6;
-        $rushingSpread = (($homeStats->offense_rushing_ppa - $awayStats->defense_rushing_ppa) + ($awayStats->offense_rushing_ppa - $homeStats->defense_rushing_ppa)) * 0.01;
-        $passingSpread = (($homeStats->offense_passing_ppa - $awayStats->defense_passing_ppa) + ($awayStats->offense_passing_ppa - $homeStats->defense_passing_ppa)) * 0.01;
-        $lineYardsSpread = (($homeStats->offense_line_yards - $awayStats->defense_line_yards) + ($awayStats->offense_line_yards - $homeStats->defense_line_yards)) * 0.01;
+        $spreadComponents = [
+            ($home->offense_ppa - $away->defense_ppa + $away->offense_ppa - $home->defense_ppa) * self::ADVANCED_STATS_MULTIPLIER,
+            ($home->offense_success_rate - $away->defense_success_rate + $away->offense_success_rate - $home->defense_success_rate) * self::ADVANCED_STATS_MULTIPLIER,
+            ($home->offense_explosiveness - $away->defense_explosiveness + $away->offense_explosiveness - $home->defense_explosiveness) * self::ADVANCED_STATS_MULTIPLIER,
+            ($home->offense_rushing_ppa - $away->defense_rushing_ppa + $away->offense_rushing_ppa - $home->defense_rushing_ppa) * self::PPA_MULTIPLIER,
+            ($home->offense_passing_ppa - $away->defense_passing_ppa + $away->offense_passing_ppa - $home->defense_passing_ppa) * self::PPA_MULTIPLIER,
+            ($home->offense_line_yards - $away->defense_line_yards + $away->offense_line_yards - $home->defense_line_yards) * self::PPA_MULTIPLIER
+        ];
 
-        return $offenseDefenseSpread + $successRateSpread + $explosivenessSpread + $rushingSpread + $passingSpread + $lineYardsSpread;
+        return array_sum($spreadComponents);
     }
 
-    private function storeHypotheticalSpread($game, $homeTeam, $awayTeam, $spread, $ratings)
+    /**
+     * Store calculated spread and related data.
+     */
+    private function storeHypotheticalSpread(CollegeFootballGame $game, float $spread, GameRatingsDTO $ratings): void
     {
         CollegeFootballHypothetical::updateOrCreate(
             ['game_id' => $game->id],
             [
                 'week' => $game->week,
-                'home_team_id' => $homeTeam->id,
-                'away_team_id' => $awayTeam->id,
-                'home_team_school' => $homeTeam->school,
-                'away_team_school' => $awayTeam->school,
-                'home_elo' => $ratings['elo']['home'],
-                'away_elo' => $ratings['elo']['away'],
-                'home_fpi' => $ratings['fpi']['home'],
-                'away_fpi' => $ratings['fpi']['away'],
-                'home_sagarin' => $ratings['sagarin']['home'],
-                'away_sagarin' => $ratings['sagarin']['away'],
-                'home_sos' => $ratings['strengthOfSchedule']['home'],
-                'away_sos' => $ratings['strengthOfSchedule']['away'],
-                'home_special_teams' => $ratings['fpi']['home_special_teams'],
-                'away_special_teams' => $ratings['fpi']['away_special_teams'],
+                'home_team_id' => $game->homeTeam->id,
+                'away_team_id' => $game->awayTeam->id,
+                'home_team_school' => $game->homeTeam->school,
+                'away_team_school' => $game->awayTeam->school,
+                'home_elo' => $ratings->elo['home'],
+                'away_elo' => $ratings->elo['away'],
+                'home_fpi' => $ratings->fpi['home'],
+                'away_fpi' => $ratings->fpi['away'],
+                'home_sagarin' => $ratings->sagarin['home'],
+                'away_sagarin' => $ratings->sagarin['away'],
+                'home_sos' => $ratings->strengthOfSchedule['home'],
+                'away_sos' => $ratings->strengthOfSchedule['away'],
+                'home_special_teams' => $ratings->fpi['home_special_teams'],
+                'away_special_teams' => $ratings->fpi['away_special_teams'],
                 'hypothetical_spread' => $spread,
             ]
         );
 
-        Log::info("Hypothetical Spread for {$awayTeam->school} @ {$homeTeam->school}: $spread");
+        Log::info("Hypothetical Spread for {$game->awayTeam->school} @ {$game->homeTeam->school}: $spread");
     }
 }

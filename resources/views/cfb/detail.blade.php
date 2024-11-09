@@ -34,10 +34,10 @@
                 ] as $metric => $ratings)
                     <tr>
                         <td class="px-6 py-4 text-sm font-medium text-gray-700">{{ $metric }}</td>
-                        <td class="px-6 py-4 text-sm {{ $ratings['away'] > $ratings['home'] ? 'font-semibold' : 'text-gray-600' }}">
+                        <td class="px-6 py-4 text-sm {{ $ratings['away'] < $ratings['home'] ? 'font-semibold' : 'text-gray-600' }}">
                             {{ $ratings['away'] ?? 'N/A' }}
                         </td>
-                        <td class="px-6 py-4 text-sm {{ $ratings['home'] > $ratings['away'] ? 'font-semibold' : 'text-gray-600' }}">
+                        <td class="px-6 py-4 text-sm {{ $ratings['home'] < $ratings['away'] ? 'font-semibold' : 'text-gray-600' }}">
                             {{ $ratings['home'] ?? 'N/A' }}
                         </td>
                     </tr>

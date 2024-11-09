@@ -128,6 +128,9 @@ class PickemController extends Controller
         if ($now->diffInMinutes($gameTime, false) <= 30) {
             $message = "The game for event {$event->short_name} is locked. You can no longer submit picks.";
             $this->pickResponse($request, $message, 403);
+
+            // Return early to prevent pick from being processed
+            return;
         }
 
         $isCorrect = $this->isPickCorrect($event, $selectedTeamId);

@@ -19,13 +19,11 @@
             @else
                 @foreach($hypotheticals as $game)
                     <div class="bg-white shadow-md rounded-lg overflow-hidden transition-shadow duration-300 hover:shadow-lg
-                        {{ $game->completed ? ($game->correct == 1 ? 'border-4 border-green-500/25' : 'border-4 border-red-500/25') : '' }}">
+                        {{ $game->completed ? ($game->correct ? 'border-4 border-green-500/25' : 'border-4 border-red-500/25') : '' }}">
 
                         <!-- Date and Time Display -->
                         <div class="text-gray-700 p-4 text-xs sm:text-sm font-semibold">
-                            {{ Carbon::parse($game->start_date)
-                                ->setTimezone('America/Chicago')
-                                ->format('l, F j, Y g:i A') }}
+                            {{ Carbon::parse($game->start_date)->timezone('America/Chicago')->format('l, F j, Y g:i A') }}
                         </div>
 
                         <div class="p-4 sm:p-6">

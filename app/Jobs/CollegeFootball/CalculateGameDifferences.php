@@ -41,14 +41,21 @@ class CalculateGameDifferences implements ShouldQueue
                     continue;
                 }
 
-                // Calculate the point difference (home_points - away_points)
-                $pointDifference = $game->home_points - $game->away_points;
+                // Calculate the actual point difference (home_points - away_points)
+                $actualPointDifference = $game->home_points - $game->away_points;
 
                 // Get the hypothetical spread value
                 $hypotheticalSpread = $hypothetical->hypothetical_spread;
 
-                // Compare and determine the result
-                $result = ($pointDifference - $hypotheticalSpread) > 0 ? 1 : 0;
+                // Determine if the prediction was correct
+                $result = 0;
+                if ($hypotheticalSpread >= 0) {
+                    // If spread is positive, home team needs to win by MORE than the spread
+                    $result = ($actualPointDifference >= $hypotheticalSpread) ? 1 : 0;
+                } else {
+                    // If spread is negative, home team needs to lose by LESS than the spread
+                    $result = ($actualPointDifference >= $hypotheticalSpread) ? 1 : 0;
+                }
 
                 // Update the 'correct' field in the hypothetical table
                 $hypothetical->correct = $result;
@@ -63,8 +70,8 @@ class CalculateGameDifferences implements ShouldQueue
                 }
 
                 // Get team names
-                $homeTeamName = $game->home_team ?? 'Home Team';
-                $awayTeamName = $game->away_team ?? 'Away Team';
+                $homeTeamName = $game->homeTeam->name ?? 'Home Team';
+                $awayTeamName = $game->awayTeam->name ?? 'Away Team';
 
                 // Adjust spread_open to match the convention of hypotheticalSpread
                 $adjustedSpreadOpen = -1 * $game->spread_open;
@@ -81,22 +88,29 @@ class CalculateGameDifferences implements ShouldQueue
                     $interpretation = 'Game was projected to be a tie.';
                 }
 
-                // Determine if hypothetical spread prediction was correct
-                $adjustedDifference = $pointDifference - $hypotheticalSpread;
-                if ($adjustedDifference > 0) {
-                    $hypotheticalCorrect = 1;
-                    $outcomeInterpretation = "{$homeTeamName} **outperformed** the projection.";
+                // More detailed outcome interpretation
+                if ($result == 1) {
+                    $outcomeInterpretation = 'Prediction was **CORRECT**. ';
+                    if ($hypotheticalSpread >= 0) {
+                        $outcomeInterpretation .= "{$homeTeamName} won by enough to cover the spread.";
+                    } else {
+                        $outcomeInterpretation .= "{$homeTeamName} didn't lose by more than the spread.";
+                    }
                 } else {
-                    $hypotheticalCorrect = 0;
-                    $outcomeInterpretation = "{$homeTeamName} **underperformed** the projection.";
+                    $outcomeInterpretation = 'Prediction was **INCORRECT**. ';
+                    if ($hypotheticalSpread >= 0) {
+                        $outcomeInterpretation .= "{$homeTeamName} didn't win by enough to cover the spread.";
+                    } else {
+                        $outcomeInterpretation .= "{$homeTeamName} lost by more than the spread.";
+                    }
                 }
 
-                // Log the information (instead of outputting it to the console)
+                // Log the information
                 Log::info("Game ID {$game->id}: {$awayTeamName} at {$homeTeamName}");
                 Log::info("- Hypothetical Spread: {$hypotheticalSpread}");
                 Log::info("- Spread Open: {$game->spread_open}");
                 Log::info("- Difference Between Spreads: {$spreadDifference}");
-                Log::info("- Actual Point Difference: {$pointDifference}");
+                Log::info("- Actual Point Difference: {$actualPointDifference}");
                 Log::info("- Projection: {$interpretation}");
                 Log::info("- Outcome: {$outcomeInterpretation}");
                 Log::info("- Final Score: {$awayTeamName} {$game->away_points} - {$homeTeamName} {$game->home_points}");
@@ -124,8 +138,6 @@ class CalculateGameDifferences implements ShouldQueue
             // Send failure notification
             Notification::route('discord', config('services.discord.channel_id'))
                 ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'error'));
-
         }
     }
-
 }

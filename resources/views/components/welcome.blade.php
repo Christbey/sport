@@ -1,13 +1,13 @@
 <section class="bg-white">
     <div class="py-8 px-4 mx-auto max-w-screen-xl text-center lg:py-16 lg:px-12">
-        <h1 class="mb-4 text-4xl font-extrabold tracking-tight leading-none text-gray-900 md:text-5xl lg:text-6xl">
+        <h1 class="mb-4 text-4xl font-bold tracking-tight leading-none text-gray-900 md:text-5xl lg:text-6xl">
             Welcome to Picksports!
         </h1>
         <p class="mb-8 text-lg font-normal text-gray-500 lg:text-xl sm:px-16 xl:px-48 dark:text-gray-400">
             Elevate your sports experience with Picksports. Whether you're joining the fun or competing against
             your colleagues, Picksports offers an exciting way to enjoy every game.
         </p>
-        <div class="flex flex-col mb-8 lg:mb-16 space-y-4 sm:flex-row sm:justify-center sm:space-y-0 sm:space-x-4">
+        <div class="flex flex-col lg:flex-col-2 mb-8 lg:mb-16 space-y-4 sm:flex-row sm:justify-center sm:space-y-0 sm:space-x-4">
             <!-- Submit Picks Link -->
             <a href="{{ route('pickem.schedule') }}"
                class="inline-flex items-center py-3 px-5 text-base font-medium text-gray-800 bg-primary-700 rounded-lg hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 dark:focus:ring-primary-900">
