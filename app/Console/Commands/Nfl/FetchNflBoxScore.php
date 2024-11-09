@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands\Nfl;
 
-use App\Jobs\FetchNflBoxScoreJob;
+use App\Jobs\Nfl\FetchNflBoxScoreJob;
 use App\Models\Nfl\NflTeamSchedule;
 use Carbon\Carbon;
 use Illuminate\Console\Command;

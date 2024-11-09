@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Jobs\FetchNflNewsJob;
+use App\Jobs\Nfl\FetchNflNewsJob;
 use Illuminate\Console\Command;
 
 class FetchNflNews extends Command

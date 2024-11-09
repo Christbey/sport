@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Console\Commands\CollegeBasketball;
 
 use App\Models\CollegeBasketballGame;
 use App\Models\CollegeBasketballHypothetical;

@@ -1,39 +1,42 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Jobs\CollegeBasketball;
 
 use App\Models\CollegeBasketballGame;
 use App\Models\CollegeBasketballTeam;
-use Carbon\Carbon;
+use Exception;
 use GuzzleHttp\Client;
-use Illuminate\Console\Command;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\DomCrawler\Crawler;
 
-class ScrapeTeamRankingsSchedule extends Command
+class ScrapeTeamRankingsScheduleJob implements ShouldQueue
 {
-    protected $signature = 'scrape:team-rankings-schedule';
-    protected $description = 'Scrapes the Team Rankings schedule table for the next 30 days';
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public function __construct()
+    protected $date;
+
+    public function __construct($date)
     {
-        parent::__construct();
+        $this->date = $date;
     }
 
     public function handle()
     {
         $client = new Client();
-        $startDate = Carbon::today();
+        $url = 'https://www.teamrankings.com/ncb/schedules/?date=' . $this->date;
 
-        for ($i = 0; $i < 30; $i++) {
-            $currentDate = $startDate->copy()->addDays($i)->toDateString();
-            $url = 'https://www.teamrankings.com/ncb/schedules/?date=' . $currentDate;
-
-            $this->info("Scraping data for date: $currentDate");
+        try {
+            Log::info("Scraping data for date: {$this->date}");
             $response = $client->request('GET', $url);
             $htmlContent = $response->getBody()->getContents();
             $crawler = new Crawler($htmlContent);
 
-            $crawler->filter('.tr-table.datatable.scrollable tbody tr')->each(function ($row) use ($currentDate) {
+            $crawler->filter('.tr-table.datatable.scrollable tbody tr')->each(function ($row) {
                 $rank = $row->filter('td')->eq(0)->text();
                 $hotnessScore = $row->filter('td')->eq(1)->text();
                 $matchup = $row->filter('td')->eq(2)->text();
@@ -49,24 +52,20 @@ class ScrapeTeamRankingsSchedule extends Command
                     $homeRank = (int)$matches[4][0];
                     $homeTeamName = trim($matches[5][0]);
 
-                    // Retrieve existing teams by name
                     $awayTeam = CollegeBasketballTeam::where('name', $awayTeamName)->first();
                     $homeTeam = CollegeBasketballTeam::where('name', $homeTeamName)->first();
 
-                    // Skip if either `home_team_id` or `away_team_id` is null
                     if (is_null($homeTeam) || is_null($awayTeam)) {
-                        $this->warn("Skipping game $matchup for date $currentDate due to missing team IDs.");
+                        Log::warning("Skipping game $matchup for date {$this->date} due to missing team IDs.");
                         return;
                     }
 
-                    // Store or update the game data
                     $game = CollegeBasketballGame::firstOrNew([
                         'home_team_id' => $homeTeam->id,
                         'away_team_id' => $awayTeam->id,
-                        'game_date' => $currentDate,
+                        'game_date' => $this->date,
                     ]);
 
-                    // Only update fields that are currently null or empty
                     $game->hotness_score = $game->hotness_score ?? (float)$hotnessScore;
                     $game->game_time = $game->game_time ?? $gameTime;
                     $game->location = $game->location ?? $location;
@@ -78,15 +77,13 @@ class ScrapeTeamRankingsSchedule extends Command
 
                     $game->save();
 
-                    $this->info("Stored game for date $currentDate: $matchup - Hotness Score: $hotnessScore, Time: $gameTime, Location: $location, Home Rank: $homeRank, Away Rank: $awayRank");
+                    Log::info("Stored game for date {$this->date}: $matchup - Hotness Score: $hotnessScore, Time: $gameTime, Location: $location, Home Rank: $homeRank, Away Rank: $awayRank");
                 } else {
-                    $this->info("Could not parse teams for matchup on $currentDate: $matchup");
+                    Log::info("Could not parse teams for matchup on {$this->date}: $matchup");
                 }
             });
-
-            sleep(5); // Sleep before scraping the next day
+        } catch (Exception $e) {
+            Log::error("Error scraping data for date {$this->date}: " . $e->getMessage());
         }
-
-        $this->info('Scraping completed for the next 30 days.');
     }
 }

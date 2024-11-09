@@ -1,47 +1,46 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Jobs\CollegeBasketball;
 
 use App\Models\CollegeBasketballGame;
 use App\Models\CollegeBasketballTeam;
 use Carbon\Carbon;
 use Exception;
 use GuzzleHttp\Client;
-use Illuminate\Console\Command;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Log;
 
-class CollegeBasketballScoreboard extends Command
+class FetchCollegeBasketballScoreboardJob implements ShouldQueue
 {
-    protected $signature = 'college-basketball:scoreboard {date?}';
-    protected $description = 'Fetch and store specific data for college basketball scoreboard';
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public function __construct()
+    protected $dateInput;
+
+    public function __construct($dateInput)
     {
-        parent::__construct();
+        $this->dateInput = $dateInput;
     }
 
     public function handle()
     {
         $client = new Client();
-
-        $dateInput = $this->argument('date') ?? now()->format('Ymd');
-        $date = Carbon::createFromFormat('Ymd', $dateInput)->format('Y-m-d');
-
+        $date = Carbon::createFromFormat('Ymd', $this->dateInput)->format('Y-m-d');
         $url = 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?limit=1000';
 
         try {
             $response = $client->get($url, [
-                'query' => [
-                    'dates' => $dateInput
-                ],
-                'headers' => [
-                    'User-Agent' => 'Mozilla/5.0'
-                ]
+                'query' => ['dates' => $this->dateInput],
+                'headers' => ['User-Agent' => 'Mozilla/5.0'],
             ]);
 
             $data = json_decode($response->getBody()->getContents(), true);
 
             if (empty($data['events'])) {
-                $this->error("No games found for date: $date.");
+                Log::info("No games found for date: $date.");
                 return;
             }
 
@@ -49,7 +48,7 @@ class CollegeBasketballScoreboard extends Command
                 $eventId = $event['id'];
                 $eventUid = $event['uid'];
                 $attendance = $event['competitions'][0]['attendance'] ?? null;
-                $gameTime = Carbon::parse($event['date'])->format('H:i:s');  // Format game time
+                $gameTime = Carbon::parse($event['date'])->format('H:i:s');
 
                 $homeTeamScore = null;
                 $awayTeamScore = null;
@@ -65,12 +64,10 @@ class CollegeBasketballScoreboard extends Command
                     $isWinner = isset($competitor['winner']) ? (bool)$competitor['winner'] : null;
                     $teamRank = $competitor['rank'] ?? null;
 
-                    // Find existing team by `team_id` only
                     $team = CollegeBasketballTeam::where('team_id', $teamId)->first();
 
-                    // Skip if team is not found in the database
                     if (!$team) {
-                        $this->warn("Team with ID {$teamId} not found in database. Skipping team.");
+                        Log::warning("Team with ID {$teamId} not found in database. Skipping team.");
                         continue;
                     }
 
@@ -91,20 +88,17 @@ class CollegeBasketballScoreboard extends Command
                     }
                 }
 
-                // Skip the game if either team ID is missing
                 if (is_null($homeTeamId) || is_null($awayTeamId)) {
-                    $this->warn("Skipping game {$event['name']} due to missing team IDs.");
+                    Log::warning("Skipping game {$event['name']} due to missing team IDs.");
                     continue;
                 }
 
-                // Retrieve or create the game record
                 $game = CollegeBasketballGame::firstOrNew([
                     'home_team_id' => $homeTeamId,
                     'away_team_id' => $awayTeamId,
                     'game_date' => $date,
                 ]);
 
-                // Only update fields if they are currently null or missing
                 $game->event_id = $game->event_id ?? $eventId;
                 $game->event_uid = $game->event_uid ?? $eventUid;
                 $game->attendance = $game->attendance ?? $attendance;
@@ -117,15 +111,14 @@ class CollegeBasketballScoreboard extends Command
                 $game->home_team = $game->home_team ?? $homeTeamName;
                 $game->away_team = $game->away_team ?? $awayTeamName;
 
-                // Save changes only if there are new values to update
                 $game->save();
 
-                $this->info("Stored game: {$event['name']} - Attendance: {$attendance}");
+                Log::info("Stored game: {$event['name']} - Attendance: {$attendance}");
             }
 
-            $this->info('Scoreboard data stored successfully.');
+            Log::info('Scoreboard data stored successfully.');
         } catch (Exception $e) {
-            $this->error('Error fetching data: ' . $e->getMessage());
+            Log::error('Error fetching data: ' . $e->getMessage());
         }
     }
 }

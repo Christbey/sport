@@ -1,18 +1,22 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Jobs\CollegeBasketball;
 
 use App\Models\CollegeBasketballRankings;
 use App\Models\CollegeBasketballTeam;
 use Exception;
 use GuzzleHttp\Client;
-use Illuminate\Console\Command;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Log;
 use Symfony\Component\DomCrawler\Crawler;
 
-class ScrapeKenPom extends Command
+class ScrapeKenPomJob implements ShouldQueue
 {
-    protected $signature = 'scrape:kenpom';
-    protected $description = 'Scrape the KenPom rankings page';
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public function handle()
     {
@@ -20,7 +24,6 @@ class ScrapeKenPom extends Command
         $url = 'https://kenpom.com/';
 
         try {
-            // Fetch HTML content
             $response = $client->request('GET', $url, [
                 'headers' => [
                     'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -29,23 +32,19 @@ class ScrapeKenPom extends Command
             $html = (string)$response->getBody();
             $crawler = new Crawler($html);
 
-            // Scrape each row in the rankings table body
             $crawler->filter('#ratings-table tr')->each(function (Crawler $node, $index) {
-                // Check and skip if the row is a header row or within <thead>
                 $rowClass = $node->attr('class');
                 if ($rowClass && preg_match('/thead|bold-bottom/', $rowClass)) {
-                    $this->info('Skipping header row at index: ' . ($index + 1));
+                    Log::info('Skipping header row at index: ' . ($index + 1));
                     return;
                 }
 
-                // Skip unexpected <thead> tags
                 if ($node->nodeName() === 'thead') {
-                    $this->info('Skipping unexpected <thead> section at index: ' . ($index + 1));
+                    Log::info('Skipping unexpected <thead> section at index: ' . ($index + 1));
                     return;
                 }
 
                 try {
-                    // Extract data for valid rows
                     $rank = $node->filter('.hard_left')->count() ? (int)trim($node->filter('.hard_left')->text()) : null;
                     $team = $node->filter('.next_left')->count() ? trim($node->filter('.next_left')->text()) : null;
                     $conference = $node->filter('.conf')->count() ? trim($node->filter('.conf')->text()) : null;
@@ -55,17 +54,14 @@ class ScrapeKenPom extends Command
                     $defenseRating = $node->filter('.td-left')->eq(3)->count() ? (float)$node->filter('.td-left')->eq(3)->text() : null;
                     $tempo = $node->filter('.td-left.divide')->eq(5)->count() ? $node->filter('.td-left.divide')->eq(5)->text() : null;
 
-                    // Standardize the team name for better matching (convert to lowercase and replace "St" with "State")
                     $standardizedTeamName = strtolower(str_replace(['St', 'St.'], 'State', $team));
 
-                    // Attempt exact match first in `college_basketball_teams`
                     $teamRecord = CollegeBasketballTeam::whereRaw('LOWER(REPLACE(name, "St", "State")) = ?', [$standardizedTeamName])
                         ->orWhereHas('aliases', function ($query) use ($standardizedTeamName) {
                             $query->whereRaw('LOWER(REPLACE(alias, "St", "State")) = ?', [$standardizedTeamName]);
                         })
                         ->first();
 
-                    // Fallback to sound-based matching (Soundex/Metaphone) only if exact match is not found
                     if (!$teamRecord) {
                         $teamRecord = CollegeBasketballTeam::whereRaw('SOUNDEX(name) = SOUNDEX(?)', [$team])
                             ->orWhereHas('aliases', function ($query) use ($team) {
@@ -74,18 +70,9 @@ class ScrapeKenPom extends Command
                             ->first();
                     }
 
-                    // Determine match status for display
-                    if ($teamRecord) {
-                        $teamStatus = "\033[32mFound: {$teamRecord->name} (ID: {$teamRecord->id})\033[0m";
-                        $teamId = $teamRecord->id;
-                    } else {
-                        $teamStatus = "\033[31mNot Found: $team\033[0m";
-                        $teamId = null;
-                    }
+                    $teamId = $teamRecord ? $teamRecord->id : null;
+                    Log::info("Rank: $rank | Team: $team | Status: " . ($teamRecord ? 'Found' : 'Not Found'));
 
-                    $this->info("Rank: $rank | Team: $team | Status: $teamStatus");
-
-                    // Save data to the database with team_id if matched
                     CollegeBasketballRankings::updateOrCreate(
                         ['team' => $team, 'conference' => $conference],
                         [
@@ -100,13 +87,13 @@ class ScrapeKenPom extends Command
                         ]
                     );
                 } catch (Exception $e) {
-                    $this->error('Error processing row: ' . $e->getMessage());
+                    Log::error('Error processing row: ' . $e->getMessage());
                 }
             });
 
-            $this->info('Scraping completed successfully.');
+            Log::info('Scraping completed successfully.');
         } catch (Exception $e) {
-            $this->error('Error: ' . $e->getMessage());
+            Log::error('Error: ' . $e->getMessage());
         }
     }
 }

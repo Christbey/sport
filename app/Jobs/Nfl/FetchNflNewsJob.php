@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Jobs;
+namespace App\Jobs\Nfl;
 
 use App\Models\NflNews;
 use App\Notifications\DiscordCommandCompletionNotification;

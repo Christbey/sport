@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Jobs\FetchNflDepthChartJob;
+use App\Jobs\Nfl\FetchNflDepthChartJob;
 use Illuminate\Console\Command;
 
 class FetchNflDepthChart extends Command
