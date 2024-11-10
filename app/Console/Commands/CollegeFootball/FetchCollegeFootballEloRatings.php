@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands\CollegeFootball;
 
+use App\Helpers\CollegeFootballCommandHelpers;
 use App\Jobs\CollegeFootball\StoreCollegeFootballEloRatings;
-use Carbon\Carbon;
 use Illuminate\Console\Command;
 use NotificationChannels\Discord\Discord;
 
@@ -23,7 +23,7 @@ class FetchCollegeFootballEloRatings extends Command
     public function handle(): void
     {
         $year = $this->argument('year') ?? config('college_football.season');
-        $week = $this->argument('week') ?? $this->getCurrentWeek();
+        $week = $this->argument('week') ?? CollegeFootballCommandHelpers::getCurrentWeek();
 
         $params = [
             'year' => $year,
@@ -37,23 +37,5 @@ class FetchCollegeFootballEloRatings extends Command
         StoreCollegeFootballEloRatings::dispatch($params);
 
         $this->info('ELO ratings job dispatched successfully.');
-    }
-
-    private function getCurrentWeek(): int
-    {
-        $today = Carbon::today();
-        $weeks = config('college_football.weeks');
-
-        foreach ($weeks as $weekNumber => $dates) {
-            $start = Carbon::parse($dates['start']);
-            $end = Carbon::parse($dates['end']);
-
-            if ($today->between($start, $end)) {
-                return $weekNumber;
-            }
-        }
-
-        // Default to the last week if no match is found
-        return array_key_last($weeks);
     }
 }
