@@ -2,244 +2,140 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\PickWinnerRequest;
 use App\Mail\PicksSubmittedMail;
-use App\Models\Nfl\NflTeamSchedule;
-use App\Models\UserSubmission;
+use App\Notifications\PicksSubmittedNotification;
+use App\Services\GameWeekService;
+use App\Services\LeaderboardService;
+use App\Services\PickemService;
 use Carbon\Carbon;
-use DB;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Mail;
+use Illuminate\Support\Facades\{Auth, DB, Mail};
 
 class PickemController extends Controller
 {
+    protected GameWeekService $gameWeekService;
+    protected LeaderboardService $leaderboardService;
+    protected PickemService $pickemService;
+
+    public function __construct(
+        GameWeekService    $gameWeekService,
+        LeaderboardService $leaderboardService,
+        PickemService      $pickemService
+    )
+    {
+        $this->gameWeekService = $gameWeekService;
+        $this->leaderboardService = $leaderboardService;
+        $this->pickemService = $pickemService;
+    }
+
     public function showTeamSchedule(Request $request, $game_week = null)
     {
-        $game_week = $this->determineGameWeek($request, $game_week);
-        $weeks = $this->getGameWeeks();
-        $schedules = $this->getSchedulesForWeek($game_week);
-        $userSubmissions = $this->getUserSubmissionsForWeek($schedules->pluck('espn_event_id'));
-
-        if ($request->expectsJson()) {
-            return response()->json(compact('weeks', 'schedules', 'userSubmissions', 'game_week'), 200);
-        }
-
-        return view('pickem.show', compact('schedules', 'weeks', 'game_week', 'userSubmissions'));
-    }
-
-    private function determineGameWeek(Request $request, $game_week)
-    {
-        $game_week = $request->input('game_week') ?? $game_week;
-
-        if (!$game_week) {
-            $today = Carbon::now();
-            foreach (config('nfl.weeks') as $weekName => $range) {
-                if (Carbon::now()->between(Carbon::parse($range['start']), Carbon::parse($range['end']))) {
-                    return $weekName;
-                }
-            }
-            return 'Week 1';
-        }
-
-        return $game_week;
-    }
-
-    private function getGameWeeks()
-    {
-        return NflTeamSchedule::select('game_week')
-            ->distinct()
-            ->where('season_type', 'Regular Season')
-            ->orderByRaw('CAST(SUBSTRING(game_week, 6) AS UNSIGNED) ASC')
-            ->get();
-    }
-
-    // Helper Methods
-
-    private function getSchedulesForWeek($game_week)
-    {
-        return NflTeamSchedule::where('season_type', 'Regular Season')
-            ->when($game_week, function ($query) use ($game_week) {
-                $query->where('game_week', $game_week);
-            })
-            ->with(['awayTeam', 'homeTeam'])
-            ->orderBy('game_date', 'asc')
-            ->get();
-    }
-
-    private function getUserSubmissionsForWeek($eventIds)
-    {
-        return UserSubmission::where('user_id', Auth::id())
-            ->whereIn('espn_event_id', $eventIds)
-            ->get()
-            ->keyBy('espn_event_id');
-    }
-
-    public function pickWinner(Request $request)
-    {
-        $this->validatePickRequest($request);
-
-        $userId = Auth::id();
-        $now = Carbon::now();
-        $eventIds = $request->input('event_ids');
-        $teamIds = $request->input('team_ids');
-        $gameWeek = $request->input('game_week') ?? $this->determineGameWeek($request, null);
-
-        try {
-            foreach ($eventIds as $eventId) {
-                $this->processPick($eventId, $teamIds[$eventId] ?? null, $now, $userId, $request);
-            }
-
-            // Fetch the user's picks to include in the email
-            $userPicks = $this->getUserPicksForEmail($userId, $eventIds);
-
-            // Send the email to the user
-            $user = Auth::user();
-            Mail::to($user->email)->send(new PicksSubmittedMail($user, $userPicks, $gameWeek));
-
-            return $this->pickResponse($request, 'Your picks have been submitted successfully!', 200);
-        } catch (QueryException $e) {
-            return $this->pickResponse($request, 'There was an issue submitting your picks. Please try again.', 500);
-        }
-    }
-
-    private function validatePickRequest($request)
-    {
-        $request->validate([
-            'event_ids' => 'required|array',
-            'event_ids.*' => 'exists:nfl_team_schedules,espn_event_id',
-            'team_ids' => 'required|array',
-            'team_ids.*' => 'exists:nfl_teams,id',
-        ]);
-    }
-
-    private function processPick($eventId, $selectedTeamId, $now, $userId, $request)
-    {
-        if (!$selectedTeamId) {
-            return;
-        }
-
-        $event = NflTeamSchedule::where('espn_event_id', $eventId)
-            ->where('season_type', 'Regular Season')
-            ->firstOrFail();
-
-        $gameTime = Carbon::createFromTimestamp($event->game_time_epoch, 'America/Chicago');
-
-        if ($now->diffInMinutes($gameTime, false) <= 30) {
-            $message = "The game for event {$event->short_name} is locked. You can no longer submit picks.";
-            $this->pickResponse($request, $message, 403);
-
-            // Return early to prevent pick from being processed
-            return;
-        }
-
-        $isCorrect = $this->isPickCorrect($event, $selectedTeamId);
-
-        UserSubmission::updateOrCreate(
-            ['user_id' => $userId, 'espn_event_id' => $eventId],
-            ['team_id' => $selectedTeamId, 'is_correct' => $isCorrect, 'week_id' => $event->game_week, 'created_at' => $now, 'updated_at' => $now]
+        $game_week = $this->gameWeekService->determineGameWeek($request, $game_week);
+        $weeks = $this->gameWeekService->getGameWeeks();
+        $schedules = $this->pickemService->getSchedulesForWeek($game_week);
+        $userSubmissions = $this->pickemService->getUserSubmissionsForWeek(
+            $schedules->pluck('espn_event_id'),
+            Auth::id()
         );
+
+        $data = compact('weeks', 'schedules', 'userSubmissions', 'game_week');
+
+        return $request->expectsJson()
+            ? response()->json($data, 200)
+            : view('pickem.show', $data);
     }
 
-    private function pickResponse($request, $message, $status)
+    public function pickWinner(PickWinnerRequest $request)
     {
-        if ($request->expectsJson()) {
-            return response()->json(['message' => $message], $status);
-        }
+        try {
+            $userId = Auth::id();
+            $now = Carbon::now();
+            $gameWeek = $request->input('game_week') ??
+                $this->gameWeekService->determineGameWeek($request, null);
 
-        return redirect()->back()->with($status === 200 ? 'success' : 'error', $message);
+            $this->pickemService->processUserPicks(
+                $request->validated()['event_ids'],
+                $request->validated()['team_ids'],
+                $userId,
+                $now
+            );
+
+            $userPicks = $this->pickemService->getUserPicksForEmail(
+                $userId,
+                $request->validated()['event_ids']
+            );
+
+            // Send both email and Discord notification
+            $user = Auth::user();
+            $this->sendNotifications($user, $userPicks, $gameWeek);
+
+            return $this->pickemService->generateResponse(
+                $request,
+                'Your picks have been submitted successfully!',
+                200
+            );
+        } catch (QueryException $e) {
+            return $this->pickemService->generateResponse(
+                $request,
+                'There was an issue submitting your picks. Please try again.',
+                500
+            );
+        }
     }
 
-    private function isPickCorrect($event, $selectedTeamId)
+    protected function sendNotifications($user, array $userPicks, string $gameWeek): void
     {
-        if ($event->game_status === 'Completed') {
-            return $event->home_pts > $event->away_pts
-                ? $selectedTeamId == $event->home_team_id
-                : $selectedTeamId == $event->away_team_id;
-        }
+        Mail::to($user->email)->send(
+            new PicksSubmittedMail($user, $userPicks, $gameWeek)
+        );
+        $user->notify(new PicksSubmittedNotification($userPicks, $gameWeek));
 
-        return false;
-    }
-
-    private function getUserPicksForEmail($userId, $eventIds)
-    {
-        $picks = UserSubmission::with(['event', 'team'])
-            ->where('user_id', $userId)
-            ->whereIn('espn_event_id', $eventIds)
-            ->get();
-
-        $pickData = [];
-
-        foreach ($picks as $pick) {
-            $game = $pick->event->short_name ?? 'Unknown Game';
-            $teamName = $pick->team->team_name ?? 'Unknown Team';
-
-            $pickData[] = [
-                'game' => $game,
-                'team_name' => $teamName,
-            ];
-        }
-
-        return $pickData;
     }
 
     public function showLeaderboard(Request $request)
     {
+        $this->validateUserTeamAccess($request);
+
         $game_week = $request->input('game_week');
         $userId = Auth::id();
         $user = Auth::user();
 
+        $data = [
+            'games' => $this->gameWeekService->getGameWeeks(),
+            'leaderboard' => $this->leaderboardService->getLeaderboard(
+                $game_week,
+                $user->current_team_id,
+                $request->input('sort', 'correct_picks'),
+                $request->input('direction', 'desc')
+            ),
+            'allPicks' => $this->leaderboardService->getUserPicksForWeek(
+                $userId,
+                $game_week,
+                $user->current_team_id
+            ),
+            'game_week' => $game_week,
+            'sort' => $request->input('sort', 'correct_picks'),
+            'direction' => $request->input('direction', 'desc')
+        ];
+
+        return $request->expectsJson()
+            ? response()->json($data, 200)
+            : view('pickem.index', $data);
+    }
+
+    protected function validateUserTeamAccess(Request $request): void
+    {
+        $user = Auth::user();
+
         $isAuthorized = DB::table('team_user')
-            ->where('user_id', $userId)
+            ->where('user_id', Auth::id())
             ->where('team_id', $user->current_team_id)
             ->exists();
 
         if (!$isAuthorized) {
-            abort(403, 'Unauthorized access to this team’s leaderboard.');
+            abort(403, 'Unauthorized access to this teams leaderboard.');
         }
-
-        $games = $this->getGameWeeks();
-
-        // Capture sort parameters from the request
-        $sort = $request->input('sort', 'correct_picks'); // Default to correct picks
-        $direction = $request->input('direction', 'desc'); // Default to descending
-
-        $leaderboard = $this->getLeaderboard($game_week, $user->current_team_id, $sort, $direction);
-        $allPicks = $this->getUserPicksForWeek($userId, $game_week, $user->current_team_id);
-
-        if ($request->expectsJson()) {
-            return response()->json(compact('leaderboard', 'allPicks', 'games', 'game_week'), 200);
-        }
-
-        return view('pickem.index', compact('leaderboard', 'allPicks', 'games', 'game_week', 'sort', 'direction'));
     }
-
-    private function getLeaderboard($game_week, $team_id, $sort = 'correct_picks', $direction = 'desc')
-    {
-        return UserSubmission::with('user')
-            ->whereHas('user', function ($query) use ($team_id) {
-                $query->whereHas('teams', fn($q) => $q->where('team_id', $team_id));
-            })
-            ->selectRaw('user_id, COUNT(CASE WHEN is_correct THEN 1 END) as correct_picks')
-            ->groupBy('user_id')
-            ->when($game_week, function ($query) use ($game_week) {
-                $query->whereHas('event', fn($q) => $q->where('game_week', $game_week));
-            })
-            ->orderBy($sort, $direction) // Apply dynamic sorting
-            ->get();
-    }
-
-    private function getUserPicksForWeek($userId, $game_week, $team_id)
-    {
-        return UserSubmission::with(['user', 'event', 'team'])
-            ->whereHas('user', function ($query) use ($team_id) {
-                $query->whereHas('teams', fn($q) => $q->where('team_id', $team_id));
-            })
-            ->where('user_id', $userId)
-            ->when($game_week, function ($query) use ($game_week) {
-                $query->whereHas('event', fn($q) => $q->where('game_week', $game_week));
-            })
-            ->get();
-    }
-
 }

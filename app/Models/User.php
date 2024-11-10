@@ -19,6 +19,7 @@ class User extends Authenticatable
     use HasTeams;
     use Notifiable;
     use TwoFactorAuthenticatable;
+    use Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -30,7 +31,6 @@ class User extends Authenticatable
         'email',
         'password',
     ];
-
     /**
      * The attributes that should be hidden for serialization.
      *
@@ -42,7 +42,6 @@ class User extends Authenticatable
         'two_factor_recovery_codes',
         'two_factor_secret',
     ];
-
     /**
      * The accessors to append to the model's array form.
      *
@@ -51,6 +50,16 @@ class User extends Authenticatable
     protected $appends = [
         'profile_photo_url',
     ];
+
+    public function routeNotificationForDiscord(): string
+    {
+        return config('services.discord.channel_id'); // Discord channel ID
+    }
+
+    public function submissions()
+    {
+        return $this->hasMany(UserSubmission::class);
+    }
 
     /**
      * Get the attributes that should be cast.
