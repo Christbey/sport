@@ -3,6 +3,8 @@
 namespace App\Jobs\Nfl;
 
 use App\Models\Nfl\NflBettingOdds;
+use Cache;
+use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -15,7 +17,13 @@ class StoreNflBettingOdds implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    private const SPORTSBOOK = 'draftkings';
+    private const API_HOST = 'tank01-nfl-live-in-game-real-time-statistics-nfl.p.rapidapi.com';
+    private const API_ENDPOINT = 'https://tank01-nfl-live-in-game-real-time-statistics-nfl.p.rapidapi.com/getNFLBettingOdds';
+    public const CACHE_KEY = 'nfl_odds_changes_';
+
     protected $gameDate;
+    protected array $changedOdds = [];
 
     public function __construct($gameDate)
     {
@@ -24,78 +32,189 @@ class StoreNflBettingOdds implements ShouldQueue
 
     public function handle()
     {
-        // Make the API request
+        try {
+            $response = $this->fetchOddsData();
+
+            if (!$response->successful()) {
+                throw new Exception("API request failed with status: {$response->status()}");
+            }
+
+            $changes = $this->processResponse($response->json());
+
+            if (!empty($changes)) {
+                Cache::put(self::CACHE_KEY . $this->gameDate, $changes, now()->addHours(24));
+            }
+
+            Log::info('NFL betting odds updated successfully for date: ' . $this->gameDate, [
+                'changes_detected' => count($changes)
+            ]);
+
+        } catch (Exception $e) {
+            Log::error('Failed to process NFL betting odds', [
+                'date' => $this->gameDate,
+                'error' => $e->getMessage()
+            ]);
+            throw $e;
+        }
+    }
+
+    private function fetchOddsData()
+    {
         $response = Http::withHeaders([
-            'x-rapidapi-host' => 'tank01-nfl-live-in-game-real-time-statistics-nfl.p.rapidapi.com',
+            'x-rapidapi-host' => self::API_HOST,
             'x-rapidapi-key' => config('services.rapidapi.key'),
-        ])->get('https://tank01-nfl-live-in-game-real-time-statistics-nfl.p.rapidapi.com/getNFLBettingOdds', [
+        ])->get(self::API_ENDPOINT, [
             'gameDate' => $this->gameDate,
             'itemFormat' => 'list',
             'impliedTotals' => 'true',
         ]);
 
-        // Log the full response for debugging
-        Log::info('NFL Betting Odds API Response:', ['response' => $response->json()]);
+        Log::info('NFL API Response', [
+            'date' => $this->gameDate,
+            'status' => $response->status(),
+            'data' => $response->json()
+        ]);
 
-        if ($response->successful()) {
-            $oddsData = $response->json();
+        return $response;
+    }
 
-            if (isset($oddsData['body']) && is_array($oddsData['body'])) {
-                foreach ($oddsData['body'] as $game) {
-                    if (isset($game['sportsBooks']) && is_array($game['sportsBooks'])) {
-                        foreach ($game['sportsBooks'] as $sportsBook) {
-
-                            // *** Add this condition to check for 'draftkings' ***
-                            if (isset($sportsBook['sportsBook']) && strtolower($sportsBook['sportsBook']) === 'draftkings') {
-
-                                if (isset($sportsBook['odds']) && is_array($sportsBook['odds'])) {
-                                    $odds = $sportsBook['odds'];
-
-                                    // Store or update the data
-                                    if (!empty($game['gameID'])) {
-                                        NflBettingOdds::updateOrCreate(
-                                            [
-                                                'event_id' => $game['gameID'], // Conditions to match an existing record
-                                                'source' => $sportsBook['sportsBook'],
-                                            ],
-                                            [
-                                                'event_id' => $game['gameID'], // Conditions to match an existing record
-                                                'game_date' => $game['gameDate'],
-                                                'away_team' => $game['awayTeam'],
-                                                'home_team' => $game['homeTeam'],
-                                                'away_team_id' => $game['teamIDAway'],
-                                                'home_team_id' => $game['teamIDHome'],
-                                                'spread_home' => isset($odds['homeTeamSpread']) ? floatval($odds['homeTeamSpread']) : null,
-                                                'spread_away' => isset($odds['awayTeamSpread']) ? floatval($odds['awayTeamSpread']) : null,
-                                                'total_over' => isset($odds['totalOver']) ? floatval($odds['totalOver']) : null,
-                                                'total_under' => isset($odds['totalUnder']) ? floatval($odds['totalUnder']) : null,
-                                                'moneyline_home' => isset($odds['homeTeamMLOdds']) ? floatval($odds['homeTeamMLOdds']) : null,
-                                                'moneyline_away' => isset($odds['awayTeamMLOdds']) ? floatval($odds['awayTeamMLOdds']) : null,
-                                                'implied_total_home' => $odds['impliedTotals']['homeTotal'] ?? null,
-                                                'implied_total_away' => $odds['impliedTotals']['awayTotal'] ?? null,
-                                            ]
-                                        );
-                                    } else {
-                                        Log::warning('No event ID found for the game', ['game' => $game]);
-                                    }
-                                }
-                            }
-                        }
-
-                        //  log if 'draftkings' data is not found for the game ***
-                        if (!array_filter($game['sportsBooks'], function ($sportsBook) {
-                            return isset($sportsBook['sportsBook']) && strtolower($sportsBook['sportsBook']) === 'draftkings';
-                        })) {
-                            Log::info('DraftKings data not available for game', ['gameID' => $game['gameID'] ?? 'Unknown']);
-                        }
-                    }
-                }
-                Log::info('All odds data stored or updated successfully.');
-            } else {
-                Log::error('Unexpected data format received from the API.', ['data' => $oddsData]);
-            }
-        } else {
-            Log::error('Failed to fetch NFL Betting Odds from the API.', ['status' => $response->status()]);
+    private function processResponse(array $data): array
+    {
+        if (empty($data['body']) || !is_array($data['body'])) {
+            throw new Exception('Invalid response format: missing or invalid body');
         }
+
+        $changes = [];
+        foreach ($data['body'] as $game) {
+            $gameChanges = $this->processGame($game);
+            if ($gameChanges) {
+                $changes[] = $gameChanges;
+            }
+        }
+
+        return array_slice($changes, 0, 5); // Limit to top 5 changes
+    }
+
+    private function processGame(array $game): ?array
+    {
+        if (empty($game['sportsBooks']) || !is_array($game['sportsBooks'])) {
+            return null;
+        }
+
+        $draftkingsData = $this->getDraftkingsData($game['sportsBooks']);
+        if (!$draftkingsData) {
+            return null;
+        }
+
+        $odds = $draftkingsData['odds'] ?? [];
+        $existingOdds = NflBettingOdds::where('event_id', $game['gameID'])
+            ->where('source', self::SPORTSBOOK)
+            ->first();
+
+        $newOdds = [
+            'spread_home' => $this->parseFloat($odds['homeTeamSpread']),
+            'total_over' => $this->parseFloat($odds['totalOver']),
+            'moneyline_home' => $this->parseFloat($odds['homeTeamMLOdds']),
+            'moneyline_away' => $this->parseFloat($odds['awayTeamMLOdds']),
+        ];
+
+        $changes = $this->detectChanges($existingOdds, $newOdds);
+
+        if (!empty($changes)) {
+            // Store the updated odds
+            $this->updateOdds($game, $draftkingsData);
+
+            return [
+                'matchup' => "{$game['awayTeam']} @ {$game['homeTeam']}",
+                'changes' => $changes
+            ];
+        }
+
+        return null;
+    }
+
+    private function getDraftkingsData(array $sportsBooks)
+    {
+        foreach ($sportsBooks as $sportsBook) {
+            if (strtolower($sportsBook['sportsBook'] ?? '') === self::SPORTSBOOK) {
+                return $sportsBook;
+            }
+        }
+        return null;
+    }
+
+    private function parseFloat($value): ?float
+    {
+        return isset($value) ? floatval($value) : null;
+    }
+
+    private function detectChanges($existingOdds, array $newOdds): array
+    {
+        if (!$existingOdds) {
+            return [];
+        }
+
+        $changes = [];
+        $thresholds = [
+            'spread' => 0.5,
+            'total' => 0.5,
+            'moneyline' => 10
+        ];
+
+        // Format and check each type of change
+        if (abs(($newOdds['spread_home'] - $existingOdds->spread_home)) >= $thresholds['spread']) {
+            $changes['spread'] = [
+                'old' => number_format($existingOdds->spread_home, 1),
+                'new' => number_format($newOdds['spread_home'], 1),
+                'change' => number_format($newOdds['spread_home'] - $existingOdds->spread_home, 1)
+            ];
+        }
+
+        if (abs(($newOdds['total_over'] - $existingOdds->total_over)) >= $thresholds['total']) {
+            $changes['total'] = [
+                'old' => number_format($existingOdds->total_over, 1),
+                'new' => number_format($newOdds['total_over'], 1),
+                'change' => number_format($newOdds['total_over'] - $existingOdds->total_over, 1)
+            ];
+        }
+
+        foreach (['home_ml' => 'moneyline_home', 'away_ml' => 'moneyline_away'] as $key => $field) {
+            if (abs(($newOdds[$field] - $existingOdds->$field)) >= $thresholds['moneyline']) {
+                $changes[$key] = [
+                    'old' => $existingOdds->$field,
+                    'new' => $newOdds[$field],
+                    'change' => $newOdds[$field] - $existingOdds->$field
+                ];
+            }
+        }
+
+        return $changes;
+    }
+
+    private function updateOdds(array $game, array $sportsBook): void
+    {
+        $odds = $sportsBook['odds'] ?? [];
+
+        NflBettingOdds::updateOrCreate(
+            [
+                'event_id' => $game['gameID'],
+                'source' => self::SPORTSBOOK,
+            ],
+            [
+                'game_date' => $game['gameDate'],
+                'away_team' => $game['awayTeam'],
+                'home_team' => $game['homeTeam'],
+                'away_team_id' => $game['teamIDAway'],
+                'home_team_id' => $game['teamIDHome'],
+                'spread_home' => $this->parseFloat($odds['homeTeamSpread']),
+                'spread_away' => $this->parseFloat($odds['awayTeamSpread']),
+                'total_over' => $this->parseFloat($odds['totalOver']),
+                'total_under' => $this->parseFloat($odds['totalUnder']),
+                'moneyline_home' => $this->parseFloat($odds['homeTeamMLOdds']),
+                'moneyline_away' => $this->parseFloat($odds['awayTeamMLOdds']),
+                'implied_total_home' => $odds['impliedTotals']['homeTotal'] ?? null,
+                'implied_total_away' => $odds['impliedTotals']['awayTotal'] ?? null,
+            ]
+        );
     }
 }

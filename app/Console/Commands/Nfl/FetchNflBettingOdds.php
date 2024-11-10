@@ -7,77 +7,129 @@ use App\Notifications\DiscordCommandCompletionNotification;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 
 class FetchNflBettingOdds extends Command
 {
-    protected $signature = 'nfl:fetch-betting-odds {date?}';
-    protected $description = 'Fetch NFL betting odds for a specific date or for the current week based on today\'s date';
+    protected const CACHE_KEY = 'nfl_odds_command_last_run';
 
-    public function __construct()
-    {
-        parent::__construct();
-    }
+    protected $signature = 'nfl:fetch-betting-odds 
+        {date? : The date to fetch odds for (YYYY-MM-DD)}
+        {--force : Force fetch even if already run today}';
+
+    protected $description = 'Fetch NFL betting odds for a specific date';
 
     public function handle()
     {
         try {
-            // Use today's date or the date provided
-            $date = $this->argument('date') ? Carbon::parse($this->argument('date')) : Carbon::today();
+            $date = $this->resolveDate();
 
-            // Get the week configuration
-            $weeks = config('nfl.weeks');
-
-            // Determine the current week based on today’s date
-            $currentWeek = $this->getCurrentWeek($weeks, $date);
-
-            if ($currentWeek) {
-                $start = Carbon::parse($currentWeek['start']);
-                $end = Carbon::parse($currentWeek['end']);
-
-                // Loop through each day from today until the end of the week
-                while ($date->lessThanOrEqualTo($end)) {
-                    // Dispatch the job for each date in the current week
-                    dispatch(new StoreNflBettingOdds($date->format('Ymd')));
-                    $this->info("Betting odds for date {$date->format('Ymd')} are being fetched.");
-
-                    // Move to the next day
-                    $date->addDay();
-                }
-            } else {
-                $this->error('No current week found in the configuration for today\'s date.');
+            if (!$this->validateDate($date)) {
+                return 1;
             }
 
-            // Send success notification
-            Notification::route('discord', config('services.discord.channel_id'))
-                ->notify(new DiscordCommandCompletionNotification('', 'success'));
+            $this->info('Processing NFL betting odds for ' . $date->format('Y-m-d'));
+
+            // Process the date
+            $formattedDate = $date->format('Ymd');
+
+            dispatch(new StoreNflBettingOdds($formattedDate));
+
+            // Wait a moment for the job to complete
+            sleep(2);
+
+            // Check for changes
+            $changes = Cache::get(StoreNflBettingOdds::CACHE_KEY . $formattedDate);
+
+            // Send notification
+            $this->sendNotification($formattedDate, $changes);
+
+            return 0;
 
         } catch (Exception $e) {
-            // Send failure notification
-            Notification::route('discord', config('services.discord.channel_id'))
-                ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'error'));
-
+            $this->handleError($e);
+            return 1;
         }
     }
 
-    /**
-     * Get the current week based on today’s date.
-     *
-     * @param array $weeks
-     * @param Carbon $date
-     * @return array|null
-     */
-    private function getCurrentWeek(array $weeks, Carbon $date): ?array
+    private function resolveDate(): Carbon
     {
-        foreach ($weeks as $week) {
-            $start = Carbon::parse($week['start']);
-            $end = Carbon::parse($week['end']);
+        $dateString = $this->argument('date');
+        try {
+            return $dateString ? Carbon::parse($dateString) : Carbon::today();
+        } catch (Exception $e) {
+            throw new Exception('Invalid date format. Please use YYYY-MM-DD');
+        }
+    }
 
-            // Check if today's date is within the week’s start and end dates
-            if ($date->between($start, $end)) {
-                return $week;
+    private function validateDate(Carbon $date): bool
+    {
+        if ($date->isFuture()) {
+            $this->error('Cannot fetch odds for future dates.');
+            return false;
+        }
+
+        if ($date->diffInDays(Carbon::today()) > 30) {
+            if (!$this->confirm('Date is more than 30 days in the past. Continue?')) {
+                return false;
             }
         }
-        return null; // No matching week found
+
+        return true;
+    }
+
+    private function sendNotification(string $date, array $changes): void
+    {
+        $message = "**NFL Betting Odds Update**\n";
+        $message .= 'Date: ' . Carbon::parse($date)->format('Y-m-d') . "\n\n";
+
+        if (empty($changes)) {
+            $message .= 'No significant line changes detected.';
+        } else {
+            $message .= "**Notable Line Changes:**\n";
+            foreach ($changes as $change) {
+                if (isset($change['matchup'])) {
+                    $message .= "\n• {$change['matchup']}\n";
+
+                    foreach ($change['changes'] ?? [] as $type => $values) {
+                        switch ($type) {
+                            case 'spread':
+                                $message .= "  Spread: {$values['old']} → {$values['new']} ({$values['change']})\n";
+                                break;
+                            case 'total':
+                                $message .= "  Total: {$values['old']} → {$values['new']} ({$values['change']})\n";
+                                break;
+                            case 'home_ml':
+                                $message .= "  Home ML: {$values['old']} → {$values['new']} ({$values['change']})\n";
+                                break;
+                            case 'away_ml':
+                                $message .= "  Away ML: {$values['old']} → {$values['new']} ({$values['change']})\n";
+                                break;
+                        }
+                    }
+                }
+            }
+        }
+
+        $message .= "\n_Powered by Picksports Alerts • " . now()->format('F j, Y g:i A') . '_';
+
+        Notification::route('discord', config('services.discord.channel_id'))
+            ->notify(new DiscordCommandCompletionNotification($message, 'success'));
+    }
+
+    private function handleError(Exception $e): void
+    {
+        $message = "Failed to fetch NFL betting odds: {$e->getMessage()}";
+
+        $this->error($message);
+        Log::error($message, [
+            'exception' => $e,
+            'command' => $this->getName()
+        ]);
+
+        Notification::route('discord', config('services.discord.channel_id'))
+            ->notify(new DiscordCommandCompletionNotification($message, 'error'));
     }
 }
