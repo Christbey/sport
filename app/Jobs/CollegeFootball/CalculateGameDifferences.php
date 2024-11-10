@@ -2,140 +2,94 @@
 
 namespace App\Jobs\CollegeFootball;
 
+use App\Events\{GameCalculationsStarted, GameResultProcessed, WeeklyCalculationsCompleted};
 use App\Models\CollegeFootball\CollegeFootballGame;
 use App\Notifications\DiscordCommandCompletionNotification;
+use Carbon\Carbon;
 use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\{Log, Notification};
 
 class CalculateGameDifferences implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    /**
-     * Execute the job.
-     *
-     * @return void
-     */
     public function handle()
     {
         try {
+            $now = Carbon::now();
+            $dateRange = [
+                'start' => $now->copy()->startOfWeek(),
+                'end' => $now->copy()->endOfWeek()
+            ];
+
+            // Dispatch start event
+            GameCalculationsStarted::dispatch($dateRange);
+
             $totalProcessedGames = 0;
             $correctPredictions = 0;
+            $gamesData = collect();
 
-            // Fetch all games with hypothetical data
             $games = CollegeFootballGame::with(['hypothetical', 'homeTeam', 'awayTeam'])
                 ->whereHas('hypothetical')
+                ->where('completed', '1')
+                ->whereBetween('start_date', array_values($dateRange))
                 ->get();
 
             foreach ($games as $game) {
-                $hypothetical = $game->hypothetical;
-
-                // Ensure points are available
                 if (is_null($game->away_points) || is_null($game->home_points)) {
                     continue;
                 }
 
-                // Calculate the actual point difference (home_points - away_points)
                 $actualPointDifference = $game->home_points - $game->away_points;
+                $hypotheticalSpread = $game->hypothetical->hypothetical_spread;
+                $wasCorrect = ($actualPointDifference >= $hypotheticalSpread);
 
-                // Get the hypothetical spread value
-                $hypotheticalSpread = $hypothetical->hypothetical_spread;
+                // Dispatch individual game process event
+                GameResultProcessed::dispatch(
+                    $game,
+                    $wasCorrect,
+                    $hypotheticalSpread,
+                    $actualPointDifference
+                );
 
-                // Determine if the prediction was correct
-                $result = 0;
-                if ($hypotheticalSpread >= 0) {
-                    // If spread is positive, home team needs to win by MORE than the spread
-                    $result = ($actualPointDifference >= $hypotheticalSpread) ? 1 : 0;
-                } else {
-                    // If spread is negative, home team needs to lose by LESS than the spread
-                    $result = ($actualPointDifference >= $hypotheticalSpread) ? 1 : 0;
-                }
-
-                // Update the 'correct' field in the hypothetical table
-                $hypothetical->correct = $result;
-                $hypothetical->save();
-
-                // Increment total processed games
                 $totalProcessedGames++;
-
-                // Increment correct predictions if result is 1
-                if ($result == 1) {
+                if ($wasCorrect) {
                     $correctPredictions++;
                 }
 
-                // Get team names
-                $homeTeamName = $game->homeTeam->name ?? 'Home Team';
-                $awayTeamName = $game->awayTeam->name ?? 'Away Team';
-
-                // Adjust spread_open to match the convention of hypotheticalSpread
-                $adjustedSpreadOpen = -1 * $game->spread_open;
-
-                // Compute the difference between our hypothetical spread and the adjusted spread_open
-                $spreadDifference = $hypotheticalSpread - $adjustedSpreadOpen;
-
-                // Interpretation based on home team
-                if ($hypotheticalSpread > 0) {
-                    $interpretation = "{$homeTeamName} was projected to **win** by {$hypotheticalSpread} points.";
-                } elseif ($hypotheticalSpread < 0) {
-                    $interpretation = "{$homeTeamName} was projected to **lose** by " . abs($hypotheticalSpread) . ' points.';
-                } else {
-                    $interpretation = 'Game was projected to be a tie.';
-                }
-
-                // More detailed outcome interpretation
-                if ($result == 1) {
-                    $outcomeInterpretation = 'Prediction was **CORRECT**. ';
-                    if ($hypotheticalSpread >= 0) {
-                        $outcomeInterpretation .= "{$homeTeamName} won by enough to cover the spread.";
-                    } else {
-                        $outcomeInterpretation .= "{$homeTeamName} didn't lose by more than the spread.";
-                    }
-                } else {
-                    $outcomeInterpretation = 'Prediction was **INCORRECT**. ';
-                    if ($hypotheticalSpread >= 0) {
-                        $outcomeInterpretation .= "{$homeTeamName} didn't win by enough to cover the spread.";
-                    } else {
-                        $outcomeInterpretation .= "{$homeTeamName} lost by more than the spread.";
-                    }
-                }
-
-                // Log the information
-                Log::info("Game ID {$game->id}: {$awayTeamName} at {$homeTeamName}");
-                Log::info("- Hypothetical Spread: {$hypotheticalSpread}");
-                Log::info("- Spread Open: {$game->spread_open}");
-                Log::info("- Difference Between Spreads: {$spreadDifference}");
-                Log::info("- Actual Point Difference: {$actualPointDifference}");
-                Log::info("- Projection: {$interpretation}");
-                Log::info("- Outcome: {$outcomeInterpretation}");
-                Log::info("- Final Score: {$awayTeamName} {$game->away_points} - {$homeTeamName} {$game->home_points}");
-                Log::info("- Result: {$result}");
-                Log::info('--------------------------------------');
+                $gamesData->push([
+                    'id' => $game->id,
+                    'homeTeam' => $game->homeTeam->school ?? 'Home Team',
+                    'awayTeam' => $game->awayTeam->school ?? 'Away Team',
+                    'homePoints' => $game->home_points,
+                    'awayPoints' => $game->away_points,
+                    'spreadOpen' => $game->spread_open,
+                    'result' => $wasCorrect ? 1 : 0
+                ]);
             }
 
-            // Calculate the total correct percentage
-            if ($totalProcessedGames > 0) {
-                $correctPercentage = ($correctPredictions / $totalProcessedGames) * 100;
-                Log::info("Total Processed Games: {$totalProcessedGames}");
-                Log::info("Correct Predictions: {$correctPredictions}");
-                Log::info('Total Correct Percentage: ' . number_format($correctPercentage, 2) . '%');
-            } else {
-                Log::info('No games were processed.');
+            if ($gamesData->isNotEmpty()) {
+                $percentage = number_format(($correctPredictions / $totalProcessedGames) * 100, 2);
+
+                // Dispatch completion event
+                WeeklyCalculationsCompleted::dispatch(
+                    $gamesData->toArray(),
+                    $totalProcessedGames,
+                    $correctPredictions,
+                    $percentage
+                );
             }
 
-            Log::info('Calculations completed successfully.');
-
-            // Send success notification
             Notification::route('discord', config('services.discord.channel_id'))
-                ->notify(new DiscordCommandCompletionNotification('', 'success'));
+                ->notify(new DiscordCommandCompletionNotification('Processed games for current week', 'success'));
 
         } catch (Exception $e) {
-            // Send failure notification
+            Log::error('Error processing games: ' . $e->getMessage());
             Notification::route('discord', config('services.discord.channel_id'))
                 ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'error'));
         }
