@@ -4,6 +4,9 @@ return [
     'season' => env('CFB_SEASON', 2024),  // default to 2024 if not set
     'week' => env('CFB_WEEK', 1),         // default to week 1 if not set
 
+    'season_start' => '2024-08-26', // First week's start date
+    'season_end' => '2024-12-15',   // Last week's end date
+
     // Define weeks based on date ranges
     'weeks' => [
         1 => ['start' => '2024-08-26', 'end' => '2024-09-01'],
