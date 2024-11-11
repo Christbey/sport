@@ -2,8 +2,11 @@
 
 namespace App\Jobs\Nfl;
 
+use AllowDynamicProperties;
 use App\Models\Nfl\NflBettingOdds;
-use Cache;
+use App\Models\Nfl\NflTeamSchedule;
+use App\Notifications\DiscordCommandCompletionNotification;
+use Carbon\Carbon;
 use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -12,8 +15,9 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 
-class StoreNflBettingOdds implements ShouldQueue
+#[AllowDynamicProperties] class StoreNflBettingOdds implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -39,15 +43,22 @@ class StoreNflBettingOdds implements ShouldQueue
                 throw new Exception("API request failed with status: {$response->status()}");
             }
 
-            $changes = $this->processResponse($response->json());
+            $data = $response->json();
+            $eventIds = array_column($data['body'], 'gameID');
 
-            if (!empty($changes)) {
-                Cache::put(self::CACHE_KEY . $this->gameDate, $changes, now()->addMinutes(2));
-            }
+            // Preload schedules for the event_ids
+            $this->schedules = NflTeamSchedule::whereIn('game_id', $eventIds)->get()->keyBy('event_id');
+
+            $changes = $this->processResponse($data);
 
             Log::info('NFL betting odds updated successfully for date: ' . $this->gameDate, [
                 'changes_detected' => count($changes)
             ]);
+
+            // Send notification if there are changes
+            if ($changes) {
+                $this->sendNotification($changes);
+            }
 
         } catch (Exception $e) {
             Log::error('Failed to process NFL betting odds', [
@@ -86,9 +97,9 @@ class StoreNflBettingOdds implements ShouldQueue
 
         $changes = [];
         foreach ($data['body'] as $game) {
-            $gameChanges = $this->processGame($game);
-            if ($gameChanges) {
-                $changes[] = $gameChanges;
+            $gameData = $this->processGame($game);
+            if ($gameData) {
+                $changes[] = $gameData;
             }
         }
 
@@ -120,17 +131,13 @@ class StoreNflBettingOdds implements ShouldQueue
 
         $changes = $this->detectChanges($existingOdds, $newOdds);
 
-        if (!empty($changes)) {
-            // Store the updated odds
-            $this->updateOdds($game, $draftkingsData);
+        // Store the odds regardless of whether there are changes
+        $this->updateOdds($game, $draftkingsData);
 
-            return [
-                'matchup' => "{$game['awayTeam']} @ {$game['homeTeam']}",
-                'changes' => $changes
-            ];
-        }
-
-        return null;
+        return [
+            'matchup' => "{$game['awayTeam']} @ {$game['homeTeam']}",
+            'changes' => $changes
+        ];
     }
 
     private function getDraftkingsData(array $sportsBooks)
@@ -150,11 +157,13 @@ class StoreNflBettingOdds implements ShouldQueue
 
     private function detectChanges($existingOdds, array $newOdds): array
     {
-        if (!$existingOdds) {
-            return [];
-        }
-
         $changes = [];
+
+        if (!$existingOdds) {
+            // If there are no existing odds, consider all new odds as changes
+            $changes['initial_odds'] = $newOdds;
+            return $changes;
+        }
         $thresholds = [
             'spread' => 0.5,
             'total' => 0.5,
@@ -194,6 +203,22 @@ class StoreNflBettingOdds implements ShouldQueue
     private function updateOdds(array $game, array $sportsBook): void
     {
         $odds = $sportsBook['odds'] ?? [];
+        $gameDateString = $game['gameDate'] ?? null;
+
+        if ($gameDateString) {
+            try {
+                // Parse 'gameDate' from 'YYYYMMDD' to Carbon instance
+                $gameDate = Carbon::createFromFormat('Ymd', $gameDateString);
+            } catch (Exception $e) {
+                Log::error('Failed to parse gameDate', [
+                    'gameDate' => $gameDateString,
+                    'error' => $e->getMessage()
+                ]);
+                $gameDate = null;
+            }
+        } else {
+            $gameDate = null;
+        }
 
         NflBettingOdds::updateOrCreate(
             [
@@ -201,7 +226,7 @@ class StoreNflBettingOdds implements ShouldQueue
                 'source' => self::SPORTSBOOK,
             ],
             [
-                'game_date' => $game['gameDate'],
+                'game_date' => $gameDate ? $gameDate->format('Y-m-d') : null,
                 'away_team' => $game['awayTeam'],
                 'home_team' => $game['homeTeam'],
                 'away_team_id' => $game['teamIDAway'],
@@ -216,5 +241,77 @@ class StoreNflBettingOdds implements ShouldQueue
                 'implied_total_away' => $odds['impliedTotals']['awayTotal'] ?? null,
             ]
         );
+    }
+
+    // Add this method to your StoreNflBettingOdds job
+
+    private function sendNotification(array $changes): void
+    {
+        $date = Carbon::createFromFormat('Ymd', $this->gameDate);
+
+        $message = "**NFL Betting Odds Update**\n";
+        $message .= 'Date: ' . $date->format('Y-m-d') . "\n\n";
+
+        if (empty($changes)) {
+            $message .= 'No significant line changes detected.';
+        } else {
+            $hasInitialOdds = false;
+            $hasChanges = false;
+
+            foreach ($changes as $change) {
+                if (isset($change['changes']['initial_odds'])) {
+                    $hasInitialOdds = true;
+                } elseif (!empty($change['changes'])) {
+                    $hasChanges = true;
+                }
+            }
+
+            if ($hasInitialOdds) {
+                $message .= "**Initial Odds Stored:**\n";
+                foreach ($changes as $change) {
+                    if (isset($change['changes']['initial_odds'])) {
+                        $matchup = $change['matchup'];
+                        $odds = $change['changes']['initial_odds'];
+
+                        $message .= "\n• {$matchup}\n";
+                        $message .= "  Spread Home: {$odds['spread_home']}\n";
+                        $message .= "  Total Over: {$odds['total_over']}\n";
+                        $message .= "  Moneyline Home: {$odds['moneyline_home']}\n";
+                        $message .= "  Moneyline Away: {$odds['moneyline_away']}\n";
+                    }
+                }
+            }
+
+            if ($hasChanges) {
+                $message .= "\n**Notable Line Changes:**\n";
+                foreach ($changes as $change) {
+                    if (!isset($change['changes']['initial_odds']) && !empty($change['changes'])) {
+                        $message .= "\n• {$change['matchup']}\n";
+
+                        foreach ($change['changes'] as $type => $values) {
+                            switch ($type) {
+                                case 'spread':
+                                    $message .= "  Spread: {$values['old']} → {$values['new']} ({$values['change']})\n";
+                                    break;
+                                case 'total':
+                                    $message .= "  Total: {$values['old']} → {$values['new']} ({$values['change']})\n";
+                                    break;
+                                case 'home_ml':
+                                    $message .= "  Home ML: {$values['old']} → {$values['new']} ({$values['change']})\n";
+                                    break;
+                                case 'away_ml':
+                                    $message .= "  Away ML: {$values['old']} → {$values['new']} ({$values['change']})\n";
+                                    break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        $message .= "\n_Powered by Picksports Alerts • " . now()->format('F j, Y g:i A') . '_';
+
+        Notification::route('discord', config('services.discord.channel_id'))
+            ->notify(new DiscordCommandCompletionNotification($message, 'success'));
     }
 }
