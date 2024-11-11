@@ -133,6 +133,7 @@ class FetchNflEspnScheduleJob implements ShouldQueue
             ? ($competition['competitors'][1]['winner'] ? 'Win' : 'Loss')
             : null;
 
+
         // Log for debugging
         Log::info('Event Details:', [
             'event_id' => $event['id'],
@@ -145,8 +146,11 @@ class FetchNflEspnScheduleJob implements ShouldQueue
             'game_status' => $gameStatus,
         ]);
 
+
         // Only store if both teams are matched
         if ($homeTeam && $awayTeam) {
+            $isConferenceCompetition = $this->isConferenceCompetition($homeTeam, $awayTeam);
+
             NflTeamSchedule::updateOrCreate(
                 [
                     'home_team_id' => $homeTeam->id,
@@ -159,7 +163,7 @@ class FetchNflEspnScheduleJob implements ShouldQueue
                     'home_team_record' => $competition['competitors'][0]['records'][0]['summary'] ?? null,
                     'away_team_record' => $competition['competitors'][1]['records'][0]['summary'] ?? null,
                     'neutral_site' => $competition['neutralSite'] ?? false,
-                    'conference_competition' => $competition['conferenceCompetition'] ?? false,
+                    'conference_competition' => $isConferenceCompetition ?? $competition['conferenceCompetition'] ?? false,
                     'attendance' => $competition['attendance'] ?? 0,
                     'home_pts' => $homePts,
                     'away_pts' => $awayPts,
@@ -183,5 +187,10 @@ class FetchNflEspnScheduleJob implements ShouldQueue
                 'away_team_espn_id' => $awayTeamEspnId,
             ]);
         }
+    }
+
+    private function isConferenceCompetition(NflTeam $homeTeam, NflTeam $awayTeam): bool
+    {
+        return $homeTeam->conference_abv === $awayTeam->conference_abv;
     }
 }
