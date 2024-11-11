@@ -124,7 +124,7 @@ use Illuminate\Support\Facades\Notification;
 
         $newOdds = [
             'spread_home' => $this->parseFloat($odds['homeTeamSpread']),
-            'total_over' => $this->parseFloat($odds['totalOver']),
+            'total_over' => $this->parseFloat($odds['totalOver'] ?? null) ? $odds['totalUnder'] : null,
             'moneyline_home' => $this->parseFloat($odds['homeTeamMLOdds']),
             'moneyline_away' => $this->parseFloat($odds['awayTeamMLOdds']),
         ];
@@ -152,7 +152,14 @@ use Illuminate\Support\Facades\Notification;
 
     private function parseFloat($value): ?float
     {
-        return isset($value) ? floatval($value) : null;
+        if ($value !== null && $value !== '') {
+            // Normalize the minus sign
+            $value = str_replace('−', '-', $value);
+            // Remove any non-numeric characters except decimal point and minus sign
+            $numericValue = preg_replace('/[^0-9.\-]/', '', $value);
+            return is_numeric($numericValue) ? (float)$numericValue : null;
+        }
+        return null;
     }
 
     private function detectChanges($existingOdds, array $newOdds): array
@@ -226,14 +233,14 @@ use Illuminate\Support\Facades\Notification;
                 'source' => self::SPORTSBOOK,
             ],
             [
-                'game_date' => $gameDate ? $gameDate->format('Y-m-d') : null,
+                'game_date' => $gameDate?->format('Y-m-d'),
                 'away_team' => $game['awayTeam'],
                 'home_team' => $game['homeTeam'],
                 'away_team_id' => $game['teamIDAway'],
                 'home_team_id' => $game['teamIDHome'],
                 'spread_home' => $this->parseFloat($odds['homeTeamSpread']),
                 'spread_away' => $this->parseFloat($odds['awayTeamSpread']),
-                'total_over' => $this->parseFloat($odds['totalOver']),
+                'total_over' => $this->parseFloat($odds['totalOver'] ?? null) ? $odds['totalUnder'] : null,
                 'total_under' => $this->parseFloat($odds['totalUnder']),
                 'moneyline_home' => $this->parseFloat($odds['homeTeamMLOdds']),
                 'moneyline_away' => $this->parseFloat($odds['awayTeamMLOdds']),

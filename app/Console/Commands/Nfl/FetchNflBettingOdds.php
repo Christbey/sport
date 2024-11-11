@@ -38,7 +38,7 @@ class FetchNflBettingOdds extends Command
 
             $datesProcessed = $this->processDates($date, $currentWeek);
 
-            Log::info('Dates processed:', $datesProcessed);
+            //Log::info('Dates processed:', $datesProcessed);
 
             return 0;
 
