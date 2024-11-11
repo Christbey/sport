@@ -38,7 +38,7 @@ class FetchNflBettingOdds extends Command
             dispatch(new StoreNflBettingOdds($formattedDate));
 
             // Wait a moment for the job to complete
-            sleep(2);
+            sleep(10);
 
             // Check for changes
             $changes = Cache::get(StoreNflBettingOdds::CACHE_KEY . $formattedDate);
@@ -84,7 +84,7 @@ class FetchNflBettingOdds extends Command
         return true;
     }
 
-    private function sendNotification(string $date, array $changes): void
+    private function sendNotification(Carbon $date, array $changes): void
     {
         $message = "**NFL Betting Odds Update**\n";
         $message .= 'Date: ' . Carbon::parse($date)->format('Y-m-d') . "\n\n";

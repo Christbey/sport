@@ -42,7 +42,7 @@ class StoreNflBettingOdds implements ShouldQueue
             $changes = $this->processResponse($response->json());
 
             if (!empty($changes)) {
-                Cache::put(self::CACHE_KEY . $this->gameDate, $changes, now()->addHours(24));
+                Cache::put(self::CACHE_KEY . $this->gameDate, $changes, now()->addMinutes(2));
             }
 
             Log::info('NFL betting odds updated successfully for date: ' . $this->gameDate, [
