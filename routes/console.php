@@ -15,7 +15,7 @@ Schedule::command('fetch:college-football-elo')
     ->when(fn() => CollegeFootballCommandHelpers::isFootballSeason())
     ->before(fn() => Log::info('Starting ELO ratings fetch'))
     ->after(fn() => CollegeFootballCommandHelpers::sendNotification('ELO ratings fetch completed successfully'))
-    ->onFailure(fn(Throwable $e) => CollegeFootballCommandHelpers::sendNotification(
+    ->onFailure(fn($e) => CollegeFootballCommandHelpers::sendNotification(
         "ELO ratings fetch failed: {$e->getMessage()}",
         'failure'
     ))
@@ -27,7 +27,7 @@ Schedule::command('fetch:college-football-fpi')
     ->when(fn() => CollegeFootballCommandHelpers::isFootballSeason())
     ->before(fn() => Log::info('Starting FPI ratings fetch'))
     ->after(fn() => CollegeFootballCommandHelpers::sendNotification('FPI ratings fetch completed successfully'))
-    ->onFailure(fn(Throwable $e) => CollegeFootballCommandHelpers::sendNotification(
+    ->onFailure(fn($e) => CollegeFootballCommandHelpers::sendNotification(
         "FPI ratings fetch failed: {$e->getMessage()}",
         'failure'
     ))
@@ -39,7 +39,7 @@ Schedule::command('fetch:college-football-rankings')
     ->when(fn() => CollegeFootballCommandHelpers::isFootballSeason())
     ->before(fn() => Log::info('Starting rankings fetch'))
     ->after(fn() => CollegeFootballCommandHelpers::sendNotification('Rankings fetch completed successfully'))
-    ->onFailure(fn(Throwable $e) => CollegeFootballCommandHelpers::sendNotification(
+    ->onFailure(fn($e) => CollegeFootballCommandHelpers::sendNotification(
         "Rankings fetch failed: {$e->getMessage()}",
         'failure'
     ))
@@ -51,7 +51,7 @@ Schedule::command('fetch:advanced-game-stats')
     ->when(fn() => CollegeFootballCommandHelpers::isFootballSeason())
     ->before(fn() => Log::info('Starting advanced stats fetch'))
     ->after(fn() => CollegeFootballCommandHelpers::sendNotification('Advanced stats fetch completed successfully'))
-    ->onFailure(fn(Throwable $e) => CollegeFootballCommandHelpers::sendNotification(
+    ->onFailure(fn($e) => CollegeFootballCommandHelpers::sendNotification(
         "Advanced stats fetch failed: {$e->getMessage()}",
         'failure'
     ))
@@ -64,7 +64,7 @@ Schedule::command('nfl:fetch-boxscore')
     ->withoutOverlapping()
     ->before(fn() => Log::info('Starting NFL boxscore fetch'))
     ->after(fn() => NflCommandHelper::sendNotification('NFL boxscore fetch completed successfully'))
-    ->onFailure(fn(Throwable $e) => NflCommandHelper::sendNotification(
+    ->onFailure(fn($e) => NflCommandHelper::sendNotification(
         "NFL boxscore fetch failed: {$e->getMessage()}",
         'failure'
     ))
@@ -81,7 +81,7 @@ Schedule::command('nfl:news')
             cache()->forget('nfl_news_updated');
         }
     })
-    ->onFailure(fn(Throwable $e) => NflCommandHelper::sendNotification(
+    ->onFailure(fn($e) => NflCommandHelper::sendNotification(
         "NFL news fetch failed: {$e->getMessage()}",
         'failure'
     ))
@@ -98,7 +98,7 @@ Schedule::command('nfl:fetch-betting-odds')
             cache()->forget('odds_significantly_changed');
         }
     })
-    ->onFailure(fn(Throwable $e) => NflCommandHelper::sendNotification(
+    ->onFailure(fn($e) => NflCommandHelper::sendNotification(
         "NFL betting odds fetch failed: {$e->getMessage()}",
         'failure'
     ))
@@ -110,7 +110,7 @@ Schedule::command('fetch:college-football-games')
     ->when(fn() => CollegeFootballCommandHelpers::isFootballSeason())
     ->before(fn() => Log::info('Starting college football games fetch'))
     ->after(fn() => CollegeFootballCommandHelpers::sendNotification('College football games fetch completed successfully'))
-    ->onFailure(fn(Throwable $e) => CollegeFootballCommandHelpers::sendNotification(
+    ->onFailure(fn($e) => CollegeFootballCommandHelpers::sendNotification(
         "College football games fetch failed: {$e->getMessage()}",
         'failure'
     ))
@@ -122,7 +122,7 @@ Schedule::command('fetch:college-football-lines')
     ->when(fn() => CollegeFootballCommandHelpers::isFootballSeason())
     ->before(fn() => Log::info('Starting college football lines fetch'))
     ->after(fn() => CollegeFootballCommandHelpers::sendNotification('College football lines fetch completed successfully'))
-    ->onFailure(fn(Throwable $e) => CollegeFootballCommandHelpers::sendNotification(
+    ->onFailure(fn($e) => CollegeFootballCommandHelpers::sendNotification(
         "College football lines fetch failed: {$e->getMessage()}",
         'failure'
     ))
@@ -134,7 +134,7 @@ Schedule::command('fetch:college-football-media')
     ->when(fn() => CollegeFootballCommandHelpers::isFootballSeason())
     ->before(fn() => Log::info('Starting college football media fetch'))
     ->after(fn() => CollegeFootballCommandHelpers::sendNotification('College football media fetch completed successfully'))
-    ->onFailure(fn(Throwable $e) => CollegeFootballCommandHelpers::sendNotification(
+    ->onFailure(fn($e) => CollegeFootballCommandHelpers::sendNotification(
         "College football media fetch failed: {$e->getMessage()}",
         'failure'
     ))
@@ -146,7 +146,7 @@ Schedule::command('fetch:college-football-rankings')
     ->when(fn() => CollegeFootballCommandHelpers::isFootballSeason())
     ->before(fn() => Log::info('Starting college football media fetch'))
     ->after(fn() => CollegeFootballCommandHelpers::sendNotification('College football media fetch completed successfully'))
-    ->onFailure(fn(Throwable $e) => CollegeFootballCommandHelpers::sendNotification(
+    ->onFailure(fn($e) => CollegeFootballCommandHelpers::sendNotification(
         "College football media fetch failed: {$e->getMessage()}",
         'failure'
     ))
@@ -157,7 +157,7 @@ Schedule::command('nfl:fetch-team-schedule')
     ->withoutOverlapping()
     ->before(fn() => Log::info('Starting NFL team schedule fetch'))
     ->after(fn() => NflCommandHelper::sendNotification('NFL team schedule fetch completed successfully'))
-    ->onFailure(fn(Throwable $e) => NflCommandHelper::sendNotification(
+    ->onFailure(fn($e) => NflCommandHelper::sendNotification(
         "NFL team schedule fetch failed: {$e->getMessage()}",
         'failure'
     ))
@@ -169,7 +169,7 @@ Schedule::command('nfl:calculate-team-elo')
     ->withoutOverlapping()
     ->before(fn() => Log::info('Starting NFL team ELO calculation'))
     ->after(fn() => NflCommandHelper::sendNotification('NFL team ELO calculation completed successfully'))
-    ->onFailure(fn(Throwable $e) => NflCommandHelper::sendNotification(
+    ->onFailure(fn($e) => NflCommandHelper::sendNotification(
         "NFL team ELO calculation failed: {$e->getMessage()}",
         'failure'
     ))
@@ -182,7 +182,7 @@ Schedule::command('fetch:nfl-teams')
     ->withoutOverlapping()
     ->before(fn() => Log::info('Starting NFL teams fetch'))
     ->after(fn() => NflCommandHelper::sendNotification('NFL teams fetch completed successfully'))
-    ->onFailure(fn(Throwable $e) => NflCommandHelper::sendNotification(
+    ->onFailure(fn($e) => NflCommandHelper::sendNotification(
         "NFL teams fetch failed: {$e->getMessage()}",
         'failure'
     ))
