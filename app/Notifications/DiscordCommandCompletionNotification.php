@@ -45,7 +45,7 @@ class DiscordCommandCompletionNotification extends Notification
     {
         // Set color based on message type
         $color = $this->type === 'success' ? hexdec('2ECC71') : hexdec('E74C3C'); // Green for success, Red for failure
-
+//todo: Style Better
         return (object)[
             'body' => '', // Placeholder for compatibility
             'embed' => [

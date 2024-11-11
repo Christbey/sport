@@ -59,7 +59,8 @@ Schedule::command('fetch:advanced-game-stats')
 
 // NFL Boxscore
 Schedule::command('nfl:fetch-boxscore')
-    ->dailyAt('22:00')
+    ->sundays()
+    ->everyThirtyMinutes()
     ->withoutOverlapping()
     ->before(fn() => Log::info('Starting NFL boxscore fetch'))
     ->after(fn() => NflCommandHelper::sendNotification('NFL boxscore fetch completed successfully'))

@@ -2,6 +2,7 @@
 // app/Providers/EventServiceProvider.php
 namespace App\Providers;
 
+use App\Events\BoxScoreFetched;
 use App\Events\GameCalculationsStarted;
 use App\Events\GameResultProcessed;
 use App\Events\GameResultsProcessed;
@@ -13,6 +14,9 @@ use App\Listeners\ProcessUserPickResults;
 use App\Listeners\SendPicksSubmittedNotifications;
 use App\Listeners\SendUserPicksNotifications;
 use App\Listeners\SendWeeklyCalculationsNotification;
+use App\Listeners\StoreBoxScoreData;
+use App\Listeners\StorePlayerStats;
+use App\Listeners\StoreTeamStats;
 use App\Listeners\UpdateHypotheticalResult;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
@@ -36,6 +40,11 @@ class EventServiceProvider extends ServiceProvider
         ],
         WeeklyCalculationsCompleted::class => [
             SendWeeklyCalculationsNotification::class,
+        ],
+        BoxScoreFetched::class => [
+            StoreBoxScoreData::class,
+            StorePlayerStats::class,
+            StoreTeamStats::class,
         ],
     ];
 }
