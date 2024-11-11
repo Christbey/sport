@@ -2,7 +2,7 @@
 
 namespace App\Jobs\Nfl;
 
-use App\Models\Nfl\NFLTeam;
+use App\Models\Nfl\NflTeam;
 use GuzzleHttp\Client;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -44,7 +44,7 @@ class StoreNflTeams implements ShouldQueue
         $teams = json_decode($response->getBody(), true)['body'];
 
         foreach ($teams as $team) {
-            NFLTeam::updateOrCreate(
+            NflTeam::updateOrCreate(
                 ['team_id' => $team['teamID']],
                 [
                     'team_abv' => $team['teamAbv'],

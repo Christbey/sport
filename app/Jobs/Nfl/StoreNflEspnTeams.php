@@ -2,7 +2,7 @@
 
 namespace App\Jobs\Nfl;
 
-use App\Models\Nfl\NFLTeam;
+use App\Models\Nfl\NflTeam;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -41,7 +41,7 @@ class StoreNflEspnTeams implements ShouldQueue
                 $team = $teamData['team'];
 
                 // Try to match by espn_logo1 first, then fall back to team_abv if no match found
-                $existingTeam = NFLTeam::where('espn_logo1', $team['logos'][0]['href'] ?? null)
+                $existingTeam = NflTeam::where('espn_logo1', $team['logos'][0]['href'] ?? null)
                     ->orWhere('team_abv', $team['abbreviation'])
                     ->first();
 
@@ -56,7 +56,7 @@ class StoreNflEspnTeams implements ShouldQueue
                     ]);
                 } else {
                     // Create a new team record
-                    NFLTeam::create([
+                    NflTeam::create([
                         'espn_id' => $team['id'], // ESPN team ID
                         'uid' => $team['uid'], // ESPN unique ID
                         'slug' => $team['slug'], // Team slug
