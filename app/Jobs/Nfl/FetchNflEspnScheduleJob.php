@@ -124,6 +124,7 @@ class FetchNflEspnScheduleJob implements ShouldQueue
         $gameTime = $event['date'] ?? 'N/A';
         $gameTimeEpoch = $gameTime ? strtotime($gameTime) : 'N/A';
 
+        // @todo: Change Win : Loss to W : L
         // Check if the game has completed (i.e., a winner is defined)
         $homeResult = isset($competition['competitors'][0]['winner'])
             ? ($competition['competitors'][0]['winner'] ? 'Win' : 'Loss')

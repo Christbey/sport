@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\PickWinnerRequest;
-use App\Mail\PicksSubmittedMail;
 use App\Notifications\PicksSubmittedNotification;
 use App\Services\GameWeekService;
 use App\Services\LeaderboardService;
@@ -11,7 +10,7 @@ use App\Services\PickemService;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\{Auth, DB, Mail};
+use Illuminate\Support\Facades\{Auth, DB};
 
 class PickemController extends Controller
 {
@@ -85,39 +84,44 @@ class PickemController extends Controller
         }
     }
 
-    protected function sendNotifications($user, array $userPicks, string $gameWeek): void
+    protected function sendNotifications($user, $userPicks, $gameWeek)
     {
-        Mail::to($user->email)->send(
-            new PicksSubmittedMail($user, $userPicks, $gameWeek)
-        );
         $user->notify(new PicksSubmittedNotification($userPicks, $gameWeek));
-
     }
 
     public function showLeaderboard(Request $request)
     {
         $this->validateUserTeamAccess($request);
 
-        $game_week = $request->input('game_week');
+        $game_week_input = $request->input('game_week');
+        $game_week = $this->gameWeekService->determineGameWeek($request, $game_week_input);
         $userId = Auth::id();
         $user = Auth::user();
+        $team_id = $user->current_team_id;
+
+        $sort = $request->input('sort', 'correct_picks');
+        $direction = $request->input('direction', 'desc');
+
+        // Calculate the 3-week period
+        $period = floor(($game_week - 1) / 3);
+        $period_start_week = $period * 3 + 1;
+        $period_end_week = $period_start_week + 2;
+
+        // Get the leaderboard data
+        $leaderboard = $this->leaderboardService->getLeaderboard($game_week, $team_id, $sort, $direction);
+
+        // Get all picks for the user for the specified week
+        $allPicks = $this->leaderboardService->getUserPicksForWeek($userId, $game_week, $team_id);
 
         $data = [
             'games' => $this->gameWeekService->getGameWeeks(),
-            'leaderboard' => $this->leaderboardService->getLeaderboard(
-                $game_week,
-                $user->current_team_id,
-                $request->input('sort', 'correct_picks'),
-                $request->input('direction', 'desc')
-            ),
-            'allPicks' => $this->leaderboardService->getUserPicksForWeek(
-                $userId,
-                $game_week,
-                $user->current_team_id
-            ),
-            'game_week' => $game_week,
-            'sort' => $request->input('sort', 'correct_picks'),
-            'direction' => $request->input('direction', 'desc')
+            'leaderboard' => $leaderboard,
+            'allPicks' => $allPicks,
+            'game_week' => $game_week_input,
+            'sort' => $sort,
+            'direction' => $direction,
+            'period_start_week' => $period_start_week,
+            'period_end_week' => $period_end_week,
         ];
 
         return $request->expectsJson()

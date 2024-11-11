@@ -21,13 +21,16 @@
                         onchange="this.form.submit()">
                     <option value="">All Weeks</option>
                     @foreach($weeks as $week)
-                        <option value="{{ $week->game_week }}" {{ $game_week == $week->game_week ? 'selected' : '' }}>
-                            {{ $week->game_week }}
+                        @php
+                            // Extract the numeric week number
+                            $week_number = (int)str_replace('Week ', '', $week->game_week);
+                        @endphp
+                        <option value="{{ $week_number }}" {{ $game_week == $week_number ? 'selected' : '' }}>
+                            Week {{ $week_number }}
                         </option>
                     @endforeach
                 </select>
             </form>
-
             <!-- Display matchups and submit form -->
             <form action="{{ route('pickem.pickWinner') }}" method="POST">
                 @csrf

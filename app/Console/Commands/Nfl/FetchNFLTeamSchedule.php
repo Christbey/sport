@@ -2,11 +2,11 @@
 
 namespace App\Console\Commands\Nfl;
 
+use App\Helpers\NflCommandHelper;
 use App\Jobs\Nfl\FetchNflEspnScheduleJob;
 use App\Jobs\Nfl\StoreNflTeamSchedule;
 use App\Models\Nfl\NflTeam;
 use App\Notifications\DiscordCommandCompletionNotification;
-use Carbon\Carbon;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Notification;
@@ -25,7 +25,7 @@ class FetchNFLTeamSchedule extends Command
             $seasonType = config('nfl.seasonType');
 
             // Determine the current week based on today’s date if not defined in the config
-            $weekNumber = $this->getCurrentWeek() ?? config('nfl.weekNumber');
+            $weekNumber = config('nfl.weekNumber') ?? NflCommandHelper::getCurrentWeek();
 
             // Fetch all the teams from the nfl_teams table
             $teams = NflTeam::all();
@@ -62,25 +62,4 @@ class FetchNFLTeamSchedule extends Command
         }
     }
 
-    /**
-     * Determine the current NFL week based on today's date.
-     */
-    private function getCurrentWeek(): ?int
-    {
-        $today = Carbon::today();
-        $weeks = config('nfl.weeks');
-
-        foreach ($weeks as $weekLabel => $dates) {
-            $weekNumber = (int)filter_var($weekLabel, FILTER_SANITIZE_NUMBER_INT);
-            $start = Carbon::parse($dates['start']);
-            $end = Carbon::parse($dates['end']);
-
-            if ($today->between($start, $end)) {
-                return $weekNumber;
-            }
-        }
-
-        // Return null if no matching week is found
-        return null;
-    }
 }

@@ -28,37 +28,55 @@
             <table class="w-full text-sm text-left text-gray-500 ">
                 <thead class="text-xs text-gray-700 uppercase bg-gray-50 ">
                 <tr>
+                    <!-- User Column -->
                     <th scope="col" class="px-6 py-3">
-                        <a href="{{ route('picks.leaderboard', ['sort' => 'user', 'direction' => request('direction') == 'asc' ? 'desc' : 'asc']) }}"
+                        <a href="{{ route('picks.leaderboard', ['sort' => 'name', 'direction' => request('direction') == 'asc' ? 'desc' : 'asc']) }}"
                            class="flex items-center">
                             User
-                            @if(request('sort') == 'user')
-                                <svg class="w-3 h-3 ms-1 {{ request('direction') == 'asc' ? '' : 'rotate-180' }}"
-                                     xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M8.574 11.024h6.852a2.075..."/>
-                                </svg>
+                            @if(request('sort') == 'name')
+                                <!-- Sort Icon -->
                             @endif
                         </a>
                     </th>
+                    <!-- Correct Picks Column -->
                     <th scope="col" class="px-6 py-3">
                         <a href="{{ route('picks.leaderboard', ['sort' => 'correct_picks', 'direction' => request('direction') == 'asc' ? 'desc' : 'asc']) }}"
                            class="flex items-center">
                             Correct Picks
                             @if(request('sort') == 'correct_picks')
-                                <svg class="w-3 h-3 ms-1 {{ request('direction') == 'asc' ? '' : 'rotate-180' }}"
-                                     xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M8.574 11.024h6.852a2.075..."/>
-                                </svg>
+                                <!-- Sort Icon -->
+                            @endif
+                        </a>
+                    </th>
+                    <!-- Total Points Column -->
+                    <th scope="col" class="px-6 py-3">
+                        <a href="{{ route('picks.leaderboard', ['sort' => 'total_points', 'direction' => request('direction') == 'asc' ? 'desc' : 'asc']) }}"
+                           class="flex items-center">
+                            Total Points
+                            @if(request('sort') == 'total_points')
+                                <!-- Sort Icon -->
+                            @endif
+                        </a>
+                    </th>
+                    <!-- 3-Week Period Points Column -->
+                    <th scope="col" class="px-6 py-3">
+                        <a href="{{ route('picks.leaderboard', ['sort' => 'period_points', 'direction' => request('direction') == 'asc' ? 'desc' : 'asc']) }}"
+                           class="flex items-center">
+                            Points (Weeks {{ $period_start_week }}-{{ $period_end_week }})
+                            @if(request('sort') == 'period_points')
+                                <!-- Sort Icon -->
                             @endif
                         </a>
                     </th>
                 </tr>
                 </thead>
                 <tbody>
-                @foreach($leaderboard as $entry)
+                @foreach($leaderboard as $user)
                     <tr class="bg-white border-b ">
-                        <td class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">{{ $entry->user->name }}</td>
-                        <td class="px-6 py-4">{{ $entry->correct_picks }}</td>
+                        <td class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">{{ $user->name }}</td>
+                        <td class="px-6 py-4">{{ $user->correct_picks }}</td>
+                        <td class="px-6 py-4">{{ $user->total_points }}</td>
+                        <td class="px-6 py-4">{{ $user->period_points }}</td>
                     </tr>
                 @endforeach
                 </tbody>
@@ -104,4 +122,5 @@
             </table>
         </div>
     </div>
+
 </x-app-layout>

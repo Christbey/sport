@@ -3,29 +3,36 @@
 namespace App\Services;
 
 use App\Models\Nfl\NflTeamSchedule;
+use App\Models\User;
 use App\Models\UserSubmission;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class GameWeekService
 {
-    public function determineGameWeek(Request $request, $game_week = null): string
+    public function determineGameWeek(Request $request, $game_week = null): int
     {
         $game_week = $request->input('game_week') ?? $game_week;
 
         if (!$game_week) {
-            foreach (config('nfl.weeks') as $weekName => $range) {
+            foreach (config('nfl.weeks') as $weekNumber => $range) {
                 if (Carbon::now()->between(
                     Carbon::parse($range['start']),
                     Carbon::parse($range['end'])
                 )) {
-                    return $weekName;
+                    return (int)$weekNumber;
                 }
             }
-            return 'Week 1';
+            return 1; // Default to Week 1
         }
 
-        return $game_week;
+        // If $game_week is a string like 'Week 1', extract the number
+        if (is_string($game_week)) {
+            $game_week = (int)str_replace('Week ', '', $game_week);
+        }
+
+        return (int)$game_week;
     }
 
     public function getGameWeeks()
@@ -43,16 +50,24 @@ class PickemService
     public function getSchedulesForWeek($game_week)
     {
         return NflTeamSchedule::where('season_type', 'Regular Season')
-            ->when($game_week, fn($query) => $query->where('game_week', $game_week))
+            ->when($game_week, function ($query) use ($game_week) {
+                $query->where(DB::raw('CAST(SUBSTRING(game_week, 6) AS UNSIGNED)'), $game_week);
+            })
             ->with(['awayTeam', 'homeTeam'])
             ->orderBy('game_date', 'asc')
             ->get();
     }
 
-    public function getUserSubmissionsForWeek($eventIds, $userId)
+
+    public function getUserSubmissionsForWeek($eventIds, $userId, $game_week = null)
     {
         return UserSubmission::where('user_id', $userId)
             ->whereIn('espn_event_id', $eventIds)
+            ->when($game_week, function ($query) use ($game_week) {
+                $query->whereHas('event', function ($q) use ($game_week) {
+                    $q->where(DB::raw('CAST(SUBSTRING(game_week, 6) AS UNSIGNED)'), $game_week);
+                });
+            })
             ->get()
             ->keyBy('espn_event_id');
     }
@@ -83,7 +98,7 @@ class PickemService
             [
                 'team_id' => $selectedTeamId,
                 'is_correct' => $this->isPickCorrect($event, $selectedTeamId),
-                'week_id' => $event->game_week,
+                'week_id' => (int)str_replace('Week ', '', $event->game_week),
                 'created_at' => $now,
                 'updated_at' => $now
             ]
@@ -135,17 +150,40 @@ class LeaderboardService
 {
     public function getLeaderboard($game_week, $team_id, $sort = 'correct_picks', $direction = 'desc')
     {
-        return UserSubmission::with('user')
-            ->whereHas('user', function ($query) use ($team_id) {
-                $query->whereHas('teams', fn($q) => $q->where('team_id', $team_id));
+        // Calculate the 3-week period based on the provided game week
+        $period = max(0, floor(($game_week - 1) / 3));
+        $period_start_week = $period * 3 + 1;
+        $period_end_week = $period_start_week + 2;
+
+        $users = User::withCount([
+            // Correct picks for the specified game week
+            'submissions as correct_picks' => function ($query) use ($game_week) {
+                $query->where('is_correct', true)
+                    ->whereHas('event', function ($q) use ($game_week) {
+                        $q->where(DB::raw('CAST(SUBSTRING(game_week, 6) AS UNSIGNED)'), $game_week);
+                    });
+            },
+            // Total correct picks across all weeks
+            'submissions as total_points' => function ($query) {
+                $query->where('is_correct', true);
+            },
+            // Correct picks within the 3-week period
+            'submissions as period_points' => function ($query) use ($period_start_week, $period_end_week) {
+                $query->where('is_correct', true)
+                    ->whereHas('event', function ($q) use ($period_start_week, $period_end_week) {
+                        $q->whereBetween(DB::raw('CAST(SUBSTRING(game_week, 6) AS UNSIGNED)'), [$period_start_week, $period_end_week]);
+                    });
+            },
+        ])
+            // Filter users by team
+            ->whereHas('teams', function ($q) use ($team_id) {
+                $q->where('team_id', $team_id);
             })
-            ->selectRaw('user_id, COUNT(CASE WHEN is_correct THEN 1 END) as correct_picks')
-            ->groupBy('user_id')
-            ->when($game_week, function ($query) use ($game_week) {
-                $query->whereHas('event', fn($q) => $q->where('game_week', $game_week));
-            })
+            // Order the results
             ->orderBy($sort, $direction)
             ->get();
+
+        return $users;
     }
 
     public function getUserPicksForWeek($userId, $game_week, $team_id)
@@ -156,8 +194,11 @@ class LeaderboardService
             })
             ->where('user_id', $userId)
             ->when($game_week, function ($query) use ($game_week) {
-                $query->whereHas('event', fn($q) => $q->where('game_week', $game_week));
+                $query->whereHas('event', function ($q) use ($game_week) {
+                    $q->where(DB::raw('CAST(SUBSTRING(game_week, 6) AS UNSIGNED)'), $game_week);
+                });
             })
             ->get();
     }
+
 }

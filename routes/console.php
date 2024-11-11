@@ -1,6 +1,7 @@
 <?php
 
 use App\Helpers\CollegeFootballCommandHelpers;
+use App\Helpers\NflCommandHelper;
 use App\Models\CollegeFootball\{AdvancedGameStat, CollegeFootballElo, CollegeFootballFpi, Sagarin};
 use App\Models\NFL\{NflBettingOdds, NflBoxscore};
 use App\Models\NflNews;
@@ -61,8 +62,8 @@ Schedule::command('nfl:fetch-boxscore')
     ->dailyAt('22:00')
     ->withoutOverlapping()
     ->before(fn() => Log::info('Starting NFL boxscore fetch'))
-    ->after(fn() => CollegeFootballCommandHelpers::sendNotification('NFL boxscore fetch completed successfully'))
-    ->onFailure(fn(Throwable $e) => CollegeFootballCommandHelpers::sendNotification(
+    ->after(fn() => NflCommandHelper::sendNotification('NFL boxscore fetch completed successfully'))
+    ->onFailure(fn(Throwable $e) => NflCommandHelper::sendNotification(
         "NFL boxscore fetch failed: {$e->getMessage()}",
         'failure'
     ))
@@ -79,7 +80,7 @@ Schedule::command('nfl:news')
             cache()->forget('nfl_news_updated');
         }
     })
-    ->onFailure(fn(Throwable $e) => CollegeFootballCommandHelpers::sendNotification(
+    ->onFailure(fn(Throwable $e) => NflCommandHelper::sendNotification(
         "NFL news fetch failed: {$e->getMessage()}",
         'failure'
     ))
@@ -96,7 +97,7 @@ Schedule::command('nfl:fetch-betting-odds')
             cache()->forget('odds_significantly_changed');
         }
     })
-    ->onFailure(fn(Throwable $e) => CollegeFootballCommandHelpers::sendNotification(
+    ->onFailure(fn(Throwable $e) => NflCommandHelper::sendNotification(
         "NFL betting odds fetch failed: {$e->getMessage()}",
         'failure'
     ))
@@ -154,8 +155,8 @@ Schedule::command('nfl:fetch-team-schedule')
     ->dailyAt('18:00')
     ->withoutOverlapping()
     ->before(fn() => Log::info('Starting NFL team schedule fetch'))
-    ->after(fn() => CollegeFootballCommandHelpers::sendNotification('NFL team schedule fetch completed successfully'))
-    ->onFailure(fn(Throwable $e) => CollegeFootballCommandHelpers::sendNotification(
+    ->after(fn() => NflCommandHelper::sendNotification('NFL team schedule fetch completed successfully'))
+    ->onFailure(fn(Throwable $e) => NflCommandHelper::sendNotification(
         "NFL team schedule fetch failed: {$e->getMessage()}",
         'failure'
     ))
@@ -166,13 +167,25 @@ Schedule::command('nfl:calculate-team-elo')
     ->dailyAt('18:15')
     ->withoutOverlapping()
     ->before(fn() => Log::info('Starting NFL team ELO calculation'))
-    ->after(fn() => CollegeFootballCommandHelpers::sendNotification('NFL team ELO calculation completed successfully'))
-    ->onFailure(fn(Throwable $e) => CollegeFootballCommandHelpers::sendNotification(
+    ->after(fn() => NflCommandHelper::sendNotification('NFL team ELO calculation completed successfully'))
+    ->onFailure(fn(Throwable $e) => NflCommandHelper::sendNotification(
         "NFL team ELO calculation failed: {$e->getMessage()}",
         'failure'
     ))
     ->runInBackground();
 
+Schedule::command('fetch:nfl-teams')
+    ->weekly()
+    ->tuesdays()
+    ->at('09:00')
+    ->withoutOverlapping()
+    ->before(fn() => Log::info('Starting NFL teams fetch'))
+    ->after(fn() => NflCommandHelper::sendNotification('NFL teams fetch completed successfully'))
+    ->onFailure(fn(Throwable $e) => NflCommandHelper::sendNotification(
+        "NFL teams fetch failed: {$e->getMessage()}",
+        'failure'
+    ))
+    ->runInBackground();
 // Health Checks
 Schedule::job(function () {
     $lastWeek = Carbon::now()->subWeek();
