@@ -44,7 +44,11 @@ class FetchNflBettingOdds extends Command
             $changes = Cache::get(StoreNflBettingOdds::CACHE_KEY . $formattedDate);
 
             // Send notification
-            $this->sendNotification($formattedDate, $changes);
+            if (!empty($changes)) {
+                $this->sendNotification($date, $changes);
+            } else {
+                $this->info('No changes detected. Notification not sent.');
+            }
 
             return 0;
 

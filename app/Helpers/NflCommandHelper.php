@@ -34,4 +34,6 @@ class NflCommandHelper
         Notification::route('discord', $discordWebhook)
             ->notify(new DiscordCommandCompletionNotification($message, $type));
     }
+
+
 }
