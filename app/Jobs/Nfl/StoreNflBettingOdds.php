@@ -92,7 +92,12 @@ use Illuminate\Support\Facades\Notification;
     private function processResponse(array $data): array
     {
         if (empty($data['body']) || !is_array($data['body'])) {
-            throw new Exception('Invalid response format: missing or invalid body');
+            // Log a warning instead of throwing an exception
+            Log::warning('No odds available or invalid response format for the specified date.', [
+                'data' => $data,
+            ]);
+
+            return []; // Return an empty array to signify no changes
         }
 
         $changes = [];
