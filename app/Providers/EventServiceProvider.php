@@ -6,10 +6,12 @@ use App\Events\BoxScoreFetched;
 use App\Events\GameCalculationsStarted;
 use App\Events\GameResultProcessed;
 use App\Events\GameResultsProcessed;
+use App\Events\Nfl\CalculateTeamEloEvent;
 use App\Events\PicksSubmitted;
 use App\Events\UserPicksProcessed;
 use App\Events\WeeklyCalculationsCompleted;
 use App\Listeners\LogGameCalculationsStart;
+use App\Listeners\Nfl\CalculateTeamEloListener;
 use App\Listeners\ProcessUserPickResults;
 use App\Listeners\SendPicksSubmittedNotifications;
 use App\Listeners\SendUserPicksNotifications;
@@ -45,6 +47,10 @@ class EventServiceProvider extends ServiceProvider
             StoreBoxScoreData::class,
             StorePlayerStats::class,
             StoreTeamStats::class,
+        ],
+        // New Events and Listeners
+        CalculateTeamEloEvent::class => [
+            CalculateTeamEloListener::class,
         ],
     ];
 }

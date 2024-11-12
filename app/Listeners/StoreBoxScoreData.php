@@ -27,7 +27,7 @@ class StoreBoxScoreData
 
         $gameID = $gameData['gameID'];
 
-        // Retrieve the existing box score to compare game_status
+        // Retrieve the existing box score to compare game status
         $existingBoxScore = NflBoxScore::where('game_id', $gameID)->first();
 
         $oldGameStatus = $existingBoxScore->game_status ?? null;
@@ -62,7 +62,7 @@ class StoreBoxScoreData
         // Define game ended statuses
         $gameEndedStatuses = ['Completed', 'Final', 'Game Over', 'Final/OT'];
 
-        // Send notification when game status is 'Live - In Progress'
+        // Send notification when game status 'Live — In Progress'
         if ($newGameStatus === 'Live - In Progress' && $oldGameStatus == 'Live - In Progress') {
             // Game has just started
             $message = "The game between **{$awayTeam}** and **{$homeTeam}** is now live!\n";

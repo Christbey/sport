@@ -2,11 +2,13 @@
 
 namespace App\Console\Commands\Nfl;
 
-use App\Jobs\Nfl\CalculateTeamElo;
+use App\Events\Nfl\CalculateTeamEloEvent;
 use App\Notifications\DiscordCommandCompletionNotification;
 use App\Services\EloRatingService;
 use Exception;
 use Illuminate\Console\Command;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 
 class UpdateNflEloRatings extends Command
@@ -28,15 +30,27 @@ class UpdateNflEloRatings extends Command
             $year = $this->argument('year') ?? config('nfl.seasonYear'); // Get the year or fallback to config
             $weeks = config('nfl.weeks');
             $teams = $this->eloService->fetchTeams(); // Fetch all unique teams
+            $today = Carbon::now(); // Current date and time
 
             foreach ($teams as $team) {
-                CalculateTeamElo::dispatch($team, $year, $weeks); // Dispatch job for each team without passing current week separately
-                $this->info("Dispatched Elo calculation job for team: {$team}");
+                // Ensure $team is a string and not null
+                if (is_null($team) || !is_string($team)) {
+                    Log::warning("Invalid team name encountered: {$team}");
+                    $this->error("Invalid team name encountered: {$team}");
+                    continue; // Skip dispatching for this team
+                }
+
+                // Dispatch the CalculateTeamEloEvent with necessary data
+                event(new CalculateTeamEloEvent($team, $year, $weeks, $today));
+
+                // Log the success message
+                $this->info("CalculateTeamEloEvent dispatched for team: {$team}");
+                Log::info("CalculateTeamEloEvent dispatched for team: {$team}");
             }
 
-            $this->info('Elo calculation jobs for all teams have been dispatched.');
+            $this->info('Elo calculation events for all teams have been dispatched.');
+            Log::info('Elo calculation events for all teams have been dispatched.');
 
-            $this->info('All NFL team schedules dispatched successfully.');
             // Send success notification
             Notification::route('discord', config('services.discord.channel_id'))
                 ->notify(new DiscordCommandCompletionNotification('', 'success'));
@@ -46,6 +60,9 @@ class UpdateNflEloRatings extends Command
             Notification::route('discord', config('services.discord.channel_id'))
                 ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'error'));
 
+            // Log the exception for debugging
+            Log::error('Error in UpdateNflEloRatings command: ' . $e->getMessage());
+            $this->error('An error occurred: ' . $e->getMessage());
         }
     }
 }

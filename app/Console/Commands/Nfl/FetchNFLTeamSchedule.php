@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands\Nfl;
 
+use App\Events\Nfl\FetchNflEspnScheduleEvent;
+use App\Events\Nfl\StoreNflTeamScheduleEvent;
 use App\Helpers\NflCommandHelper;
-use App\Jobs\Nfl\FetchNflEspnScheduleJob;
-use App\Jobs\Nfl\StoreNflTeamSchedule;
 use App\Models\Nfl\NflTeam;
 use App\Notifications\DiscordCommandCompletionNotification;
 use Exception;
@@ -30,26 +30,23 @@ class FetchNFLTeamSchedule extends Command
             // Fetch all the teams from the nfl_teams table
             $teams = NflTeam::all();
 
-            // Define a consistent delay between each job dispatch
-            $delayInSeconds = 5;
-            $delay = 0; // Start with zero delay
+            // Note: Per-instance delays are not directly supported when dispatching events.
+            // Therefore, we will dispatch the events without delays, and rely on the listener's delay settings.
 
-            // Loop through each team and dispatch the StoreNflTeamSchedule job with a consistent delay
+            // Loop through each team and dispatch the StoreNflTeamScheduleEvent
             foreach ($teams as $team) {
-                // Dispatch the job with the current delay
-                StoreNflTeamSchedule::dispatch($team->team_abv, $season)->delay(now()->addSeconds($delay));
+                // Dispatch the event
+                event(new StoreNflTeamScheduleEvent($team->team_abv, $season));
 
                 // Log the success message
-                $this->info("NFL team schedule for {$team->team_abv} dispatched successfully with a delay of {$delay} seconds.");
-
-                // delay for the next job
-                $delay = $delayInSeconds;
+                $this->info("NFL team schedule for {$team->team_abv} event dispatched successfully.");
             }
 
-            // Dispatch Job with variables from config
-            FetchNflEspnScheduleJob::dispatch($season, $seasonType, $weekNumber);
+            // Dispatch the FetchNflEspnScheduleEvent
+            event(new FetchNflEspnScheduleEvent($season, $seasonType, $weekNumber));
 
-            $this->info('All NFL team schedules dispatched successfully.');
+            $this->info('All NFL team schedules events dispatched successfully.');
+
             // Send success notification
             Notification::route('discord', config('services.discord.channel_id'))
                 ->notify(new DiscordCommandCompletionNotification('', 'success'));
@@ -59,7 +56,8 @@ class FetchNFLTeamSchedule extends Command
             Notification::route('discord', config('services.discord.channel_id'))
                 ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'error'));
 
+            // Log the exception for debugging
+            $this->error('An error occurred: ' . $e->getMessage());
         }
     }
-
 }
