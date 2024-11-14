@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Events\BoxScoreFetched;
 use App\Events\GameCalculationsStarted;
+use App\Events\GameFetched;
+use App\Events\GameProcessingFailed;
 use App\Events\GameResultProcessed;
 use App\Events\GameResultsProcessed;
 use App\Events\Nfl\CalculateTeamEloEvent;
@@ -11,7 +13,10 @@ use App\Events\PicksSubmitted;
 use App\Events\UserPicksProcessed;
 use App\Events\WeeklyCalculationsCompleted;
 use App\Listeners\LogGameCalculationsStart;
+use App\Listeners\LogGameFetched;
+use App\Listeners\LogGameProcessingFailed;
 use App\Listeners\Nfl\CalculateTeamEloListener;
+use App\Listeners\NotifyOnGameProcessingFailed;
 use App\Listeners\ProcessUserPickResults;
 use App\Listeners\SendPicksSubmittedNotifications;
 use App\Listeners\SendUserPicksNotifications;
@@ -52,5 +57,6 @@ class EventServiceProvider extends ServiceProvider
         CalculateTeamEloEvent::class => [
             CalculateTeamEloListener::class,
         ],
+
     ];
 }

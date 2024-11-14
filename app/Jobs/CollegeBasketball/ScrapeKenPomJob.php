@@ -70,7 +70,6 @@ class ScrapeKenPomJob implements ShouldQueue
                             ->first();
                     }
 
-                    $teamId = $teamRecord ? $teamRecord->id : null;
                     Log::info("Rank: $rank | Team: $team | Status: " . ($teamRecord ? 'Found' : 'Not Found'));
 
                     CollegeBasketballRankings::updateOrCreate(
@@ -83,7 +82,6 @@ class ScrapeKenPomJob implements ShouldQueue
                             'offensive_rating' => $offenseRating,
                             'defensive_rating' => $defenseRating,
                             'tempo' => $tempo,
-                            'team_id' => $teamId,
                         ]
                     );
                 } catch (Exception $e) {

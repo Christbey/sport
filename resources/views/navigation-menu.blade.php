@@ -57,7 +57,7 @@
                                         href="{{ route('nfl.stats.index') }}">{{ __('Player Stats') }}</x-dropdown-link>
                                 <x-dropdown-link
                                         href="{{ route('team_rankings.scoring') }}">{{ __('Offense Defense') }}</x-dropdown-link>
-                                
+
                                 <x-dropdown-link
                                         href="{{ route('covers.games') }}">{{ __('Covers Games') }}</x-dropdown-link>
                                 <x-dropdown-link
@@ -87,6 +87,8 @@
 
                                 <x-dropdown-link
                                         href="{{ route('cfb.index') }}">{{ __('CFB Hypotheticals') }}</x-dropdown-link>
+                                <x-dropdown-link
+                                        href="{{ route('cbb.index') }}">{{ __('CBB Hypotheticals') }}</x-dropdown-link>
 
                             </div>
                         </x-slot>
@@ -229,6 +231,8 @@
                                    :active="request()->routeIs('espn.qbr')">{{ __('ESPN QBR') }}</x-responsive-nav-link>
             <x-responsive-nav-link href="{{ route('nfl.elo.predictions') }}"
                                    :active="request()->routeIs('nfl.elo.predictions')">{{ __('Elo Predictions') }}</x-responsive-nav-link>
+            <x-responsive-nav-link href="{{ route('cbb.index') }}"
+                                   :active="request()->routeIs('cbb.index')">{{ __('CBB Hypotheticals') }}</x-responsive-nav-link>
         </div>
 
         <!-- Authenticated User -->

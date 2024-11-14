@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\Espn\EspnQbrController;
 use App\Http\Controllers\Api\TeamRankingController;
 use App\Http\Controllers\Cfb\CollegeFootballHypotheticalController;
 use App\Http\Controllers\Cfb\CollegeFootballNoteController;
+use App\Http\Controllers\CollegeBasketballHypotheticalController;
 use App\Http\Controllers\ForgeApiController;
 use App\Http\Controllers\Nfl\NflEloRatingController;
 use App\Http\Controllers\Nfl\NflSheetController;
@@ -77,3 +78,5 @@ Route::get('/forge/servers/{serverId}/sites/{siteId}/commands', [ForgeApiControl
 Route::get('/nfl/news', [NflNewsController::class, 'index'])->name('nfl.news.index');
 
 Route::get('/nfl/elo/show/{gameId}', [NflEloRatingController::class, 'show'])->name('nfl.elo.show');
+
+Route::get('/college-basketball-hypotheticals', [CollegeBasketballHypotheticalController::class, 'index'])->name('cbb.index');
