@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Console\Commands\Nfl;
 
 use App\Jobs\Nfl\FetchNflDepthChartJob;
 use Illuminate\Console\Command;
