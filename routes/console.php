@@ -187,6 +187,39 @@ Schedule::command('fetch:nfl-teams')
         'failure'
     ))
     ->runInBackground();
+Schedule::command('college-basketball:scoreboard')
+    ->hourly()
+    ->withoutOverlapping()
+    ->before(fn() => Log::info('Starting college basketball scoreboard fetch'))
+    ->after(fn() => CollegeFootballCommandHelpers::sendNotification('College basketball scoreboard fetch completed successfully'))
+    ->onFailure(fn($e) => CollegeFootballCommandHelpers::sendNotification(
+        "College basketball scoreboard fetch failed: {$e->getMessage()}",
+        'failure'
+    ))
+    ->runInBackground();
+
+Schedule::command('update:game-scores')
+    ->everyThirtyMinutes()
+    ->withoutOverlapping()
+    ->before(fn() => Log::info('Starting college basketball game scores update'))
+    ->after(fn() => CollegeFootballCommandHelpers::sendNotification('College basketball game scores update completed successfully'))
+    ->onFailure(fn($e) => CollegeFootballCommandHelpers::sendNotification(
+        "College basketball game scores update failed: {$e->getMessage()}",
+        'failure'
+    ))
+    ->runInBackground();
+
+Schedule::command('scrape:kenpom')
+    ->dailyAt('00:00')
+    ->withoutOverlapping()
+    ->before(fn() => Log::info('Starting KenPom scrape'))
+    ->after(fn() => CollegeFootballCommandHelpers::sendNotification('KenPom scrape completed successfully'))
+    ->onFailure(fn($e) => CollegeFootballCommandHelpers::sendNotification(
+        "KenPom scrape failed: {$e->getMessage()}",
+        'failure'
+    ))
+    ->runInBackground();
+
 // Health Checks
 Schedule::job(function () {
     $lastWeek = Carbon::now()->subWeek();
