@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\PickWinnerRequest;
-use App\Notifications\PicksSubmittedNotification;
 use App\Services\GameWeekService;
 use App\Services\LeaderboardService;
 use App\Services\PickemService;
@@ -66,9 +65,6 @@ class PickemController extends Controller
                 $request->validated()['event_ids']
             );
 
-            // Send both email and Discord notification
-            $user = Auth::user();
-            $this->sendNotifications($user, $userPicks, $gameWeek);
 
             return $this->pickemService->generateResponse(
                 $request,
@@ -82,11 +78,6 @@ class PickemController extends Controller
                 500
             );
         }
-    }
-
-    protected function sendNotifications($user, $userPicks, $gameWeek)
-    {
-        $user->notify(new PicksSubmittedNotification($userPicks, $gameWeek));
     }
 
     public function showLeaderboard(Request $request)
@@ -142,4 +133,6 @@ class PickemController extends Controller
             abort(403, 'Unauthorized access to this teams leaderboard.');
         }
     }
+
+
 }

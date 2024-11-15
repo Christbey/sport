@@ -35,7 +35,7 @@ class PicksResultsNotification extends Notification
             ->lines(
                 collect($this->userResults)->map(function ($pick) {
                     $result = $pick['is_correct'] ? '✅' : '❌';
-                    return "{$result} {$pick['game']}: {$pick['team_name']}";
+                    return "{$result} {$pick['team_name']} ({$pick['away_team']} @ {$pick['home_team']})";
                 })
             )
             ->line('Keep up the great picks!')
@@ -47,7 +47,7 @@ class PicksResultsNotification extends Notification
         $picksMessage = collect($this->userResults)
             ->map(function ($pick) {
                 $result = $pick['is_correct'] ? '✅' : '❌';
-                return "• {$result} {$pick['game']}: {$pick['team_name']}";
+                return "• {$result} {$pick['team_name']} ({$pick['away_team']} @ {$pick['home_team']})";
             })
             ->join("\n");
 

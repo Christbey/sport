@@ -2,12 +2,14 @@
 
 namespace App\Services;
 
+use App\Events\PicksSubmitted;
 use App\Models\Nfl\NflTeamSchedule;
 use App\Models\User;
 use App\Models\UserSubmission;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Log;
 
 class GameWeekService
 {
@@ -77,6 +79,31 @@ class PickemService
         foreach ($eventIds as $eventId) {
             $this->processSinglePick($eventId, $teamIds[$eventId] ?? null, $userId, $now);
         }
+
+        // Get the game week from one of the events
+        $event = NflTeamSchedule::where('espn_event_id', $eventIds[0])
+            ->where('season_type', 'Regular Season')
+            ->first();
+
+        $gameWeek = $event ? str_replace('Week ', '', $event->game_week) : null;
+
+        if ($gameWeek) {
+            $user = User::find($userId);
+            $userPicks = $this->getUserPicksForEmail($userId, $eventIds);
+
+            Log::info('Dispatching PicksSubmitted event', [
+                'userId' => $userId,
+                'gameWeek' => $gameWeek,
+                'picksCount' => count($userPicks)
+            ]);
+
+            event(new PicksSubmitted($user, $userPicks, (string)$gameWeek));
+        } else {
+            Log::error('Failed to determine game week when processing picks', [
+                'userId' => $userId,
+                'eventIds' => $eventIds
+            ]);
+        }
     }
 
     protected function processSinglePick($eventId, $selectedTeamId, $userId, Carbon $now): void
@@ -124,7 +151,7 @@ class PickemService
 
     public function getUserPicksForEmail($userId, $eventIds): array
     {
-        $picks = UserSubmission::with(['event', 'team'])
+        $picks = UserSubmission::with(['event.awayTeam', 'event.homeTeam', 'team'])
             ->where('user_id', $userId)
             ->whereIn('espn_event_id', $eventIds)
             ->get();
@@ -132,6 +159,8 @@ class PickemService
         return $picks->map(fn($pick) => [
             'game' => $pick->event->short_name ?? 'Unknown Game',
             'team_name' => $pick->team->team_name ?? 'Unknown Team',
+            'away_team' => $pick->event->awayTeam->team_name ?? 'Unknown Team',
+            'home_team' => $pick->event->homeTeam->team_name ?? 'Unknown Team'
         ])->toArray();
     }
 

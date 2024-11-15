@@ -1,5 +1,5 @@
 <?php
-// app/Listeners/ProcessUserPickResults.php
+
 namespace App\Listeners;
 
 use App\Events\GameResultsProcessed;
@@ -7,6 +7,7 @@ use App\Events\UserPicksProcessed;
 use App\Models\User;
 use App\Models\UserSubmission;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Support\Facades\Log;
 
 class ProcessUserPickResults implements ShouldQueue
 {
@@ -20,8 +21,8 @@ class ProcessUserPickResults implements ShouldQueue
         foreach ($userIds as $userId) {
             $user = User::find($userId);
 
-            // Get weekly results
-            $weeklyResults = UserSubmission::with(['event', 'team'])
+            // Get weekly results with all necessary relationships
+            $weeklyResults = UserSubmission::with(['event.homeTeam', 'event.awayTeam', 'team'])
                 ->where('user_id', $userId)
                 ->where('week_id', $event->gameWeek)
                 ->whereIn('espn_event_id', collect($event->updatedGames)->pluck('espn_event_id'))
@@ -30,10 +31,19 @@ class ProcessUserPickResults implements ShouldQueue
                     return [
                         'game' => $submission->event->short_name,
                         'team_name' => $submission->team->team_name,
+                        'home_team' => $submission->event->homeTeam->team_name ?? 'Unknown Team',
+                        'away_team' => $submission->event->awayTeam->team_name ?? 'Unknown Team',
                         'is_correct' => $submission->is_correct,
                     ];
                 })
                 ->toArray();
+
+            // Add logging to debug the data
+            Log::info('Weekly Results Data:', [
+                'userId' => $userId,
+                'gameWeek' => $event->gameWeek,
+                'results' => $weeklyResults
+            ]);
 
             // Calculate stats
             $weeklyStats = $this->calculateStats(
