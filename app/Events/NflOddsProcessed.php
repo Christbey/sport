@@ -9,8 +9,8 @@ class NflOddsProcessed
 {
     use Dispatchable, SerializesModels;
 
-    public $date;
-    public $changes;
+    public string $date;
+    public array $changes;
 
     public function __construct(string $date, array $changes)
     {

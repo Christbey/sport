@@ -255,9 +255,7 @@ use Illuminate\Support\Facades\Notification;
             ]
         );
     }
-
-// Also update the processResponse method to add more logging:
-
+    
     private function sendNotification(array $changes): void
     {
         try {
