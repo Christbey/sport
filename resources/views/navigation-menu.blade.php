@@ -217,7 +217,7 @@
                                    :active="request()->routeIs('cfb.index')">{{ __('CFB Hypotheticals') }}</x-responsive-nav-link>
             <x-responsive-nav-link href="{{ route('nfl.news.index') }}"
                                    :active="request()->routeIs('nfl.news.index')">{{ __('Nfl News') }}</x-responsive-nav-link>
-            <x-responsive-nav-link href="{{ route('nfl.news.index') }}"
+            <x-responsive-nav-link href="{{ route('nfl.detail') }}"
                                    :active="request()->routeIs('nfl.detail')">{{ __('Nfl Sheet') }}</x-responsive-nav-link>
             <x-responsive-nav-link href="{{ route('nfl.stats.index') }}"
                                    :active="request()->routeIs('nfl.stats.index')">{{ __('Player Stats') }}</x-responsive-nav-link>
