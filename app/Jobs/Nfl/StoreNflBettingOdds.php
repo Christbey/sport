@@ -34,6 +34,8 @@ use Illuminate\Support\Facades\Notification;
         $this->gameDate = $gameDate;
     }
 
+// Replace just the relevant methods in your existing file:
+
     public function handle()
     {
         try {
@@ -44,21 +46,19 @@ use Illuminate\Support\Facades\Notification;
             }
 
             $data = $response->json();
-            $eventIds = array_column($data['body'], 'gameID');
+            $eventIds = array_column($data['body'] ?? [], 'gameID');
 
             // Preload schedules for the event_ids
             $this->schedules = NflTeamSchedule::whereIn('game_id', $eventIds)->get()->keyBy('event_id');
 
             $changes = $this->processResponse($data);
 
+            // Always send notification with the current state
+            $this->sendNotification($changes);
+
             Log::info('NFL betting odds updated successfully for date: ' . $this->gameDate, [
                 'changes_detected' => count($changes)
             ]);
-
-            // Send notification if there are changes
-            if ($changes) {
-                $this->sendNotification($changes);
-            }
 
         } catch (Exception $e) {
             Log::error('Failed to process NFL betting odds', [
@@ -92,23 +92,24 @@ use Illuminate\Support\Facades\Notification;
     private function processResponse(array $data): array
     {
         if (empty($data['body']) || !is_array($data['body'])) {
-            // Log a warning instead of throwing an exception
             Log::warning('No odds available or invalid response format for the specified date.', [
                 'data' => $data,
             ]);
-
-            return []; // Return an empty array to signify no changes
+            return [];
         }
 
         $changes = [];
-        foreach ($data['body'] as $game) {
+        foreach ($data['body'] as $index => $game) {
+            Log::info("Processing game {$index}", ['game_id' => $game['gameID'] ?? 'unknown']);
             $gameData = $this->processGame($game);
             if ($gameData) {
                 $changes[] = $gameData;
+                Log::info('Added game changes', ['game_data' => $gameData]);
             }
         }
 
-        return array_slice($changes, 0, 5); // Limit to top 5 changes
+        Log::info('Processed all games', ['total_changes' => count($changes)]);
+        return $changes;
     }
 
     private function processGame(array $game): ?array
@@ -255,75 +256,88 @@ use Illuminate\Support\Facades\Notification;
         );
     }
 
-    // Add this method to your StoreNflBettingOdds job
+// Also update the processResponse method to add more logging:
 
     private function sendNotification(array $changes): void
     {
-        $date = Carbon::createFromFormat('Ymd', $this->gameDate);
+        try {
+            $date = Carbon::createFromFormat('Ymd', $this->gameDate);
+            $message = "🏈 **NFL Betting Odds Update**\n";
+            $message .= '📅 Date: ' . $date->format('Y-m-d') . "\n\n";
 
-        $message = "**NFL Betting Odds Update**\n";
-        $message .= 'Date: ' . $date->format('Y-m-d') . "\n\n";
+            // Debug log the changes array
+            Log::info('Changes array:', ['changes' => $changes]);
 
-        if (empty($changes)) {
-            $message .= 'No significant line changes detected.';
-        } else {
-            $hasInitialOdds = false;
-            $hasChanges = false;
+            if (empty($changes)) {
+                $message .= 'ℹ️ No odds updates available for this date.';
+            } else {
+                $initialOdds = [];
+                $lineChanges = [];
 
-            foreach ($changes as $change) {
-                if (isset($change['changes']['initial_odds'])) {
-                    $hasInitialOdds = true;
-                } elseif (!empty($change['changes'])) {
-                    $hasChanges = true;
-                }
-            }
+                // Debug log each change
+                foreach ($changes as $index => $change) {
+                    Log::info("Processing change {$index}", ['change' => $change]);
 
-            if ($hasInitialOdds) {
-                $message .= "**Initial Odds Stored:**\n";
-                foreach ($changes as $change) {
                     if (isset($change['changes']['initial_odds'])) {
-                        $matchup = $change['matchup'];
-                        $odds = $change['changes']['initial_odds'];
-
-                        $message .= "\n• {$matchup}\n";
-                        $message .= "  Spread Home: {$odds['spread_home']}\n";
-                        $message .= "  Total Over: {$odds['total_over']}\n";
-                        $message .= "  Moneyline Home: {$odds['moneyline_home']}\n";
-                        $message .= "  Moneyline Away: {$odds['moneyline_away']}\n";
+                        $initialOdds[] = $change;
+                        Log::info('Added to initial odds', ['matchup' => $change['matchup']]);
+                    } elseif (!empty($change['changes'])) {
+                        $lineChanges[] = $change;
+                        Log::info('Added to line changes', ['matchup' => $change['matchup']]);
                     }
                 }
-            }
 
-            if ($hasChanges) {
-                $message .= "\n**Notable Line Changes:**\n";
-                foreach ($changes as $change) {
-                    if (!isset($change['changes']['initial_odds']) && !empty($change['changes'])) {
-                        $message .= "\n• {$change['matchup']}\n";
+                // Format initial odds
+                if (!empty($initialOdds)) {
+                    $message .= "🆕 **Initial Odds:**\n";
+                    foreach ($initialOdds as $change) {
+                        $odds = $change['changes']['initial_odds'];
+                        $message .= "\n🎯 {$change['matchup']}\n"
+                            . '  📊 Spread: ' . number_format($odds['spread_home'], 1) . "\n"
+                            . '  📈 Total: ' . number_format($odds['total_over'], 1) . "\n"
+                            . '  🏠 Home ML: ' . $odds['moneyline_home'] . "\n"
+                            . '  🏃 Away ML: ' . $odds['moneyline_away'] . "\n";
+                    }
+                }
 
+                // Format line changes
+                if (!empty($lineChanges)) {
+                    $message .= "\n📊 **Line Changes:**\n";
+                    foreach ($lineChanges as $change) {
+                        $message .= "\n🎯 {$change['matchup']}\n";
                         foreach ($change['changes'] as $type => $values) {
-                            switch ($type) {
-                                case 'spread':
-                                    $message .= "  Spread: {$values['old']} → {$values['new']} ({$values['change']})\n";
-                                    break;
-                                case 'total':
-                                    $message .= "  Total: {$values['old']} → {$values['new']} ({$values['change']})\n";
-                                    break;
-                                case 'home_ml':
-                                    $message .= "  Home ML: {$values['old']} → {$values['new']} ({$values['change']})\n";
-                                    break;
-                                case 'away_ml':
-                                    $message .= "  Away ML: {$values['old']} → {$values['new']} ({$values['change']})\n";
-                                    break;
-                            }
+                            $label = match ($type) {
+                                'spread' => '📊 Spread',
+                                'total' => '📈 Total',
+                                'home_ml' => '🏠 Home ML',
+                                'away_ml' => '🏃 Away ML',
+                                default => ucfirst($type)
+                            };
+                            $message .= "  {$label}: {$values['old']} → {$values['new']} ({$values['change']})\n";
                         }
                     }
                 }
+
+                if (empty($initialOdds) && empty($lineChanges)) {
+                    $message .= 'ℹ️ No significant changes detected.';
+                }
             }
+
+            $message .= "\n⚡ _Powered by Picksports Alerts • " . now()->format('F j, Y g:i A') . '_';
+
+            // Log the final message
+            Log::info('Final notification message:', ['message' => $message]);
+
+            Notification::route('discord', config('services.discord.channel_id'))
+                ->notify(new DiscordCommandCompletionNotification($message, 'success'));
+
+        } catch (Exception $e) {
+            Log::error('Failed to send NFL odds notification', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
         }
+    }    // Add this method to your StoreNflBettingOdds job
 
-        $message .= "\n_Powered by Picksports Alerts • " . now()->format('F j, Y g:i A') . '_';
-
-        Notification::route('discord', config('services.discord.channel_id'))
-            ->notify(new DiscordCommandCompletionNotification($message, 'success'));
-    }
 }
