@@ -11,28 +11,20 @@ use Illuminate\Support\Facades\Log;
 
 class EloRatingService
 {
-    protected $kFactor;
-    protected $startingRating;
-    protected $homeFieldAdvantage;
-    protected $restAdvantagePerDay;
-    protected $maxRestDays;
-    protected $seasonStartDate;
-    protected $teamRatings = [];
-    protected $lastGameDates = [];
+    protected array $settings;
+    protected array $teamRatings = [];
+    protected array $lastGameDates = [];
 
     public function __construct()
     {
-        $this->initializeEloSettings();
-    }
-
-    private function initializeEloSettings()
-    {
-        $this->kFactor = config('elo.k_factor', 40);
-        $this->startingRating = config('elo.starting_rating', 1500);
-        $this->homeFieldAdvantage = config('elo.home_field_advantage', 1.2);
-        $this->restAdvantagePerDay = config('elo.rest_advantage_per_day', 0.5);
-        $this->maxRestDays = config('elo.max_rest_days', 7);
-        $this->seasonStartDate = Carbon::parse(config('elo.season_start_date', '2024-09-01'));
+        $this->settings = [
+            'k_factor' => config('elo.k_factor', 40),
+            'starting_rating' => config('elo.starting_rating', 1500),
+            'home_advantage' => config('elo.home_field_advantage', 1.2),
+            'rest_advantage' => config('elo.rest_advantage_per_day', 0.5),
+            'max_rest_days' => config('elo.max_rest_days', 7),
+            'season_start' => Carbon::parse(config('elo.season_start_date', '2024-09-01'))
+        ];
     }
 
     public function fetchTeams(): Collection
@@ -43,219 +35,187 @@ class EloRatingService
             ->pluck('home_team');
     }
 
-    public function processTeamPredictions($team, $year, $weeks, $today)
+    public function processTeamPredictions($team, $year, $weeks, $today): float
     {
-        // Calculate Elo, predictions, and wins for the team
         $result = $this->calculateTeamEloForSeason($team, $year);
 
-        // Store predictions for the team
         foreach ($result['predictions'] as $prediction) {
-            $week = $prediction['week'];
-
-            // Check if the week exists in the configuration
-            if (!isset($weeks[$week])) {
-                $this->logMissingWeek($week, $year);
+            $weekEnd = $weeks[$prediction['week']]['end'] ?? null;
+            if (!$weekEnd) {
+                Log::warning("Week configuration missing for week: {$prediction['week']} in year $year");
                 continue;
             }
 
-            // Get the week end date from configuration
-            $weekEnd = Carbon::parse($weeks[$week]['end']);
-
-            // Store the prediction if applicable
-            $this->storePredictionIfNeeded($team, $prediction, $year, $weekEnd, $today);
+            $this->storePredictionIfNeeded($team, $prediction, $year, Carbon::parse($weekEnd), $today);
         }
 
-        // Display the final Elo and total expected wins
         $totalWins = $result['actual_wins'] + $result['predicted_wins'];
-        Log::info("Team: $team | Final Elo for $year season: {$result['final_elo']} | Actual Wins: {$result['actual_wins']} | Predicted Wins: {$result['predicted_wins']} | Total Expected Wins: $totalWins");
+        Log::info("Team: $team | Final Elo $year: {$result['final_elo']} | Actual: {$result['actual_wins']} | Predicted: {$result['predicted_wins']} | Total: $totalWins");
 
         return $result['final_elo'];
     }
 
-    public function calculateTeamEloForSeason($teamAbv, $seasonYear)
+    public function calculateTeamEloForSeason($team, $year): array
     {
-        // Fetch regular season games for the team
-        $games = $this->fetchGamesForTeam($teamAbv, $seasonYear);
+        $games = NflTeamSchedule::where(fn($q) => $q->where('home_team', $team)->orWhere('away_team', $team))
+            ->whereYear('game_date', $year)
+            ->where('season_type', 'Regular Season')
+            ->orderBy('game_date')
+            ->get();
+
         if ($games->isEmpty()) {
-            Log::warning("No games found for team: $teamAbv in season $seasonYear.");
-            return ['final_elo' => $this->startingRating, 'predictions' => [], 'actual_wins' => 0, 'predicted_wins' => 0];
+            Log::warning("No games found for team: $team in season $year.");
+            return ['final_elo' => $this->settings['starting_rating'], 'predictions' => [], 'actual_wins' => 0, 'predicted_wins' => 0];
         }
 
-        $currentElo = $this->getInitialTeamRating($teamAbv);
+        $currentElo = $this->teamRatings[$team] ?? $this->settings['starting_rating'];
         $predictions = [];
-        $actualWins = 0; // Track actual wins for completed games
-        $predictedWins = 0; // Track predicted wins for future games
+        $actualWins = $predictedWins = 0;
 
         foreach ($games as $game) {
-            $opponentTeamAbv = $this->getOpponentTeamAbv($teamAbv, $game);
-            $opponentElo = $this->getInitialTeamRating($opponentTeamAbv);
+            $isHome = $game->home_team === $team;
+            $opponent = $isHome ? $game->away_team : $game->home_team;
+            $opponentElo = $this->teamRatings[$opponent] ?? $this->settings['starting_rating'];
 
-            // Adjust Elo for home-field advantage
-            if ($game->home_team === $teamAbv) {
-                $currentElo += $this->homeFieldAdvantage;
-            }
+            // Apply home field advantage
+            $gameElo = $currentElo + ($isHome ? $this->settings['home_advantage'] : 0);
 
-            // Calculate and store prediction
-            $prediction = $this->makePrediction($teamAbv, $opponentTeamAbv, $game, $currentElo, $opponentElo);
-            $predictions[] = $prediction;
+            // Calculate rest advantage
+            $restAdvantage = $this->calculateRestAdvantage($team, $opponent, $game->game_date);
 
-            // Track wins: If the game is completed, calculate actual wins
+            // Make prediction
+            $expectedOutcome = $this->calculateExpectedOutcome($gameElo, $opponentElo);
+            $predictedSpread = $this->calculateSpread($gameElo, $opponentElo, $isHome, $restAdvantage);
+
+            $predictions[] = [
+                'week' => $game->game_week,
+                'team' => $team,
+                'opponent' => $opponent,
+                'team_elo' => $gameElo,
+                'opponent_elo' => $opponentElo,
+                'expected_outcome' => $expectedOutcome,
+                'predicted_spread' => $predictedSpread
+            ];
+
             if ($game->game_status === 'Completed') {
-                $result = $this->getGameResult($game, $teamAbv);
-                $actualWins += $result; // Increment actual wins (1 for win, 0 for loss)
+                $result = $this->getGameResult($game, $team);
+                $actualWins += $result;
 
-                // Update Elo ratings based on the result
-                $eloUpdate = $this->calculateEloForGame($currentElo, $opponentElo, $result, $game);
-                $currentElo = $eloUpdate['team1_new_rating'];
-                $this->teamRatings[$opponentTeamAbv] = $eloUpdate['team2_new_rating'];
+                // Update Elos based on actual result
+                $movMultiplier = $this->calculateMovementMultiplier($game, $gameElo, $opponentElo);
+                $eloChange = $this->settings['k_factor'] * ($result - $expectedOutcome) * $movMultiplier;
+                $currentElo += $eloChange;
+                $this->teamRatings[$opponent] = $opponentElo - $eloChange;
             } else {
-                // Predict wins for future games
-                $predictedWins += $prediction['expected_outcome']; // Add the expected outcome (a probability between 0 and 1)
+                $predictedWins += $expectedOutcome;
             }
 
-            // Store the updated Elo for the team
-            $this->teamRatings[$teamAbv] = $currentElo;
+            $this->teamRatings[$team] = $currentElo;
+            $this->updateLastGameDate($game);
         }
 
-        // Calculate total expected wins (actual + predicted)
-        $totalExpectedWins = $actualWins + $predictedWins;
-
-        // Store final Elo and total expected wins
-        $this->storeFinalElo($teamAbv, $seasonYear, $currentElo, $totalExpectedWins);
+        $totalWins = $actualWins + $predictedWins;
+        $this->storeFinalElo($team, $year, $currentElo, $totalWins);
 
         return [
             'final_elo' => round($currentElo),
             'predictions' => $predictions,
             'actual_wins' => $actualWins,
             'predicted_wins' => $predictedWins,
-
-            'total_expected_wins' => $totalExpectedWins, // Include total expected wins in the return
+            'total_expected_wins' => $totalWins
         ];
     }
 
-    private function fetchGamesForTeam(string $teamAbv, int $seasonYear): Collection
+    protected function calculateRestAdvantage(string $team, string $opponent, string $gameDate): float
     {
-        return NflTeamSchedule::where(function ($query) use ($teamAbv) {
-            $query->where('home_team', $teamAbv)
-                ->orWhere('away_team', $teamAbv);
-        })
-            ->whereYear('game_date', $seasonYear)
-            ->where('season_type', 'Regular Season')
-            ->orderBy('game_date', 'asc')
-            ->get();
+        $teamRest = $this->calculateRestDays($this->lastGameDates[$team] ?? null, $gameDate);
+        $opponentRest = $this->calculateRestDays($this->lastGameDates[$opponent] ?? null, $gameDate);
+
+        return ($this->settings['rest_advantage'] * min($teamRest, $this->settings['max_rest_days'])) -
+            ($this->settings['rest_advantage'] * min($opponentRest, $this->settings['max_rest_days']));
     }
 
-    private function getInitialTeamRating(string $teamAbv): float
+    protected function calculateRestDays(?Carbon $lastGame, string $gameDate): int
     {
-        return $this->teamRatings[$teamAbv] ?? $this->startingRating;
-    }
-
-    private function getOpponentTeamAbv($teamAbv, $game)
-    {
-        return $game->home_team === $teamAbv ? $game->away_team : $game->home_team;
-    }
-
-    private function makePrediction(string $teamAbv, string $opponentTeamAbv, NflTeamSchedule $game, float $currentElo, float $opponentElo): array
-    {
-        $teamRestDays = $this->calculateRestDays($this->lastGameDates[$teamAbv] ?? null, $game->game_date);
-        $opponentRestDays = $this->calculateRestDays($this->lastGameDates[$opponentTeamAbv] ?? null, $game->game_date);
-
-        $netRestAdvantage = min($teamRestDays, $this->maxRestDays) * $this->restAdvantagePerDay
-            - min($opponentRestDays, $this->maxRestDays) * $this->restAdvantagePerDay;
-
-        $expectedOutcome = $this->calculateExpectedOutcome($currentElo, $opponentElo);
-        $predictedSpread = $this->predictSpread($currentElo, $opponentElo, $game, $teamAbv, $netRestAdvantage);
-
-        return [
-            'week' => $game->game_week,
-            'team' => $teamAbv,
-            'opponent' => $opponentTeamAbv,
-            'team_elo' => $currentElo,
-            'opponent_elo' => $opponentElo,
-            'expected_outcome' => $expectedOutcome,
-            'predicted_spread' => $predictedSpread,
-        ];
-    }
-
-    private function calculateRestDays(?Carbon $lastGameDate, string $currentGameDate): int
-    {
-        $currentGameDate = Carbon::parse($currentGameDate);
-
-        if (!$lastGameDate) {
-            return $currentGameDate->diffInDays($this->seasonStartDate);
+        if (!$lastGame) {
+            return Carbon::parse($gameDate)->diffInDays($this->settings['season_start']);
         }
-
-        $restDays = $lastGameDate->diffInDays($currentGameDate);
-        if ($restDays < 0) {
-            Log::warning("Negative rest days calculated for game date: {$currentGameDate->toDateString()}.");
-            return 0;
-        }
-
-        return $restDays;
+        return max(0, $lastGame->diffInDays(Carbon::parse($gameDate)));
     }
 
-    private function calculateExpectedOutcome(float $teamElo, float $opponentElo): float
+    protected function calculateExpectedOutcome(float $teamElo, float $opponentElo): float
     {
         return 1 / (1 + pow(10, ($opponentElo - $teamElo) / 400));
     }
 
-    private function predictSpread(float $teamElo, float $opponentElo, NflTeamSchedule $game, string $teamAbv, float $restAdvantage): float
+    protected function calculateSpread(float $teamElo, float $opponentElo, bool $isHome, float $restAdvantage): float
     {
-        $expectedOutcome = $this->calculateExpectedOutcome($teamElo, $opponentElo);
-        $eloDifference = -400 * log10((1 / $expectedOutcome) - 1);
-        $predictedSpread = $eloDifference * 0.03 + ($game->home_team === $teamAbv ? $this->homeFieldAdvantage : -$this->homeFieldAdvantage) + $restAdvantage / 10;
+        $eloDiff = -400 * log10((1 / $this->calculateExpectedOutcome($teamElo, $opponentElo)) - 1);
+        $spread = $eloDiff * 0.03 +
+            ($isHome ? $this->settings['home_advantage'] : -$this->settings['home_advantage']) +
+            $restAdvantage / 10;
 
-        return round(max(min($predictedSpread, 19.5), -19.5), 1);
+        return round(max(min($spread, 19.5), -19.5), 1);
     }
 
-    private function getGameResult(NflTeamSchedule $game, string $teamAbv): float
+    protected function getGameResult(NflTeamSchedule $game, string $team): float
     {
-        return $game->home_pts === $game->away_pts ? 0.5 : ($game->home_team === $teamAbv ? ($game->home_pts > $game->away_pts ? 1 : 0) : ($game->away_pts > $game->home_pts ? 1 : 0));
+        if ($game->home_pts === $game->away_pts) return 0.5;
+        $isHome = $game->home_team === $team;
+        return ($isHome && $game->home_pts > $game->away_pts) || (!$isHome && $game->away_pts > $game->home_pts) ? 1 : 0;
     }
 
-    private function calculateEloForGame(float $team1Elo, float $team2Elo, float $result, NflTeamSchedule $game): array
+    protected function calculateMovementMultiplier(NflTeamSchedule $game, float $teamElo, float $opponentElo): float
     {
-        $movMultiplier = log(abs($game->home_pts - $game->away_pts) + 1) * (2.2 / (($team1Elo - $team2Elo) * 0.00047 + 2.2));
-        $expectedOutcome = $this->calculateExpectedOutcome($team1Elo, $team2Elo);
-
-        return [
-            'team1_new_rating' => $team1Elo + $this->kFactor * ($result - $expectedOutcome) * $movMultiplier,
-            'team2_new_rating' => $team2Elo + $this->kFactor * ((1 - $result) - (1 - $expectedOutcome)) * $movMultiplier,
-        ];
+        $scoreDiff = abs($game->home_pts - $game->away_pts);
+        return log($scoreDiff + 1) * (2.2 / (($teamElo - $opponentElo) * 0.00047 + 2.2));
     }
 
-    private function storeFinalElo(string $teamAbv, int $seasonYear, float $currentElo, float $totalExpectedWins, float $predictedSpread = 0): void
+    protected function updateLastGameDate(NflTeamSchedule $game): void
+    {
+        $gameDate = Carbon::parse($game->game_date);
+        foreach ([$game->home_team, $game->away_team] as $team) {
+            if (!isset($this->lastGameDates[$team]) || $gameDate->greaterThan($this->lastGameDates[$team])) {
+                $this->lastGameDates[$team] = $gameDate;
+            }
+        }
+    }
+
+    protected function storeFinalElo(string $team, int $year, float $elo, float $expectedWins): void
     {
         NflEloRating::updateOrCreate(
-            ['team' => $teamAbv, 'year' => $seasonYear],
+            ['team' => $team, 'year' => $year],
             [
-                'final_elo' => round($currentElo),
-                'expected_wins' => $totalExpectedWins,
-                'predicted_spread' => $predictedSpread // Include predicted_spread here
+                'final_elo' => round($elo),
+                'expected_wins' => $expectedWins,
+                'predicted_spread' => 0
             ]
         );
     }
 
-
-    private function logMissingWeek(int $week, int $year): void
-    {
-        Log::warning("Week configuration missing for week: $week in year $year");
-    }
-
     public function storePredictionIfNeeded(string $team, array $prediction, int $year, Carbon $weekEnd, Carbon $today): void
     {
-        $game = $this->findGameForPrediction($team, $prediction['opponent'], $year);
+        $game = NflTeamSchedule::where(function ($q) use ($team, $prediction) {
+            $q->where(function ($q) use ($team, $prediction) {
+                $q->where('home_team', $team)->where('away_team', $prediction['opponent']);
+            })->orWhere(function ($q) use ($team, $prediction) {
+                $q->where('home_team', $prediction['opponent'])->where('away_team', $team);
+            });
+        })
+            ->whereYear('game_date', $year)
+            ->where('season_type', 'Regular Season')
+            ->first();
 
         if (!$game) {
             Log::warning("Game not found for team {$team} vs {$prediction['opponent']} in year $year");
             return;
         }
 
-        $existingPrediction = NflEloPrediction::where('game_id', $game->game_id)
+        $existing = NflEloPrediction::where('game_id', $game->game_id)
             ->where('year', $year)
             ->first();
 
-        if ($today->isAfter($weekEnd) && $existingPrediction && $existingPrediction->updated_at->greaterThan($today->copy()->subDays(3))) {
+        if ($today->isAfter($weekEnd) && $existing && $existing->updated_at->greaterThan($today->copy()->subDays(3))) {
             return;
         }
 
@@ -270,30 +230,5 @@ class EloRatingService
                 'predicted_spread' => $prediction['predicted_spread'],
             ]
         );
-
-        $this->updateLastGameDate($game->home_team, $game->game_date);
-        $this->updateLastGameDate($game->away_team, $game->game_date);
-    }
-
-    private function findGameForPrediction(string $teamAbv, string $opponentTeamAbv, int $year): ?NflTeamSchedule
-    {
-        return NflTeamSchedule::where(function ($query) use ($teamAbv, $opponentTeamAbv) {
-            $query->where('home_team', $teamAbv)->where('away_team', $opponentTeamAbv);
-        })
-            ->orWhere(function ($query) use ($teamAbv, $opponentTeamAbv) {
-                $query->where('home_team', $opponentTeamAbv)->where('away_team', $teamAbv);
-            })
-            ->whereYear('game_date', $year)
-            ->where('season_type', 'Regular Season')
-            ->first();
-    }
-
-    private function updateLastGameDate(string $team, string $gameDate): void
-    {
-        $gameDate = Carbon::parse($gameDate);
-
-        if (!isset($this->lastGameDates[$team]) || $gameDate->greaterThan($this->lastGameDates[$team])) {
-            $this->lastGameDates[$team] = $gameDate;
-        }
     }
 }

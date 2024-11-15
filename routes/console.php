@@ -220,6 +220,31 @@ Schedule::command('scrape:kenpom')
     ))
     ->runInBackground();
 
+Schedule::command('nfl:update-submissions')
+    ->weekly()
+    ->tuesdays()
+    ->withoutOverlapping()
+    ->before(fn() => Log::info('Starting NFL user submissions update'))
+    ->after(fn() => NflCommandHelper::sendNotification('NFL user submissions update completed successfully'))
+    ->onFailure(fn($e) => NflCommandHelper::sendNotification(
+        "NFL user submissions update failed: {$e->getMessage()}",
+        'failure'
+    ))
+    ->runInBackground();
+
+Schedule::command('calculate:hypothetical-spreads')
+    ->dailyAt('00:00')
+    ->withoutOverlapping()
+    ->before(fn() => Log::info('Starting hypothetical spreads calculation'))
+    ->after(fn() => CollegeFootballCommandHelpers::sendNotification('Hypothetical spreads calculation completed successfully'))
+    ->onFailure(fn($e) => CollegeFootballCommandHelpers::sendNotification(
+        "Hypothetical spreads calculation failed: {$e->getMessage()}",
+        'failure'
+    ))
+    ->runInBackground();
+
+//Schedule::command('scrape:massey')
+
 // Health Checks
 Schedule::job(function () {
     $lastWeek = Carbon::now()->subWeek();
