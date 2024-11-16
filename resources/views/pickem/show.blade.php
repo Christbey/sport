@@ -1,83 +1,133 @@
 <x-app-layout>
-    <div class="max-w-5xl lg:mx-auto px-4 py-6 sm:px-6 lg:px-8">
-        <!-- Success and Error Notifications -->
-        @if(session('success'))
-            <div class="mb-4 p-4 bg-green-100 text-green-700 rounded-lg">
-                {{ session('success') }}
+    <div class="min-h-screen bg-gray-50 py-8">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            {{-- Header and Notifications remain the same --}}
+            <div class="mb-8">
+                <h1 class="text-2xl font-bold text-gray-900">NFL Pick'em</h1>
+                <p class="mt-2 text-sm text-gray-600">Make your predictions for this week's games</p>
             </div>
-        @endif
+            {{-- Week Selection Form remains the same --}}
+            @if(session('error'))
+                <div class="mb-6 rounded-lg bg-red-50 p-4">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"
+                                 fill="currentColor">
+                                <path fill-rule="evenodd"
+                                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                                      clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm font-medium text-red-800">{{ session('error') }}</p>
+                        </div>
+                    </div>
+                </div>
+            @endif
 
-        @if(session('error'))
-            <div class="mb-4 p-4 bg-red-100 text-red-700 rounded-lg">
-                {{ session('error') }}
+            {{-- Week Selection --}}
+            <div class="bg-white rounded-lg shadow p-6 mb-8">
+                <form id="weekForm" method="GET" action="{{ route('pickem.schedule') }}" class="max-w-xs">
+                    <label for="game_week" class="block text-sm font-medium text-gray-700">Select Week</label>
+                    <div class="mt-2 flex items-center">
+                        <select name="game_week" id="game_week"
+                                class="block w-full rounded-md border-gray-300 pr-10 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                                onchange="this.form.submit()">
+                            <option value="">All Weeks</option>
+                            @foreach($weeks as $week)
+                                @php
+                                    $week_number = (int)str_replace('Week ', '', $week->game_week);
+                                @endphp
+                                <option value="{{ $week_number }}" {{ $game_week == $week_number ? 'selected' : '' }}>
+                                    Week {{ $week_number }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                </form>
             </div>
-        @endif
-        <!-- Form for filtering by week -->
-        <div class=" ">
-            <form id="weekForm" method="GET" action="{{ route('pickem.schedule') }}" class="mb-6">
-                <label for="game_week" class="block text-sm font-medium text-gray-700 mb-2">Select Week</label>
-                <select name="game_week" id="game_week"
-                        class="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-                        onchange="this.form.submit()">
-                    <option value="">All Weeks</option>
-                    @foreach($weeks as $week)
-                        @php
-                            // Extract the numeric week number
-                            $week_number = (int)str_replace('Week ', '', $week->game_week);
-                        @endphp
-                        <option value="{{ $week_number }}" {{ $game_week == $week_number ? 'selected' : '' }}>
-                            Week {{ $week_number }}
-                        </option>
-                    @endforeach
-                </select>
-            </form>
-            <!-- Display matchups and submit form -->
+            {{-- Games Grid with Fixed Team Selection --}}
             <form action="{{ route('pickem.pickWinner') }}" method="POST">
                 @csrf
-                <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class=" space-y-8">
                     @if($schedules->isEmpty())
-                        <p class="text-gray-500">No events found for this week.</p>
+                        {{-- Empty state remains the same --}}
                     @else
-                        @foreach($schedules as $schedule)
-                            @php
-                                $userPick = $userSubmissions[$schedule->espn_event_id]->team_id ?? null;
-                            @endphp
-                            <div class="bg-white shadow-md rounded-lg overflow-hidden relative">
-                                <div class="p-4 sm:p-6">
-                                    <input type="hidden" name="event_ids[]" value="{{ $schedule->espn_event_id }}">
+                        <div class="pb-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            @foreach($schedules as $schedule)
+                                @php
+                                    $userPick = $userSubmissions[$schedule->espn_event_id]->team_id ?? null;
+                                @endphp
+                                <div class="bg-white rounded-lg shadow-sm">
+                                    <div class="p-6">
+                                        <input type="hidden" name="event_ids[]" value="{{ $schedule->espn_event_id }}">
 
-                                    <!-- Away Team Radio Button -->
-                                    <x-radio-button
-                                            id="away_team_{{ $schedule->id }}"
-                                            name="team_ids[{{ $schedule->espn_event_id }}]"
-                                            value="{{ $schedule->away_team_id }}"
-                                            label="{{ $schedule->awayTeam->team_name ?? 'Unknown' }} {{ $schedule->away_team_record ?? 'N/A' }}"
-                                            :checked="$userPick == $schedule->away_team_id"
-                                    />
-                                    <!-- Home Team Radio Button -->
-                                    <x-radio-button
-                                            id="home_team_{{ $schedule->id }}"
-                                            name="team_ids[{{ $schedule->espn_event_id }}]"
-                                            value="{{ $schedule->home_team_id }}"
-                                            label="{{ $schedule->homeTeam->team_name ?? 'Unknown' }} {{ $schedule->home_team_record ?? 'N/A' }}"
-                                            :checked="$userPick == $schedule->home_team_id"
-                                    />
-                                    <!-- Game Status -->
-                                    <div class="text-xs font-light text-gray-400 mt-4">
-                                        <p>{{ $schedule->status_type_detail ?? 'No status available' }}</p>
+                                        {{-- Game Time/Status --}}
+                                        <div class="text-xs font-medium text-gray-500 mb-4">
+                                            {{ $schedule->status_type_detail ?? 'Time TBD' }}
+                                        </div>
+
+                                        {{-- Teams Selection --}}
+                                        <div class="space-y-4">
+                                            {{-- Away Team --}}
+                                            <div class="relative border rounded-lg p-4
+                                                {{ $userPick == $schedule->away_team_id ? 'border-blue-500 bg-blue-50' : 'border-gray-200' }}">
+                                                <div class="flex items-center">
+                                                    <input type="radio"
+                                                           name="team_ids[{{ $schedule->espn_event_id }}]"
+                                                           id="away_{{ $schedule->espn_event_id }}"
+                                                           value="{{ $schedule->away_team_id }}"
+                                                           {{ $userPick == $schedule->away_team_id ? 'checked' : '' }}
+                                                           class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                                    <label for="away_{{ $schedule->espn_event_id }}"
+                                                           class="ml-3 flex flex-col cursor-pointer">
+                                                        <span class="block text-sm font-medium text-gray-900">
+                                                            {{ $schedule->awayTeam->team_name ?? 'Unknown' }}
+                                                        </span>
+                                                        <span class="block text-sm text-gray-500">
+                                                            {{ $schedule->away_team_record ?? 'N/A' }}
+                                                        </span>
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            {{-- Home Team --}}
+                                            <div class="relative border rounded-lg p-4
+                                                {{ $userPick == $schedule->home_team_id ? 'border-blue-500 bg-blue-50' : 'border-gray-200' }}">
+                                                <div class="flex items-center">
+                                                    <input type="radio"
+                                                           name="team_ids[{{ $schedule->espn_event_id }}]"
+                                                           id="home_{{ $schedule->espn_event_id }}"
+                                                           value="{{ $schedule->home_team_id }}"
+                                                           {{ $userPick == $schedule->home_team_id ? 'checked' : '' }}
+                                                           class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                                    <label for="home_{{ $schedule->espn_event_id }}"
+                                                           class="ml-3 flex flex-col cursor-pointer">
+                                                        <span class="block text-sm font-medium text-gray-900">
+                                                            {{ $schedule->homeTeam->team_name ?? 'Unknown' }}
+                                                        </span>
+                                                        <span class="block text-sm text-gray-500">
+                                                            {{ $schedule->home_team_record ?? 'N/A' }}
+                                                        </span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        @endforeach
-                    @endif
-                </div>
+                            @endforeach
+                        </div>
 
-                <!-- Submit All Picks Button -->
-                <div class="mt-6">
-                    <button type="submit"
-                            class="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                        Submit All Picks
-                    </button>
+                        {{-- Submit Button --}}
+                        <div class="fixed bottom-0 inset-x-0 pb-6 sm:pb-8 bg-gradient-to-t from-gray-50">
+                            <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                                <button type="submit"
+                                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                    Save Picks
+                                </button>
+                            </div>
+                        </div>
+                    @endif
                 </div>
             </form>
         </div>

@@ -243,6 +243,17 @@ Schedule::command('calculate:hypothetical-spreads')
     ))
     ->runInBackground();
 
+Schedule::command('college-basketball:hypothetical-spread')
+    ->dailyAt('00:00')
+    ->withoutOverlapping()
+    ->before(fn() => Log::info('Starting college basketball hypothetical spreads calculation'))
+    ->after(fn() => CollegeFootballCommandHelpers::sendNotification('College basketball hypothetical spreads calculation completed successfully'))
+    ->onFailure(fn($e) => CollegeFootballCommandHelpers::sendNotification(
+        "College basketball hypothetical spreads calculation failed: {$e->getMessage()}",
+        'failure'
+    ))
+    ->runInBackground();
+
 //Schedule::command('scrape:massey')
 
 // Health Checks

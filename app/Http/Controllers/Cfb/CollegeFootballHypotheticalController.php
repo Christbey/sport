@@ -9,6 +9,7 @@ use App\Models\CollegeFootball\CollegeFootballHypothetical;
 use App\Models\CollegeFootball\CollegeFootballNote;
 use App\Models\CollegeFootball\CollegeFootballTeam;
 use App\Models\CollegeFootball\SpRating;
+use App\Services\EnhancedFootballAnalytics;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -146,9 +147,13 @@ class CollegeFootballHypotheticalController extends Controller
             'defense_passing_success_rate', 'defense_passing_explosiveness'
         ];
         $mismatches = [
-            'Net PPA Differential' => $this->calculateMismatch($homeStats['offense_ppa'], $awayStats['defense_ppa']),
+            'Net PPA Differential' => $this->calculateMismatch($awayStats['offense_ppa'], $homeStats['defense_ppa']),
             'Success Rate Differential' => $this->calculateMismatch($homeStats['offense_success_rate'], $awayStats['defense_success_rate']),
             'Explosiveness Differential' => $this->calculateMismatch($homeStats['offense_explosiveness'], $awayStats['defense_explosiveness']),
+            'Power Success Rate Differential' => $this->calculateMismatch($homeStats['offense_power_success'], $awayStats['defense_power_success']),
+            'Stuff Rate Differential' => $this->calculateMismatch($awayStats['offense_stuff_rate'], $homeStats['defense_stuff_rate']),
+            'Line Yards Differential' => $this->calculateMismatch($homeStats['offense_line_yards'], $awayStats['defense_line_yards']),
+
             // Add additional mismatches as required
         ];
 
@@ -163,9 +168,9 @@ class CollegeFootballHypotheticalController extends Controller
             $awayValue = $awayStats[$metric] ?? 0;
             $homeValue = $homeStats[$metric] ?? 0;
             $statsData[$metric] = [
-                'home' => $homeValue,
-                'away' => $awayValue,
-                'total' => $awayValue - $homeValue,
+                'home' => round($homeValue, 2),
+                'away' => round($awayValue, 2),
+                'total' => round($awayValue - $homeValue, 2),
             ];
         }
 
@@ -175,9 +180,25 @@ class CollegeFootballHypotheticalController extends Controller
         $awayTeamLast3Games = $this->fetchLastThreeGames($awayTeam->id, $beforeDate);
 
         // Fetch previous matchups between the teams
-        $previousResults = $this->fetchRecentMatchups($homeTeam, $awayTeam);
+        $previousResults = CollegeFootballGame::with(['homeTeam', 'awayTeam'])
+            ->where(function ($query) use ($homeTeam, $awayTeam) {
+                $query->where('home_id', $homeTeam->id)
+                    ->where('away_id', $awayTeam->id)
+                    ->orWhere('home_id', $awayTeam->id)
+                    ->where('away_id', $homeTeam->id);
+            })
+            ->orderBy('start_date', 'desc')
+            ->get();
 
-        return view('cfb.detail', compact('hypothetical', 'game', 'homeTeamLast3Games', 'previousResults', 'awayTeamLast3Games', 'homeTeam', 'awayTeam', 'statsData', 'winnerTeam', 'homeWinningPercentage', 'homeSpRating', 'awaySpRating', 'homeTeamNotes', 'awayTeamNotes', 'mismatches', 'home_offense_trend', 'away_offense_trend'));
+        $analytics = new EnhancedFootballAnalytics();
+
+        // Calculate enhanced metrics
+        $efficiencyMetrics = $analytics->calculateEfficiencyMetrics($homeStats, $awayStats);
+        $matchupAdvantages = $analytics->calculateMatchupAdvantages($homeStats, $awayStats);
+        $scoringPrediction = $analytics->calculateScoringPrediction($homeStats, $awayStats);
+        $driveMetrics = $analytics->calculateDriveMetrics($homeStats, $awayStats);
+
+        return view('cfb.detail', compact('hypothetical', 'game', 'homeTeamLast3Games', 'previousResults', 'awayTeamLast3Games', 'homeTeam', 'awayTeam', 'statsData', 'winnerTeam', 'homeWinningPercentage', 'homeSpRating', 'awaySpRating', 'homeTeamNotes', 'awayTeamNotes', 'mismatches', 'home_offense_trend', 'away_offense_trend', 'efficiencyMetrics', 'matchupAdvantages', 'scoringPrediction', 'driveMetrics'));
     }
 
     private function fetchAdvancedStats($teamId)
