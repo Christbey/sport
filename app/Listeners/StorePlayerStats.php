@@ -5,6 +5,8 @@ namespace App\Listeners;
 use App\Events\BoxScoreFetched;
 use App\Models\Nfl\NflPlayerStat;
 use App\Models\Nfl\NflTeamSchedule;
+use Exception;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class StorePlayerStats
@@ -17,62 +19,86 @@ class StorePlayerStats
      */
     public function handle(BoxScoreFetched $event)
     {
-        $gameData = $event->boxScoreData['body'] ?? [];
+        try {
+            DB::beginTransaction();
 
-        if (empty($gameData) || !isset($gameData['gameID'])) {
-            Log::warning('Invalid game data received for player stats: "gameID" is missing.');
-            return;
-        }
+            $gameData = $event->boxScoreData['body'] ?? [];
 
-        // Fetch game schedule to determine opponent IDs
-        $gameSchedule = NflTeamSchedule::where('game_id', $gameData['gameID'])->first();
-        if (!$gameSchedule) {
-            Log::error("No schedule found for game_id {$gameData['gameID']}");
-            return;
-        }
-
-        // Store or update player stats
-        if (isset($gameData['playerStats'])) {
-            $playerStatsData = [];
-            foreach ($gameData['playerStats'] as $playerID => $playerStats) {
-                // Determine the opponent ID
-                $teamId = isset($playerStats['teamID']) ? (int)$playerStats['teamID'] : null;
-                $opponentId = ($teamId === $gameSchedule->home_team_id) ? $gameSchedule->away_team_id : $gameSchedule->home_team_id;
-
-                $playerStatsData[] = [
-                    'player_id' => (int)$playerID,
-                    'game_id' => $gameData['gameID'],
-                    'team_id' => $teamId,
-                    'opponent_id' => $opponentId,
-                    'team_abv' => isset($playerStats['teamAbv']) ? trim($playerStats['teamAbv']) : null,
-                    'long_name' => isset($playerStats['longName']) ? trim($playerStats['longName']) : null,
-                    'receiving' => isset($playerStats['Receiving']) ? json_encode($playerStats['Receiving']) : null,
-                    'rushing' => isset($playerStats['Rushing']) ? json_encode($playerStats['Rushing']) : null,
-                    'kicking' => isset($playerStats['Kicking']) ? json_encode($playerStats['Kicking']) : null,
-                    'punting' => isset($playerStats['Punting']) ? json_encode($playerStats['Punting']) : null,
-                    'defense' => isset($playerStats['Defense']) ? json_encode($playerStats['Defense']) : null,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ];
+            if (empty($gameData) || !isset($gameData['gameID'])) {
+                Log::warning('Invalid game data received for player stats: "gameID" is missing.');
+                return;
             }
 
-            // Specify the columns to update to prevent duplicates
-            $playerUpdateColumns = [
-                'team_id',
-                'opponent_id',
-                'team_abv',
-                'long_name',
-                'receiving',
-                'rushing',
-                'kicking',
-                'punting',
-                'defense',
-                'updated_at',
+            // Fetch game schedule to determine opponent IDs
+            $gameSchedule = NflTeamSchedule::where('game_id', $gameData['gameID'])->firstOrFail();
+
+            if (!isset($gameData['playerStats'])) {
+                Log::info("No player stats found for game {$gameData['gameID']}");
+                return;
+            }
+
+            // First, delete existing records for this game to prevent duplicates
+            NflPlayerStat::where('game_id', $gameData['gameID'])->delete();
+
+            $playerStatsData = $this->preparePlayerStats($gameData['playerStats'], $gameData['gameID'], $gameSchedule);
+
+            // Use insert instead of upsert since we've already cleared existing records
+            NflPlayerStat::insert($playerStatsData);
+
+            DB::commit();
+
+            Log::info("Player stats for game {$event->gameID} stored successfully.", [
+                'player_count' => count($playerStatsData)
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error("Error processing player stats for game {$event->gameID}: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Prepare player stats data for database insertion
+     *
+     * @param array $playerStats
+     * @param string $gameId
+     * @param NflTeamSchedule $gameSchedule
+     * @return array
+     */
+    private function preparePlayerStats(array $playerStats, string $gameId, NflTeamSchedule $gameSchedule): array
+    {
+        $statTypes = ['Receiving', 'Rushing', 'Kicking', 'Punting', 'Defense'];
+        $playerStatsData = [];
+        $now = now();
+
+        foreach ($playerStats as $playerId => $stats) {
+            $teamId = (int)($stats['teamID'] ?? null);
+            $opponentId = ($teamId === $gameSchedule->home_team_id)
+                ? $gameSchedule->away_team_id
+                : $gameSchedule->home_team_id;
+
+            $playerData = [
+                'player_id' => (int)$playerId,
+                'game_id' => $gameId,
+                'team_id' => $teamId,
+                'opponent_id' => $opponentId,
+                'team_abv' => trim($stats['teamAbv'] ?? ''),
+                'long_name' => trim($stats['longName'] ?? ''),
+                'created_at' => $now,
+                'updated_at' => $now,
             ];
 
-            NflPlayerStat::upsert($playerStatsData, ['player_id', 'game_id'], $playerUpdateColumns);
+            // Add stat types
+            foreach ($statTypes as $type) {
+                $playerData[strtolower($type)] = isset($stats[$type])
+                    ? json_encode($stats[$type], JSON_THROW_ON_ERROR)
+                    : null;
+            }
 
-            Log::info("Player stats for game {$event->gameID} stored successfully.");
+            $playerStatsData[] = $playerData;
         }
+
+        return $playerStatsData;
     }
 }

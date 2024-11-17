@@ -4,6 +4,8 @@ namespace App\Listeners;
 
 use App\Events\BoxScoreFetched;
 use App\Models\Nfl\NflTeamStat;
+use Exception;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class StoreTeamStats
@@ -16,43 +18,68 @@ class StoreTeamStats
      */
     public function handle(BoxScoreFetched $event)
     {
-        $gameData = $event->boxScoreData['body'] ?? [];
+        try {
+            DB::beginTransaction();
 
-        if (empty($gameData) || !isset($gameData['gameID'])) {
-            Log::warning('Invalid game data received for team stats: "gameID" is missing.');
-            return;
-        }
+            $gameData = $event->boxScoreData['body'] ?? [];
 
-        // Store or update team stats
-        if (isset($gameData['teamStats'])) {
-            $teamStatsData = [];
-            foreach ($gameData['teamStats'] as $teamStats) {
-                $teamStatsData[] = [
-                    'team_id' => isset($teamStats['teamID']) ? (int)$teamStats['teamID'] : null,
-                    'game_id' => $gameData['gameID'],
-                    'team_abv' => isset($teamStats['teamAbv']) ? trim($teamStats['teamAbv']) : null,
-                    'total_yards' => isset($teamStats['totalYards']) ? (int)$teamStats['totalYards'] : null,
-                    'rushing_yards' => isset($teamStats['rushingYards']) ? (int)$teamStats['rushingYards'] : null,
-                    'passing_yards' => isset($teamStats['passingYards']) ? (int)$teamStats['passingYards'] : null,
-                    'points_allowed' => isset($teamStats['ptsAllowed']) ? (int)$teamStats['ptsAllowed'] : null,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ];
+            if (empty($gameData) || !isset($gameData['gameID'])) {
+                Log::warning('Invalid game data received for team stats: "gameID" is missing.');
+                return;
             }
 
-            // Specify the columns to update to prevent duplicates
-            $teamUpdateColumns = [
-                'team_abv',
-                'total_yards',
-                'rushing_yards',
-                'passing_yards',
-                'points_allowed',
-                'updated_at',
-            ];
+            if (!isset($gameData['teamStats'])) {
+                Log::info("No team stats found for game {$gameData['gameID']}");
+                return;
+            }
 
-            NflTeamStat::upsert($teamStatsData, ['team_id', 'game_id'], $teamUpdateColumns);
+            // First, delete existing records for this game to prevent duplicates
+            NflTeamStat::where('game_id', $gameData['gameID'])->delete();
 
-            Log::info("Team stats for game {$event->gameID} stored successfully.");
+            $teamStatsData = $this->prepareTeamStats($gameData['teamStats'], $gameData['gameID']);
+
+            // Use insert instead of upsert since we've already cleared existing records
+            NflTeamStat::insert($teamStatsData);
+
+            DB::commit();
+
+            Log::info("Team stats for game {$event->gameID} stored successfully.", [
+                'team_count' => count($teamStatsData)
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error("Error processing team stats for game {$event->gameID}: " . $e->getMessage());
+            throw $e;
         }
+    }
+
+    /**
+     * Prepare team stats data for database insertion
+     *
+     * @param array $teamStats
+     * @param string $gameId
+     * @return array
+     */
+    private function prepareTeamStats(array $teamStats, string $gameId): array
+    {
+        $teamStatsData = [];
+        $now = now();
+
+        foreach ($teamStats as $stats) {
+            $teamStatsData[] = [
+                'team_id' => isset($stats['teamID']) ? (int)$stats['teamID'] : null,
+                'game_id' => $gameId,
+                'team_abv' => isset($stats['teamAbv']) ? trim($stats['teamAbv']) : null,
+                'total_yards' => isset($stats['totalYards']) ? (int)$stats['totalYards'] : null,
+                'rushing_yards' => isset($stats['rushingYards']) ? (int)$stats['rushingYards'] : null,
+                'passing_yards' => isset($stats['passingYards']) ? (int)$stats['passingYards'] : null,
+                'points_allowed' => isset($stats['ptsAllowed']) ? (int)$stats['ptsAllowed'] : null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        return $teamStatsData;
     }
 }
