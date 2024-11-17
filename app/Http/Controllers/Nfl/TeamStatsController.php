@@ -1034,12 +1034,12 @@ class TeamStatsController extends Controller
     SELECT 
         ps.long_name,
         ps.team_abv,
-        CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, '$.recYds')) AS SIGNED) as receiving_yards,
-        CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, '$.receptions')) AS SIGNED) as receptions,
-        CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, '$.recTD')) AS SIGNED) as receiving_tds,
-        CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, '$.rushYds')) AS SIGNED) as rushing_yards,
-        CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, '$.carries')) AS SIGNED) as carries,
-        CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, '$.rushTD')) AS SIGNED) as rushing_tds
+        CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, '$.recYds')) AS DECIMAL(12,2)) as receiving_yards,
+        CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, '$.receptions')) AS DECIMAL(12,2)) as receptions,
+        CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, '$.recTD')) AS DECIMAL(12,2)) as receiving_tds,
+        CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, '$.rushYds')) AS DECIMAL(12,2)) as rushing_yards,
+        CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, '$.carries')) AS DECIMAL(12,2)) as carries,
+        CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, '$.rushTD')) AS DECIMAL(12,2)) as rushing_tds
     FROM nfl_player_stats ps
     WHERE receiving IS NOT NULL 
     AND rushing IS NOT NULL
@@ -1049,15 +1049,15 @@ SELECT
     long_name,
     team_abv,
     COUNT(*) as games_played,
-    SUM(receiving_yards) as total_receiving_yards,
-    SUM(rushing_yards) as total_rushing_yards,
-    SUM(receptions) as total_receptions,
-    SUM(carries) as total_carries,
-    SUM(receiving_tds) as receiving_touchdowns,
-    SUM(rushing_tds) as rushing_touchdowns,
+    CAST(SUM(receiving_yards) AS DECIMAL(12,2)) as total_receiving_yards,
+    CAST(SUM(rushing_yards) AS DECIMAL(12,2)) as total_rushing_yards,
+    CAST(SUM(receptions) AS DECIMAL(12,2)) as total_receptions,
+    CAST(SUM(carries) AS DECIMAL(12,2)) as total_carries,
+    CAST(SUM(receiving_tds) AS DECIMAL(12,2)) as receiving_touchdowns,
+    CAST(SUM(rushing_tds) AS DECIMAL(12,2)) as rushing_touchdowns,
     ROUND(SUM(receiving_yards) / NULLIF(SUM(receptions), 0), 1) as yards_per_reception,
     ROUND(SUM(rushing_yards) / NULLIF(SUM(carries), 0), 1) as yards_per_carry,
-    ROUND(CAST((SUM(receiving_yards) + SUM(rushing_yards)) AS SIGNED) / COUNT(*), 1) as total_yards_per_game
+    ROUND((SUM(receiving_yards) + SUM(rushing_yards)) / COUNT(*), 1) as total_yards_per_game
 FROM player_stats
 GROUP BY long_name, team_abv
 HAVING total_receiving_yards > 0 AND total_rushing_yards > 0
