@@ -39,7 +39,7 @@ class TeamStatsController extends Controller
             'player_vs_division' => 'Player Stats vs Division',
             'conference_stats' => 'Conference Stats',
             'division_stats' => 'Division Stats'
-            
+
         ];
 
         return view('nfl.stats.index', compact('queries'));
@@ -1030,40 +1030,39 @@ class TeamStatsController extends Controller
     public function getDualThreatPlayers(?string $teamFilter = null)
     {
         $sql = "
-    WITH player_stats AS (
-        SELECT 
-            ps.long_name,
-            ps.team_abv,
-            CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, '$.recYds')) AS UNSIGNED) as receiving_yards,
-            CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, '$.receptions')) AS UNSIGNED) as receptions,
-            CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, '$.recTD')) AS UNSIGNED) as receiving_tds,
-            CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, '$.rushYds')) AS UNSIGNED) as rushing_yards,
-            CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, '$.carries')) AS UNSIGNED) as carries,
-            CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, '$.rushTD')) AS UNSIGNED) as rushing_tds
-        FROM nfl_player_stats ps
-        WHERE receiving IS NOT NULL 
-        AND rushing IS NOT NULL
-        AND (ps.team_abv = ? OR ? IS NULL)
-    )
+   WITH player_stats AS (
     SELECT 
-        long_name,
-        team_abv,
-        COUNT(*) as games_played,
-        SUM(receiving_yards) as total_receiving_yards,
-        SUM(rushing_yards) as total_rushing_yards,
-        SUM(receptions) as total_receptions,
-        SUM(carries) as total_carries,
-        SUM(receiving_tds) as receiving_touchdowns,
-        SUM(rushing_tds) as rushing_touchdowns,
-        ROUND(SUM(receiving_yards) / NULLIF(SUM(receptions), 0), 1) as yards_per_reception,
-        ROUND(SUM(rushing_yards) / NULLIF(SUM(carries), 0), 1) as yards_per_carry,
-        ROUND(SUM(receiving_yards + rushing_yards) / COUNT(*), 1) as total_yards_per_game
-    FROM player_stats
-    GROUP BY long_name, team_abv
-    HAVING total_receiving_yards > 0 AND total_rushing_yards > 0
-    ORDER BY total_yards_per_game DESC
-    LIMIT 20
-    ";
+        ps.long_name,
+        ps.team_abv,
+        CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, '$.recYds')) AS SIGNED) as receiving_yards,
+        CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, '$.receptions')) AS SIGNED) as receptions,
+        CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, '$.recTD')) AS SIGNED) as receiving_tds,
+        CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, '$.rushYds')) AS SIGNED) as rushing_yards,
+        CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, '$.carries')) AS SIGNED) as carries,
+        CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, '$.rushTD')) AS SIGNED) as rushing_tds
+    FROM nfl_player_stats ps
+    WHERE receiving IS NOT NULL 
+    AND rushing IS NOT NULL
+    AND (ps.team_abv = ? OR ? IS NULL)
+)
+SELECT 
+    long_name,
+    team_abv,
+    COUNT(*) as games_played,
+    SUM(receiving_yards) as total_receiving_yards,
+    SUM(rushing_yards) as total_rushing_yards,
+    SUM(receptions) as total_receptions,
+    SUM(carries) as total_carries,
+    SUM(receiving_tds) as receiving_touchdowns,
+    SUM(rushing_tds) as rushing_touchdowns,
+    ROUND(SUM(receiving_yards) / NULLIF(SUM(receptions), 0), 1) as yards_per_reception,
+    ROUND(SUM(rushing_yards) / NULLIF(SUM(carries), 0), 1) as yards_per_carry,
+    ROUND(CAST((SUM(receiving_yards) + SUM(rushing_yards)) AS SIGNED) / COUNT(*), 1) as total_yards_per_game
+FROM player_stats
+GROUP BY long_name, team_abv
+HAVING total_receiving_yards > 0 AND total_rushing_yards > 0
+ORDER BY total_yards_per_game DESC
+LIMIT 20";
 
         return DB::select($sql, array_fill(0, 2, $teamFilter));
     }
