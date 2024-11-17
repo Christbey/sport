@@ -254,6 +254,17 @@ Schedule::command('college-basketball:hypothetical-spread')
     ))
     ->runInBackground();
 
+Schedule::command('calculate:game-differences')
+    ->hourly()
+    ->withoutOverlapping()
+    ->before(fn() => Log::info('Starting game differences calculation'))
+    ->after(fn() => CollegeFootballCommandHelpers::sendNotification('Game differences calculation completed successfully'))
+    ->onFailure(fn($e) => CollegeFootballCommandHelpers::sendNotification(
+        "Game differences calculation failed: {$e->getMessage()}",
+        'failure'
+    ))
+    ->runInBackground();
+
 //Schedule::command('scrape:massey')
 
 // Health Checks
