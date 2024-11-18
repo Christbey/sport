@@ -7,11 +7,7 @@
         <x-validation-errors class="mb-4"/>
 
         <!-- Add this for reCAPTCHA -->
-        @if (JetstreamServiceProvider::hasRecaptchaFeature())
-            <div class="mb-4">
-                {!! RecaptchaV3::field('register') !!}
-            </div>
-        @endif
+    
 
         <form method="POST" action="{{ route('register') }}">
             @csrf
