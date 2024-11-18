@@ -21,7 +21,7 @@ class ForgeApiController extends Controller
     /**
      * List all servers.
      */
-    public function listServers()
+    public function listServers(Request $request)
     {
         $response = Http::withToken($this->token)->get("{$this->baseUri}servers");
 
@@ -29,7 +29,13 @@ class ForgeApiController extends Controller
             // Access the 'servers' key in the API response
             $servers = $response->json('servers', []);
 
-            return view('forge.servers.index', compact('servers'));
+            // Check if the user has the 'forge.servers.index' permission
+            if ($request->user()->hasTeamPermission($request->user()->currentTeam, 'forge.servers.index')) {
+                return view('forge.servers.index', compact('servers'));
+            } else {
+                // User does not have permission to access this route
+                abort(403, 'Forbidden');
+            }
         } else {
             $status = $response->status();
             Log::error('Error fetching servers from Forge API:', ['status' => $status, 'response' => $response->body()]);

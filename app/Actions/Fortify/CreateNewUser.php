@@ -2,9 +2,8 @@
 
 namespace App\Actions\Fortify;
 
-use App\Models\Team;
+use App\Models\TeamInvitation;
 use App\Models\User;
-use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -15,49 +14,45 @@ class CreateNewUser implements CreatesNewUsers
 {
     use PasswordValidationRules;
 
-    /**
-     * Create a newly registered user.
-     *
-     * @param array<string, string> $input
-     */
     public function create(array $input): User
     {
         Validator::make($input, [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
+            'email' => [
+                'required',
+                'string',
+                'email',
+                'max:255',
+                'unique:users',
+                function ($attribute, $value, $fail) {
+                    $invitation = TeamInvitation::where('email', $value)->first();
+                    if (!$invitation) {
+                        $fail('Registration is only available with a valid team invitation.');
+                    }
+                }
+            ],
             'password' => $this->passwordRules(),
             'terms' => Jetstream::hasTermsAndPrivacyPolicyFeature() ? ['accepted', 'required'] : '',
-            'g-recaptcha-response' => ['required', 'recaptcha'], // Add this for reCAPTCHA
-
         ])->validate();
 
         return DB::transaction(function () use ($input) {
-            return tap(User::create([
+            $user = User::create([
                 'name' => $input['name'],
                 'email' => $input['email'],
                 'password' => Hash::make($input['password']),
-            ]), function (User $user) {
-                $this->addToGeneralTeam($user); // Add the user to the General team
-            });
+            ]);
+
+            $invitation = TeamInvitation::where('email', $input['email'])->first();
+
+            if ($invitation) {
+                $invitation->team->users()->attach(
+                    $user, ['role' => 'viewer']
+                );
+                $user->switchTeam($invitation->team);
+                $invitation->delete();
+            }
+
+            return $user;
         });
-
-    }
-
-    /**
-     * Add the user to the General team instead of creating a personal team.
-     */
-    protected function addToGeneralTeam(User $user): void
-    {
-        // Fetch the general team by name or another unique identifier
-        $generalTeam = Team::where('name', 'General')->first(); // Change 'General' to the actual team name or identifier
-
-        // If the general team exists, attach the user to it
-        if ($generalTeam) {
-            $user->teams()->attach($generalTeam->id, ['role' => 'viewer']); // Attach the user as a 'member' (or any other role)
-            $user->switchTeam($generalTeam); // Optionally set the General team as the current team
-        } else {
-            // Optionally handle the case when the General team does not exist
-            throw new Exception('General team not found');
-        }
     }
 }

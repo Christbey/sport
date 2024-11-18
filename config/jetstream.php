@@ -115,6 +115,24 @@ return [
                 'read',
             ],
         ],
+
+        'manager' => [
+            'key' => 'manager',
+            'name' => 'Manager',
+            'permissions' => [
+                'forge.servers.index',
+                'forge.sites.index',
+            ],
+        ],
+
+        'developer' => [
+            'key' => 'developer',
+            'name' => 'Developer',
+            'permissions' => [
+                'forge.commands.run',
+                'forge.sites.deploy',
+            ],
+        ],
     ],
 
 ];

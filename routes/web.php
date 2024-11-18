@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccessRequestController;
 use App\Http\Controllers\Api\CoversController;
 use App\Http\Controllers\Api\Espn\EspnQbrController;
 use App\Http\Controllers\Api\TeamRankingController;
@@ -7,6 +8,7 @@ use App\Http\Controllers\Cfb\CollegeFootballHypotheticalController;
 use App\Http\Controllers\Cfb\CollegeFootballNoteController;
 use App\Http\Controllers\CollegeBasketballHypotheticalController;
 use App\Http\Controllers\ForgeApiController;
+use App\Http\Controllers\InvitedUserRegistrationController;
 use App\Http\Controllers\Nfl\NflEloRatingController;
 use App\Http\Controllers\Nfl\NflSheetController;
 use App\Http\Controllers\Nfl\NflStatsViewController;
@@ -80,3 +82,25 @@ Route::get('/nfl/news', [NflNewsController::class, 'index'])->name('nfl.news.ind
 Route::get('/nfl/elo/show/{gameId}', [NflEloRatingController::class, 'show'])->name('nfl.elo.show');
 
 Route::get('/college-basketball-hypotheticals', [CollegeBasketballHypotheticalController::class, 'index'])->name('cbb.index');
+
+Route::post('/request-access', [AccessRequestController::class, 'store'])
+    ->name('request-access')
+    ->middleware('guest');
+
+// Guest routes
+Route::post('/request-access', [AccessRequestController::class, 'store'])
+    ->name('request-access')
+    ->middleware('guest');
+
+
+// Authenticated routes
+Route::middleware(['auth:sanctum', 'verified'])->group(function () {
+    Route::get('/admin/access-requests', [App\Http\Controllers\AccessRequestController::class, 'index'])
+        ->name('admin.access-requests.index');
+
+    Route::post('/admin/access-requests/{accessRequest}/approve', [App\Http\Controllers\AccessRequestController::class, 'approve'])
+        ->name('admin.access-requests.approve');
+
+    Route::post('/admin/access-requests/{accessRequest}/deny', [App\Http\Controllers\AccessRequestController::class, 'deny'])
+        ->name('admin.access-requests.deny');
+});

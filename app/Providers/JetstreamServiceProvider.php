@@ -51,6 +51,11 @@ class JetstreamServiceProvider extends ServiceProvider
             'update',
             'delete',
             'addTeamMember',
+            'forge.servers.index',
+            'forge.sites.index',
+            'forge.commands.run',
+            'forge.sites.deploy',
+            'forge.commands.index',
 
         ])->description('Administrator users can perform any action.');
 
@@ -63,5 +68,17 @@ class JetstreamServiceProvider extends ServiceProvider
         Jetstream::role('viewer', 'Viewer', [
             'read',
         ])->description('Viewer users have the ability to read only.');
+
+        Jetstream::role('manager', 'Manager', [
+            'forge.servers.index',
+            'forge.sites.index',
+        ])->description('Manager users can view servers and sites.');
+
+        Jetstream::role('developer', 'Developer', [
+            'forge.commands.run',
+            'forge.sites.deploy',
+        ])->description('Developer users can run commands and deploy sites.');
     }
+
+
 }
