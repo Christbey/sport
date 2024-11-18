@@ -3,7 +3,7 @@
 
     {{ __('If you do not have an account, you may create one by clicking the button below. After creating an account, you may click the invitation acceptance button in this email to accept the team invitation:') }}
 
-    @component('mail::button', ['url' => route('auth.register', ['email' => $invitation->email])])
+    @component('mail::button', ['url' => route('register', ['email' => $invitation->email])])
         {{ __('Create Account') }}
     @endcomponent
 
