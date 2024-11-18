@@ -30,30 +30,32 @@ class UpdateUserSubmissionsJob implements ShouldQueue
             $currentWeek = NflCommandHelper::getCurrentWeek();
             $previousWeek = $currentWeek ? $currentWeek - 1 : null;
 
-            if (is_null($previousWeek) || $previousWeek < 1) {
-                NflCommandHelper::sendNotification('No valid previous NFL week found.', 'info');
-                return;
-            }
-
+            // Base query for all completed games
             $query = NflTeamSchedule::with(['homeTeam', 'awayTeam'])
-                ->whereIn('game_status', ['Completed', 'Final'])
-                ->where('game_week', 'Week ' . $previousWeek);
+                ->whereIn('game_status', ['Completed', 'Final']);
 
             if ($this->eventId) {
                 $query->where('espn_event_id', $this->eventId);
             }
 
-            $updatedGames = collect();
+            $allGames = $query->get();
 
-            $query->each(function ($nflTeamSchedule) use ($updatedGames) {
+            // Update all completed games
+            $allGames->each(function ($nflTeamSchedule) {
                 $winningTeamId = $this->determineWinningTeam($nflTeamSchedule);
                 $this->updateSubmissions($nflTeamSchedule, $winningTeamId);
-                $updatedGames->push($nflTeamSchedule);
             });
 
-            if ($updatedGames->isNotEmpty()) {
-                $this->dispatchGameResultsProcessed($updatedGames);
-                NflCommandHelper::sendNotification("Processed games for Week {$previousWeek} successfully.");
+            // Only process notifications for previous week's games
+            if ($previousWeek && $previousWeek >= 1) {
+                $previousWeekGames = $allGames->filter(function ($game) use ($previousWeek) {
+                    return $game->game_week === "Week {$previousWeek}";
+                });
+
+                if ($previousWeekGames->isNotEmpty()) {
+                    $this->dispatchGameResultsProcessed($previousWeekGames);
+                    NflCommandHelper::sendNotification("Processed games for Week {$previousWeek} successfully.");
+                }
             }
 
         } catch (Exception $e) {
@@ -80,12 +82,10 @@ class UpdateUserSubmissionsJob implements ShouldQueue
 
     protected function dispatchGameResultsProcessed($updatedGames)
     {
-        // First ensure we have all relationships loaded when games are queried
         $groupedGames = $updatedGames->groupBy('game_week');
 
         $groupedGames->each(function ($games, $gameWeek) {
             $gamesArray = $games->map(function ($game) {
-                // Assuming $game is already an Eloquent model with relationships loaded
                 return [
                     'id' => $game->id,
                     'espn_event_id' => $game->espn_event_id,

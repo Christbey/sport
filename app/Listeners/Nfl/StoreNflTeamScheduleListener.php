@@ -31,7 +31,8 @@ class StoreNflTeamScheduleListener implements ShouldQueue
             ]);
 
             if ($response->ok()) {
-                return $response->json('body.schedule');
+                $data = $response->json();
+                return $data['body']['schedule'] ?? null;  // Fixed this line to properly access schedule array
             } else {
                 Log::error("Failed to fetch schedule for team: {$event->teamAbv} in season: {$event->season}. Status: {$response->status()}");
                 return null;

@@ -4,6 +4,7 @@ namespace App\Actions\Fortify;
 
 use App\Models\Team;
 use App\Models\User;
+use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -26,6 +27,8 @@ class CreateNewUser implements CreatesNewUsers
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'password' => $this->passwordRules(),
             'terms' => Jetstream::hasTermsAndPrivacyPolicyFeature() ? ['accepted', 'required'] : '',
+            'g-recaptcha-response' => ['required', 'recaptcha'], // Add this for reCAPTCHA
+
         ])->validate();
 
         return DB::transaction(function () use ($input) {
@@ -37,6 +40,7 @@ class CreateNewUser implements CreatesNewUsers
                 $this->addToGeneralTeam($user); // Add the user to the General team
             });
         });
+
     }
 
     /**
@@ -53,7 +57,7 @@ class CreateNewUser implements CreatesNewUsers
             $user->switchTeam($generalTeam); // Optionally set the General team as the current team
         } else {
             // Optionally handle the case when the General team does not exist
-            throw new \Exception('General team not found');
+            throw new Exception('General team not found');
         }
     }
 }
