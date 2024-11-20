@@ -37,7 +37,7 @@ class FetchNflBoxScore extends Command
 
         } catch (Exception $e) {
             $this->error('An error occurred: ' . $e->getMessage());
-            // Optionally, handle exception further or log it
+            // Optionally, handle exception f urther or log it
         }
     }
 
@@ -114,8 +114,11 @@ class FetchNflBoxScore extends Command
                     ->from('nfl_box_scores')
                     ->whereColumn('nfl_box_scores.game_id', 'nfl_team_schedules.game_id');
             })
+            ->whereNotNull('game_id')
+            ->where('game_id', '!=', '')
             ->pluck('game_id');
     }
+
 
     /**
      * Retrieve game IDs for games in the specified week.

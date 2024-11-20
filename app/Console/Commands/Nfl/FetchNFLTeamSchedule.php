@@ -2,10 +2,11 @@
 
 namespace App\Console\Commands\Nfl;
 
-use App\Events\Nfl\FetchNflEspnScheduleEvent;
+use AllowDynamicProperties;
 use App\Helpers\NflCommandHelper;
 use App\Models\Nfl\NflTeamSchedule;
 use App\Notifications\DiscordCommandCompletionNotification;
+use App\Services\NflScheduleService;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
@@ -13,65 +14,41 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 
-class FetchNFLTeamSchedule extends Command
+#[AllowDynamicProperties] class FetchNFLTeamSchedule extends Command
 {
     private const CACHE_KEY = 'nfl_schedule_fetch_in_progress';
-private const CACHE_DURATION = 3600;
-    protected $signature = 'nfl:fetch-team-schedule 
-        {--week= : Specific week number to fetch (defaults to current week)}
-        {--force : Force refresh even if cache exists}';
-        protected $description = 'Fetch and store the NFL team schedule for the current week'; // 1 hour
+    private const CACHE_DURATION = 3600;
+
+    protected $signature = 'nfl:fetch-team-schedule {--week= : Specific week number} {--force : Force refresh}';
+    protected $description = 'Fetch and store the NFL team schedule for the current week';
+
+    public function __construct(NflScheduleService $scheduleService)
+    {
+        parent::__construct();
+        $this->scheduleService = $scheduleService;
+    }
 
     public function handle()
     {
-        try {
-            if (!$this->checkAndSetLock()) {
-                $this->error('Another schedule fetch is in progress. Use --force to override.');
-                return 1;
-            }
+        if (!$this->checkAndSetLock()) {
+            $this->error('Another fetch is in progress. Use --force to override.');
+            return 1;
+        }
 
-            // Initialize parameters
+        try {
             $season = config('nfl.seasonYear');
             $seasonType = config('nfl.seasonType');
-            $weekNumber = $this->option('week') ?? config('nfl.weekNumber') ?? NflCommandHelper::getCurrentWeek();
+            $weekNumber = $this->option('week') ?? NflCommandHelper::getCurrentWeek();
+            $this->validateParams($season, $seasonType, $weekNumber);
 
-            $this->validateParameters($season, $seasonType, $weekNumber);
-
-            // Start transaction
             DB::beginTransaction();
-
-            try {
-                $this->info("Fetching schedule for Week {$weekNumber}");
-
-                // Clear existing schedule data for this week if force option is used
-                if ($this->option('force')) {
-                    NflTeamSchedule::where([
-                        'season' => $season,
-                        'game_week' => $weekNumber
-                    ])->delete();
-
-                    $this->info('Cleared existing schedule data for week ' . $weekNumber);
-                }
-
-                // Fetch ESPN schedule for the week
-                $this->info('Fetching ESPN schedule...');
-                event(new FetchNflEspnScheduleEvent($season, $seasonType, $weekNumber));
-
-                DB::commit();
-
-                $this->info('Schedule fetch completed successfully');
-
-                // Send success notification
-                $this->sendNotification("Schedule fetch completed for Week {$weekNumber}", 'success');
-
-            } catch (Exception $e) {
-                DB::rollBack();
-                throw $e;
-            }
-
+            $this->fetchAndSaveSchedule($season, $weekNumber, $seasonType);
+            DB::commit();
+            $this->sendNotification("Schedule fetch completed for Week $weekNumber", 'success');
         } catch (Exception $e) {
+            DB::rollBack();
             $this->sendNotification($e->getMessage(), 'error');
-            $this->error('An error occurred: ' . $e->getMessage());
+            $this->error('Error: ' . $e->getMessage());
             Log::error('Schedule fetch failed: ' . $e->getMessage());
             return 1;
         } finally {
@@ -86,24 +63,52 @@ private const CACHE_DURATION = 3600;
         if (Cache::get(self::CACHE_KEY) && !$this->option('force')) {
             return false;
         }
-
         Cache::put(self::CACHE_KEY, true, self::CACHE_DURATION);
         return true;
     }
 
-    private function validateParameters($season, $seasonType, $weekNumber): void
+    private function validateParams($season, $seasonType, $weekNumber): void
+    {
+        $this->validateSeason($season);
+        $this->validateSeasonType($seasonType);
+        $this->validateWeekNumber($weekNumber);
+    }
+
+    private function validateSeason($season): void
     {
         if (!is_numeric($season) || strlen($season) !== 4) {
             throw new Exception("Invalid season year: $season");
         }
+    }
 
-        if (!in_array($seasonType, [1, 2, 3])) { // 1=Pre, 2=Reg, 3=Post
+    private function validateSeasonType($seasonType): void
+    {
+        if (!in_array($seasonType, [1, 2, 3])) {
             throw new Exception("Invalid season type: $seasonType");
         }
+    }
 
+    private function validateWeekNumber($weekNumber): void
+    {
         if ($weekNumber < 1 || $weekNumber > 22) {
             throw new Exception("Invalid week number: $weekNumber");
         }
+    }
+
+    private function fetchAndSaveSchedule($season, $weekNumber, $seasonType): void
+    {
+        if ($this->option('force')) {
+            $this->clearExistingData($weekNumber);
+        }
+        $this->scheduleService->updateScheduleForWeek($season, $weekNumber, $seasonType);
+        $this->info('Schedule fetch completed successfully');
+    }
+
+    private function clearExistingData($weekNumber): void
+    {
+        $espnIds = NflTeamSchedule::where('game_week', "Week $weekNumber")->pluck('espn_event_id')->filter();
+        NflTeamSchedule::whereIn('espn_event_id', $espnIds)->delete();
+        $this->info('Cleared existing schedule data for week ' . $weekNumber);
     }
 
     private function sendNotification(string $message, string $type): void

@@ -104,3 +104,7 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
     Route::post('/admin/access-requests/{accessRequest}/deny', [App\Http\Controllers\AccessRequestController::class, 'deny'])
         ->name('admin.access-requests.deny');
 });
+
+Route::get('/test/form', function () {
+    return view('curbbliss');
+});

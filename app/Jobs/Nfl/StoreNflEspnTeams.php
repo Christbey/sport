@@ -3,13 +3,14 @@
 namespace App\Jobs\Nfl;
 
 use App\Models\Nfl\NflTeam;
+use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Http;
-use Log;
+use Illuminate\Support\Facades\Log;
 
 class StoreNflEspnTeams implements ShouldQueue
 {
@@ -17,60 +18,82 @@ class StoreNflEspnTeams implements ShouldQueue
 
     protected $espnApiUrl;
 
-    /**
-     * Create a new job instance.
-     */
     public function __construct()
     {
         $this->espnApiUrl = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams';
     }
 
-    /**
-     * Execute the job.
-     *
-     * @return void
-     */
     public function handle()
+    {
+        try {
+            $teams = $this->fetchEspnNflTeams();
+            $this->storeEspnNflTeams($teams);
+            Log::info('ESPN NFL teams data has been successfully updated.');
+        } catch (Exception $e) {
+            Log::error('Failed to fetch or store ESPN NFL teams data: ' . $e->getMessage());
+        }
+    }
+
+    private function fetchEspnNflTeams(): array
     {
         $response = Http::get($this->espnApiUrl);
 
         if ($response->successful()) {
-            $teams = $response->json()['sports'][0]['leagues'][0]['teams'];
-
-            foreach ($teams as $teamData) {
-                $team = $teamData['team'];
-
-                // Try to match by espn_logo1 first, then fall back to team_abv if no match found
-                $existingTeam = NflTeam::where('espn_logo1', $team['logos'][0]['href'] ?? null)
-                    ->orWhere('team_abv', $team['abbreviation'])
-                    ->first();
-
-                if ($existingTeam) {
-                    // Update the existing team
-                    $existingTeam->update([
-                        'espn_id' => $team['id'], // ESPN team ID
-                        'uid' => $team['uid'], // ESPN unique ID
-                        'slug' => $team['slug'], // Team slug
-                        'color' => $team['color'], // Team primary color
-                        'alternate_color' => $team['alternateColor'], // Team alternate color
-                    ]);
-                } else {
-                    // Create a new team record
-                    NflTeam::create([
-                        'espn_id' => $team['id'], // ESPN team ID
-                        'uid' => $team['uid'], // ESPN unique ID
-                        'slug' => $team['slug'], // Team slug
-                        'team_abv' => $team['abbreviation'], // Team abbreviation
-                        'espn_logo1' => $team['logos'][0]['href'] ?? null, // ESPN logo 1 URL
-                        'color' => $team['color'], // Team primary color
-                        'alternate_color' => $team['alternateColor'], // Team alternate color
-                    ]);
-                }
-            }
-
-            Log::info('ESPN NFL teams data has been successfully updated.');
+            return $response->json('sports.0.leagues.0.teams');
         } else {
-            Log::error('Failed to fetch ESPN NFL teams data.');
+            throw new Exception('Failed to fetch ESPN NFL teams. Status Code: ' . $response->status());
         }
+    }
+
+    private function storeEspnNflTeams(array $teams): void
+    {
+        foreach ($teams as $teamData) {
+            $this->storeEspnNflTeam($teamData['team']);
+        }
+    }
+
+    private function storeEspnNflTeam(array $teamData): void
+    {
+        $existingTeam = $this->findExistingTeam($teamData);
+
+        if ($existingTeam) {
+            $this->updateExistingTeam($existingTeam, $teamData);
+        } else {
+            $this->createNewTeam($teamData);
+        }
+    }
+
+    private function findExistingTeam(array $teamData): ?NflTeam
+    {
+        $logoUrl = $teamData['logos'][0]['href'] ?? null;
+        $abbreviation = $teamData['abbreviation'];
+
+        return NflTeam::where('espn_logo1', $logoUrl)
+            ->orWhere('team_abv', $abbreviation)
+            ->first();
+    }
+
+    private function updateExistingTeam(NflTeam $team, array $teamData): void
+    {
+        $team->update([
+            'espn_id' => $teamData['id'],
+            'uid' => $teamData['uid'],
+            'slug' => $teamData['slug'],
+            'color' => $teamData['color'],
+            'alternate_color' => $teamData['alternateColor'],
+        ]);
+    }
+
+    private function createNewTeam(array $teamData): void
+    {
+        NflTeam::create([
+            'espn_id' => $teamData['id'],
+            'uid' => $teamData['uid'],
+            'slug' => $teamData['slug'],
+            'team_abv' => $teamData['abbreviation'],
+            'espn_logo1' => $teamData['logos'][0]['href'] ?? null,
+            'color' => $teamData['color'],
+            'alternate_color' => $teamData['alternateColor'],
+        ]);
     }
 }

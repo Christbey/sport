@@ -4,6 +4,7 @@ namespace App\Console\Commands\Nfl;
 
 use App\Jobs\Nfl\StoreNflBettingOdds;
 use Carbon\Carbon;
+use Carbon\CarbonPeriod;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -18,171 +19,138 @@ class FetchNflBettingOdds extends Command
 
     protected $description = 'Fetch NFL betting odds for the next 7 dates by default, or for a specific date or range of dates';
 
-    public function handle()
+    /**
+     * @throws Exception
+     */
+    public function handle(): int
     {
         try {
-            $date = $this->resolveDate();
+            $startDate = $this->getStartDate();
+            $dates = $this->getDates($startDate);
 
-            if ($date && !$this->validateDate($date)) {
-                return 1;
-            }
-
-            $currentWeek = $this->getCurrentWeek($date ?? Carbon::today());
-
-            if (!$currentWeek) {
-                $this->error('No configured week found for date: ' . ($date ? $date->format('Y-m-d') : 'today'));
-                return 1;
-            }
-
-            $this->info('Processing NFL betting odds starting from ' . ($date ? $date->format('Y-m-d') : Carbon::today()->format('Y-m-d')));
-
-            $datesProcessed = $this->processDates($date, $currentWeek);
-
-            //Log::info('Dates processed:', $datesProcessed);
-
-            return 0;
-
+            return $this->processOdds($dates);
         } catch (Exception $e) {
-            $this->handleError($e);
-            return 1;
+            $this->logError($e);
+            return self::FAILURE;
         }
     }
 
-    private function resolveDate(): ?Carbon
+    /**
+     * Get the start date for fetching odds.
+     */
+    private function getStartDate(): Carbon
     {
-        $dateString = $this->argument('date');
-
-        if ($dateString) {
+        if ($dateString = $this->argument('date')) {
             try {
                 return Carbon::parse($dateString);
-            } catch (Exception $e) {
+            } catch (Exception) {
                 throw new Exception('Invalid date format. Please use YYYY-MM-DD');
             }
         }
 
-        // Return null if no date is specified
-        return null;
+        return Carbon::today();
     }
 
-    private function validateDate(Carbon $date): bool
+    /**
+     * Get the dates to process based on command options.
+     */
+    private function getDates(Carbon $startDate): array
     {
-        // Allow all dates
-        return true;
-    }
-
-    private function getCurrentWeek(Carbon $date): ?array
-    {
-        $weeks = config('nfl.weeks');
-
-        if (empty($weeks)) {
-            throw new Exception('NFL weeks configuration is missing or empty');
+        if ($this->option('week')) {
+            return $this->getWeekDates($startDate);
         }
 
-        // Modify this method as needed based on your week's configuration
-        // For simplicity, we'll return a week starting from the given date
-        return [
-            'start' => $date->copy()->startOfWeek(),
-            'end' => $date->copy()->endOfWeek(),
-        ];
+        $days = (int)$this->option('next-days', 7);
+        return $this->getFutureDates($startDate, $days);
     }
 
-    private function processDates(?Carbon $date, array $currentWeek): array
+    /**
+     * Get dates for the entire week.
+     */
+    private function getWeekDates(Carbon $date): array
     {
-        $datesProcessed = [];
-        $datesToProcess = $this->getDatesToProcess($date, $currentWeek);
+        $weekStart = $date->copy()->startOfWeek();
+        $weekEnd = $date->copy()->endOfWeek();
 
-        $progressBar = $this->output->createProgressBar(count($datesToProcess));
+        return collect(CarbonPeriod::create($weekStart, $weekEnd))
+            ->map(fn($date) => $date->copy())
+            ->toArray();
+    }
+
+    /**
+     * Get future dates from start date.
+     */
+    private function getFutureDates(Carbon $startDate, int $days): array
+    {
+        return collect(CarbonPeriod::create($startDate, $startDate->copy()->addDays($days - 1)))
+            ->map(fn($date) => $date->copy())
+            ->toArray();
+    }
+
+    /**
+     * Process betting odds for given dates.
+     */
+    private function processOdds(array $dates): int
+    {
+        $this->info('Processing NFL betting odds from ' . $dates[0]->format('Y-m-d'));
+
+        $progressBar = $this->output->createProgressBar(count($dates));
         $progressBar->start();
 
-        foreach ($datesToProcess as $processDate) {
-            $formattedDate = $processDate->format('Ymd');
+        $success = true;
 
+        foreach ($dates as $date) {
             try {
-                $job = new StoreNflBettingOdds($formattedDate);
-                dispatch($job);
-
-                $datesProcessed[] = $formattedDate;
-                $this->logProgress($processDate);
-
+                $this->dispatchOddsJob($date);
+                $progressBar->advance();
             } catch (Exception $e) {
-                Log::error('Failed to process date', [
-                    'date' => $formattedDate,
-                    'error' => $e->getMessage()
-                ]);
+                $this->logError($e, $date);
+                $success = false;
             }
-
-            $progressBar->advance();
         }
 
         $progressBar->finish();
         $this->newLine();
 
-        return $datesProcessed;
+        if (!$success) {
+            $this->warn('Some dates failed to process. Check the logs for details.');
+        }
+
+        return $success ? self::SUCCESS : self::FAILURE;
     }
 
-    private function getDatesToProcess(?Carbon $date, array $currentWeek): array
+    /**
+     * Dispatch the job to store betting odds.
+     */
+    private function dispatchOddsJob(Carbon $date): void
     {
-        if ($this->option('week')) {
-            return $this->getDatesInRange($currentWeek['start'], $currentWeek['end']);
-        }
+        $formattedDate = $date->format('Ymd');
 
-        if ($nextDays = $this->option('next-days')) {
-            return $this->getFutureDates($date ?? Carbon::today(), (int)$nextDays);
-        }
-
-        // Default behavior: process next 7 dates
-        if (!$date) {
-            return $this->getFutureDates(Carbon::today(), 7);
-        }
-
-        // If a specific date is provided
-        return [$date];
-    }
-
-    private function getDatesInRange(Carbon $start, Carbon $end): array
-    {
-        $dates = [];
-        $current = $start->copy();
-
-        while ($current->lessThanOrEqualTo($end)) {
-            $dates[] = $current->copy();
-            $current->addDay();
-        }
-
-        return $dates;
-    }
-
-    private function getFutureDates(Carbon $startDate, int $days): array
-    {
-        $dates = [];
-        $current = $startDate->copy();
-
-        for ($i = 0; $i < $days; $i++) {
-            $dates[] = $current->copy();
-            $current->addDay();
-        }
-
-        return $dates;
-    }
-
-    private function logProgress(Carbon $date): void
-    {
         Log::info('Processing NFL betting odds', [
             'date' => $date->format('Y-m-d'),
             'command' => $this->getName()
         ]);
+
+        dispatch(new StoreNflBettingOdds($formattedDate));
     }
 
-    private function handleError(Exception $e): void
+    /**
+     * Log error messages.
+     */
+    private function logError(Exception $e, ?Carbon $date = null): void
     {
+        $context = [
+            'exception' => $e,
+            'command' => $this->getName(),
+        ];
+
+        if ($date) {
+            $context['date'] = $date->format('Y-m-d');
+        }
+
         $message = "Failed to fetch NFL betting odds: {$e->getMessage()}";
 
         $this->error($message);
-        Log::error($message, [
-            'exception' => $e,
-            'command' => $this->getName()
-        ]);
-
-        // Optionally send a notification
+        Log::error($message, $context);
     }
 }

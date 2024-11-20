@@ -13,12 +13,19 @@ class FetchNflNews extends Command
 
     public function handle()
     {
-        $runId = 'run_' . now()->timestamp;
-        Cache::put('nfl_news_last_run', $runId, now()->addHour());
-
-        FetchNflNewsJob::dispatch($runId);
-
+        $this->cacheLastRunId();
+        $this->dispatchFetchJob();
         $this->info('NFL News fetch job dispatched successfully.');
         return 0;
+    }
+
+    private function cacheLastRunId(): void
+    {
+        Cache::put('nfl_news_last_run', 'run_' . now()->timestamp, now()->addHour());
+    }
+
+    private function dispatchFetchJob(): void
+    {
+        FetchNflNewsJob::dispatch();
     }
 }

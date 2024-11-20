@@ -5,104 +5,125 @@ namespace App\Console\Commands\Nfl;
 use App\Models\Nfl\NflPlayerData;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
-use Log;
+use Illuminate\Support\Facades\Log;
 
 class FetchNflTeamRoster extends Command
 {
-    // Command signature with optional arguments
     protected $signature = 'nfl:fetch-team-roster {teamID?} {teamAbv?}';
+    protected $description = 'Fetch NFL team roster from the API route and store the response';
 
-    // Command description
-    protected $description = 'Fetch NFL team roster from the API route and display/store the response';
-
-    public function __construct()
+    public function handle(): int
     {
-        parent::__construct();
+        $teamId = $this->getTeamId();
+        $teamAbv = $this->getTeamAbv();
+
+        $players = $this->fetchTeamRoster($teamId, $teamAbv);
+
+        if ($players) {
+            $this->storeTeamRoster($players);
+            $this->info('Team roster data has been saved successfully.');
+        } else {
+            $this->error('Failed to fetch team roster.');
+        }
+
+        return 0;
     }
 
-    public function handle()
+    private function getTeamId(): int
     {
-        // Get optional arguments and provide default values if not provided
-        $teamID = $this->argument('teamID') ?? 5;   // Default to team ID 6 (example)
-        $teamAbv = $this->argument('teamAbv') ?? 'BAL'; // Default to Chicago Bears
+        return (int)($this->argument('teamID') ?? 5);
+    }
 
-        // Make an HTTP request to the route you've defined
+    private function getTeamAbv(): string
+    {
+        return $this->argument('teamAbv') ?? 'BAL';
+    }
+
+    private function fetchTeamRoster(int $teamId, string $teamAbv): ?array
+    {
         $response = Http::get(route('nfl.teamRoster'), [
-            'teamID' => $teamID,
+            'teamID' => $teamId,
             'teamAbv' => $teamAbv,
             'getStats' => true,
             'fantasyPoints' => true,
         ]);
 
-        // Check for a successful response
         if ($response->successful()) {
             $data = $response->json();
-
-            // Log the response to inspect its structure
             Log::info('API Response:', $data);
 
-            // Verify the structure contains 'body' and 'roster'
             if (isset($data['body']['roster']) && is_array($data['body']['roster'])) {
-                $players = $data['body']['roster'];
-                $this->storeNFLTeamRoster($players);
-                $this->info('Team roster data has been saved successfully.');
+                return $data['body']['roster'];
             } else {
                 $this->error('Unexpected response structure: no roster data found.');
                 Log::error('Unexpected API response structure', ['response' => $data]);
             }
         } else {
-            $this->error('Failed to fetch team roster.');
+            Log::error('Failed to fetch team roster.', ['status' => $response->status()]);
+        }
+
+        return null;
+    }
+
+    private function storeTeamRoster(array $players): void
+    {
+        foreach ($players as $player) {
+            if (isset($player['playerID'])) {
+                $this->storePlayer($player);
+            } else {
+                Log::warning('Player data missing playerID', ['player' => $player]);
+            }
         }
     }
 
-    protected function storeNFLTeamRoster(array $players)
+    private function storePlayer(array $player): void
     {
-        foreach ($players as $player) {
-            // Check if the player data is in the expected format
-            if (!isset($player['playerID'])) {
-                Log::warning('Player data missing playerID', ['player' => $player]);
-                continue; // Skip this player if playerID is missing
-            }
+        NflPlayerData::updateOrCreate(
+            ['playerID' => $player['playerID']],
+            $this->preparePlayerData($player)
+        );
+    }
 
-            // Handle "R" (rookie) in the 'exp' field
-            $exp = isset($player['exp']) && $player['exp'] === 'R' ? 0 : (int)($player['exp'] ?? 0); // Set to 0 if Rookie, else cast to integer
+    private function preparePlayerData(array $player): array
+    {
+        return [
+            'fantasyProsLink' => $player['fantasyProsLink'] ?? null,
+            'jerseyNum' => $player['jerseyNum'] ?? null,
+            'espnName' => $player['espnName'] ?? null,
+            'cbsLongName' => $player['cbsLongName'] ?? null,
+            'yahooLink' => $player['yahooLink'] ?? null,
+            'sleeperBotID' => $player['sleeperBotID'] ?? null,
+            'fantasyProsPlayerID' => $player['fantasyProsPlayerID'] ?? null,
+            'lastGamePlayed' => $player['lastGamePlayed'] ?? null,
+            'espnLink' => $player['espnLink'] ?? null,
+            'yahooPlayerID' => $player['yahooPlayerID'] ?? null,
+            'isFreeAgent' => $player['isFreeAgent'] === 'True',
+            'pos' => $player['pos'] ?? null,
+            'school' => $player['school'] ?? null,
+            'teamID' => $player['teamID'] ?? null,
+            'cbsShortName' => $player['cbsShortName'] ?? null,
+            'injury_return_date' => $player['injury']['injReturnDate'] ?? null,
+            'injury_description' => $player['injury']['description'] ?? null,
+            'injury_date' => $player['injury']['injDate'] ?? null,
+            'injury_designation' => $player['injury']['designation'] ?? null,
+            'rotoWirePlayerIDFull' => $player['rotoWirePlayerIDFull'] ?? null,
+            'rotoWirePlayerID' => $player['rotoWirePlayerID'] ?? null,
+            'exp' => $this->getPlayerExperience($player),
+            'height' => $player['height'] ?? null,
+            'espnHeadshot' => $player['espnHeadshot'] ?? null,
+            'fRefID' => $player['fRefID'] ?? null,
+            'weight' => $player['weight'] ?? null,
+            'team' => $player['team'] ?? null,
+            'espnIDFull' => $player['espnIDFull'] ?? null,
+            'bDay' => $player['bDay'] ?? null,
+            'age' => $player['age'] ?? null,
+            'longName' => $player['longName'] ?? null,
+        ];
+    }
 
-            NflPlayerData::updateOrCreate(
-                ['playerID' => $player['playerID']],
-                [
-                    'fantasyProsLink' => $player['fantasyProsLink'] ?? null,
-                    'jerseyNum' => $player['jerseyNum'] ?? null,
-                    'espnName' => $player['espnName'] ?? null,
-                    'cbsLongName' => $player['cbsLongName'] ?? null,
-                    'yahooLink' => $player['yahooLink'] ?? null,
-                    'sleeperBotID' => $player['sleeperBotID'] ?? null,
-                    'fantasyProsPlayerID' => $player['fantasyProsPlayerID'] ?? null,
-                    'lastGamePlayed' => $player['lastGamePlayed'] ?? null,
-                    'espnLink' => $player['espnLink'] ?? null,
-                    'yahooPlayerID' => $player['yahooPlayerID'] ?? null,
-                    'isFreeAgent' => $player['isFreeAgent'] === 'True',
-                    'pos' => $player['pos'] ?? null,
-                    'school' => $player['school'] ?? null,
-                    'teamID' => $player['teamID'] ?? null,
-                    'cbsShortName' => $player['cbsShortName'] ?? null,
-                    'injury_return_date' => $player['injury']['injReturnDate'] ?? null,
-                    'injury_description' => $player['injury']['description'] ?? null,
-                    'injury_date' => $player['injury']['injDate'] ?? null,
-                    'injury_designation' => $player['injury']['designation'] ?? null,
-                    'rotoWirePlayerIDFull' => $player['rotoWirePlayerIDFull'] ?? null,
-                    'rotoWirePlayerID' => $player['rotoWirePlayerID'] ?? null,
-                    'exp' => $exp, // Store the experience value, handle 'R' for rookies
-                    'height' => $player['height'] ?? null,
-                    'espnHeadshot' => $player['espnHeadshot'] ?? null,
-                    'fRefID' => $player['fRefID'] ?? null,
-                    'weight' => $player['weight'] ?? null,
-                    'team' => $player['team'] ?? null,
-                    'espnIDFull' => $player['espnIDFull'] ?? null,
-                    'bDay' => $player['bDay'] ?? null,
-                    'age' => $player['age'] ?? null,
-                    'longName' => $player['longName'] ?? null,
-                ]
-            );
-        }
+    private function getPlayerExperience(array $player): int
+    {
+        $exp = $player['exp'] ?? null;
+        return $exp === 'R' ? 0 : (int)$exp;
     }
 }

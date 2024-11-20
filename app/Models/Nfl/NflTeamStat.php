@@ -24,6 +24,22 @@ class NflTeamStat extends Model
     ];
 
     // Relationships
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($stats) {
+            if (empty($stats->team_abv) && !empty($stats->team_id)) {
+                // Fetch team abbreviation from related team if not provided
+                $team = NflTeam::find($stats->team_id);
+                if ($team) {
+                    $stats->team_abv = $team->team_abv;
+                }
+            }
+        });
+    }
+
     public function game()
     {
         return $this->belongsTo(NflBoxScore::class, 'game_id', 'game_id');

@@ -12,6 +12,7 @@ class NflTeamSchedule extends Model
         'game_id',
         'name',
         'season_type',
+        'season',
         'away_team',
         'home_team_id',
         'game_date',
