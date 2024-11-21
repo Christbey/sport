@@ -114,11 +114,8 @@ class FetchNflBoxScore extends Command
                     ->from('nfl_box_scores')
                     ->whereColumn('nfl_box_scores.game_id', 'nfl_team_schedules.game_id');
             })
-            ->whereNotNull('game_id')
-            ->where('game_id', '!=', '')
             ->pluck('game_id');
     }
-
 
     /**
      * Retrieve game IDs for games in the specified week.
@@ -129,7 +126,7 @@ class FetchNflBoxScore extends Command
     protected function getGamesForSpecifiedWeek($weekNumber): Collection
     {
         $weeks = config('nfl.weeks');
-        $weekConfig = $weeks["Week {$weekNumber}"] ?? null;
+        $weekConfig = $weeks[$weekNumber] ?? null;
 
         if (!$weekConfig) {
             $this->error("Invalid week number provided: {$weekNumber}");
