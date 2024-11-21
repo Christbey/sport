@@ -8,7 +8,6 @@ use App\Http\Controllers\Cfb\CollegeFootballHypotheticalController;
 use App\Http\Controllers\Cfb\CollegeFootballNoteController;
 use App\Http\Controllers\CollegeBasketballHypotheticalController;
 use App\Http\Controllers\ForgeApiController;
-use App\Http\Controllers\InvitedUserRegistrationController;
 use App\Http\Controllers\Nfl\NflEloRatingController;
 use App\Http\Controllers\Nfl\NflSheetController;
 use App\Http\Controllers\Nfl\NflStatsViewController;

@@ -18,53 +18,22 @@ class StoreCollegeFootballGameMedia implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    protected $year;
-    protected $week;
-    protected $seasonType;
-    protected $team;
-    protected $conference;
-    protected $mediaType;
-    protected $classification;
-
+    protected $params;
     protected $apiUrl = 'https://apinext.collegefootballdata.com/games/media';
     protected $apiKey;
 
-    /**
-     * Create a new job instance.
-     *
-     * @param array $params
-     */
     public function __construct(array $params)
     {
-        $this->year = $params['year'] ?? null;
-        $this->week = $params['week'] ?? null;
-        $this->seasonType = $params['seasonType'] ?? null;
-        $this->team = $params['team'] ?? null;
-        $this->conference = $params['conference'] ?? null;
-        $this->mediaType = $params['mediaType'] ?? null;
-        $this->classification = $params['classification'] ?? null;
+        $this->params = $params;
         $this->apiKey = config('services.college_football_data.key');
     }
 
-    /**
-     * Execute the job.
-     *
-     * @return void
-     */
     public function handle()
     {
         try {
             $client = new Client();
-            $response = $client->request('GET', $this->apiUrl, [
-                'query' => [
-                    'year' => $this->year,
-                    'week' => $this->week,
-                    'seasonType' => $this->seasonType,
-                    'team' => $this->team,
-                    'conference' => $this->conference,
-                    'mediaType' => $this->mediaType,
-                    'classification' => $this->classification,
-                ],
+            $response = $client->get($this->apiUrl, [
+                'query' => $this->params,
                 'headers' => [
                     'Authorization' => 'Bearer ' . $this->apiKey,
                     'Accept' => 'application/json',
@@ -74,15 +43,13 @@ class StoreCollegeFootballGameMedia implements ShouldQueue
             $mediaData = json_decode($response->getBody(), true);
 
             foreach ($mediaData as $media) {
-                // Assuming 'id' is the game ID in the media data
-                $game = CollegeFootballGame::where('id', $media['id'])->first();
+                $game = CollegeFootballGame::find($media['id']);
 
                 if ($game) {
                     $game->update([
                         'media_type' => $media['mediaType'] ?? null,
                         'outlet' => $media['outlet'] ?? null,
                         'provider' => $media['provider'] ?? null,
-                        // Add any other relevant fields you want to store
                     ]);
                 } else {
                     Log::info('No game found for ID: ' . $media['id']);
@@ -90,16 +57,12 @@ class StoreCollegeFootballGameMedia implements ShouldQueue
             }
 
             Log::info('Game media data fetched and stored successfully.');
-            // Send success notification
             Notification::route('discord', config('services.discord.channel_id'))
                 ->notify(new DiscordCommandCompletionNotification('', 'success'));
 
         } catch (Exception $e) {
-            // Send failure notification
             Notification::route('discord', config('services.discord.channel_id'))
                 ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'error'));
-
         }
-
     }
 }

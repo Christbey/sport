@@ -42,7 +42,7 @@ class GameWeekService
         return NflTeamSchedule::select('game_week')
             ->distinct()
             ->where('season_type', 'Regular Season')
-            ->orderByRaw('CAST(SUBSTRING(game_week, 6) AS UNSIGNED) ASC')
+            ->orderByRaw('game_week')
             ->get();
     }
 }
@@ -53,7 +53,7 @@ class PickemService
     {
         return NflTeamSchedule::where('season_type', 'Regular Season')
             ->when($game_week, function ($query) use ($game_week) {
-                $query->where(DB::raw('CAST(SUBSTRING(game_week, 6) AS UNSIGNED)'), $game_week);
+                $query->where(DB::raw('game_week'), $game_week);
             })
             ->with(['awayTeam', 'homeTeam'])
             ->orderBy('game_date', 'asc')
@@ -67,7 +67,7 @@ class PickemService
             ->whereIn('espn_event_id', $eventIds)
             ->when($game_week, function ($query) use ($game_week) {
                 $query->whereHas('event', function ($q) use ($game_week) {
-                    $q->where(DB::raw('CAST(SUBSTRING(game_week, 6) AS UNSIGNED)'), $game_week);
+                    $q->where(DB::raw('game_week'), $game_week);
                 });
             })
             ->get()
@@ -189,7 +189,7 @@ class LeaderboardService
             'submissions as correct_picks' => function ($query) use ($game_week) {
                 $query->where('is_correct', true)
                     ->whereHas('event', function ($q) use ($game_week) {
-                        $q->where(DB::raw('CAST(SUBSTRING(game_week, 6) AS UNSIGNED)'), $game_week);
+                        $q->where(DB::raw('game_week'), $game_week);
                     });
             },
             // Total correct picks across all weeks
@@ -200,7 +200,7 @@ class LeaderboardService
             'submissions as period_points' => function ($query) use ($period_start_week, $period_end_week) {
                 $query->where('is_correct', true)
                     ->whereHas('event', function ($q) use ($period_start_week, $period_end_week) {
-                        $q->whereBetween(DB::raw('CAST(SUBSTRING(game_week, 6) AS UNSIGNED)'), [$period_start_week, $period_end_week]);
+                        $q->whereBetween(DB::raw('game_week'), [$period_start_week, $period_end_week]);
                     });
             },
         ])
@@ -224,7 +224,7 @@ class LeaderboardService
             ->where('user_id', $userId)
             ->when($game_week, function ($query) use ($game_week) {
                 $query->whereHas('event', function ($q) use ($game_week) {
-                    $q->where(DB::raw('CAST(SUBSTRING(game_week, 6) AS UNSIGNED)'), $game_week);
+                    $q->where(DB::raw('game_week'), $game_week);
                 });
             })
             ->get();

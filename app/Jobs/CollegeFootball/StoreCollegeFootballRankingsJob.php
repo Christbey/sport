@@ -2,9 +2,7 @@
 
 namespace App\Jobs\CollegeFootball;
 
-use App\Models\CollegeFootball\CollegeFootballTeam;
-use App\Models\CollegeFootball\CollegeFootballTeamAlias;
-use App\Models\CollegeFootball\Sagarin;
+use App\Models\CollegeFootball\{CollegeFootballTeam, CollegeFootballTeamAlias, Sagarin};
 use App\Notifications\DiscordCommandCompletionNotification;
 use Exception;
 use GuzzleHttp\Client;
@@ -13,161 +11,138 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\{Log, Notification};
 
 class StoreCollegeFootballRankingsJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    private const SAGARIN_URL = 'http://sagarin.com/sports/cfsend.htm';
+    private const SIGNIFICANT_CHANGE = 0.1;
+    private const MAX_CHANGES_TO_DISPLAY = 10;
+
     private array $ratingChanges = [];
 
-    public function handle()
+    public function handle(): void
     {
-        $client = new Client(['base_uri' => 'http://sagarin.com']);
-
         try {
-            $response = $this->fetchRankings($client);
-
-            if ($response->getStatusCode() === 200) {
-                $this->processRankings($response->getBody()->getContents());
-
-                // After processing, send notification with top changes
-                $this->sendRatingChangesNotification();
-            } else {
-                Log::error('Failed to fetch the page. Status code: ' . $response->getStatusCode());
-                throw new Exception('Failed to fetch rankings');
-            }
-
+            $client = new Client();
+            $rankings = $this->fetchAndParseRankings($client);
+            $this->processRankings($rankings);
+            $this->notifyChanges();
         } catch (Exception $e) {
-            Notification::route('discord', config('services.discord.channel_id'))
-                ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'error'));
+            $this->notifyError($e->getMessage());
+            throw $e;
         }
     }
 
-    private function fetchRankings(Client $client)
+    private function fetchAndParseRankings(Client $client): array
     {
-        return $client->get('/sports/cfsend.htm');
+        $response = $client->get(self::SAGARIN_URL);
+        $content = $response->getBody()->getContents();
+
+        if (!preg_match_all('/\d+\s+(.+?)\s+A\s+=\s+([\d.]+)/', $content, $matches)) {
+            throw new Exception('No rankings found in response');
+        }
+
+        return array_map(fn($team, $rating) => ['name' => trim($team), 'rating' => $rating], $matches[1], $matches[2]);
     }
 
-    private function processRankings($body)
+    private function processRankings(array $rankings): void
     {
-        $teams = $this->extractTeamsFromBody($body);
-
-        if (!empty($teams)) {
-            foreach ($teams as $teamData) {
-                $this->saveTeamRanking($teamData['name'], $teamData['rating']);
+        foreach ($rankings as $ranking) {
+            $team = $this->findTeam($ranking['name']);
+            if (!$team) {
+                Log::warning("No team found for {$ranking['name']}");
+                continue;
             }
-        } else {
-            Log::error('No rankings found on the page.');
-            throw new Exception('No rankings found');
+            $this->updateTeamRating($team, $ranking);
         }
     }
 
-    private function extractTeamsFromBody($body)
+    private function findTeam(string $name): ?CollegeFootballTeam
     {
-        preg_match_all('/\d+\s+(.+?)\s+A\s+=\s+([\d.]+)/', $body, $matches);
-        $teams = [];
-
-        if (!empty($matches[1])) {
-            foreach ($matches[1] as $index => $teamName) {
-                $teams[] = [
-                    'name' => trim($teamName),
-                    'rating' => $matches[2][$index],
-                ];
-            }
-        }
-
-        return $teams;
+        return CollegeFootballTeam::where('school', $name)->first()
+            ?? CollegeFootballTeamAlias::where('alias_name', $name)->first()?->team;
     }
 
-    private function saveTeamRanking($scrapedTeam, $rating)
+    private function updateTeamRating(CollegeFootballTeam $team, array $ranking): void
     {
-        $team = $this->findTeamByAlias($scrapedTeam);
+        $oldRating = Sagarin::where('id', $team->id)->value('rating');
 
-        if ($team) {
-            // Get previous rating
-            $previousRating = Sagarin::where('id', $team->id)->value('rating');
+        Sagarin::updateOrCreate(
+            ['id' => $team->id],
+            [
+                'team_name' => $ranking['name'],
+                'rating' => $ranking['rating'],
+            ]
+        );
 
-            // Calculate change if there was a previous rating
-            if ($previousRating !== null) {
-                $change = floatval($rating) - floatval($previousRating);
-
-                // Only track significant changes (e.g., more than 0.1)
-                if (abs($change) > 0.1) {
-                    $this->ratingChanges[] = [
-                        'team' => $team->school,
-                        'old_rating' => $previousRating,
-                        'new_rating' => $rating,
-                        'change' => $change
-                    ];
-                }
-            }
-
-            Log::info("Scraped Team: {$scrapedTeam} | Matched to: {$team->school} | Rating: {$rating}");
-
-            Sagarin::updateOrCreate(
-                ['id' => $team->id],
-                [
-                    'team_name' => $scrapedTeam,
-                    'rating' => $rating,
-                ]
-            );
-        } else {
-            Log::warning("Scraped Team: {$scrapedTeam} | No match found | Rating: {$rating}");
-        }
+        $this->trackRatingChange($team, $oldRating, $ranking['rating']);
     }
 
-    private function findTeamByAlias($scrapedTeam)
+    private function trackRatingChange(CollegeFootballTeam $team, ?float $oldRating, float $newRating): void
     {
-        $team = CollegeFootballTeam::where('school', $scrapedTeam)->first();
-
-        if (!$team) {
-            $alias = CollegeFootballTeamAlias::where('alias_name', $scrapedTeam)->first();
-            $team = $alias?->team;
-        }
-
-        return $team;
-    }
-
-    private function sendRatingChangesNotification()
-    {
-        if (empty($this->ratingChanges)) {
-            Notification::route('discord', config('services.discord.channel_id'))
-                ->notify(new DiscordCommandCompletionNotification(
-                    "**Sagarin Ratings Update**\nNo significant rating changes detected.",
-                    'success'
-                ));
+        if (!$oldRating) {
             return;
         }
 
-        // Sort changes by absolute change value
-        usort($this->ratingChanges, function ($a, $b) {
-            return abs($b['change']) <=> abs($a['change']);
-        });
+        $change = $newRating - $oldRating;
 
-        // Take top 10 changes
-        $topChanges = array_slice($this->ratingChanges, 0, 10);
+        if (abs($change) > self::SIGNIFICANT_CHANGE) {
+            $this->ratingChanges[] = [
+                'team' => $team->school,
+                'old_rating' => $oldRating,
+                'new_rating' => $newRating,
+                'change' => $change
+            ];
+        }
+    }
 
-        // Build notification message
-        $message = "**Sagarin Ratings Update**\n\n";
-        $message .= "**Top Rating Changes:**\n";
+    private function notifyChanges(): void
+    {
+        $message = $this->buildNotificationMessage();
+        $this->sendDiscordNotification($message);
+    }
 
-        foreach ($topChanges as $change) {
-            $direction = $change['change'] > 0 ? '📈' : '📉';
-            $message .= sprintf(
-                "%s **%s**\n   %.2f → %.2f (%+.2f)\n",
-                $direction,
-                $change['team'],
-                $change['old_rating'],
-                $change['new_rating'],
-                $change['change']
-            );
+    private function buildNotificationMessage(): string
+    {
+        if (empty($this->ratingChanges)) {
+            return "**Sagarin Ratings Update**\nNo significant rating changes detected.";
         }
 
-        $message .= "\n_Powered by Picksports Alerts • " . now()->format('F j, Y g:i A') . '_';
+        usort($this->ratingChanges, fn($a, $b) => abs($b['change']) <=> abs($a['change']));
+        $topChanges = array_slice($this->ratingChanges, 0, self::MAX_CHANGES_TO_DISPLAY);
 
+        $message = "**Sagarin Ratings Update**\n\n**Top Rating Changes:**\n";
+        foreach ($topChanges as $change) {
+            $message .= $this->formatRatingChange($change);
+        }
+
+        return $message;
+    }
+
+    private function formatRatingChange(array $change): string
+    {
+        $emoji = $change['change'] > 0 ? '📈' : '📉';
+        return sprintf(
+            "%s **%s**\n   %.2f → %.2f (%+.2f)\n",
+            $emoji,
+            $change['team'],
+            $change['old_rating'],
+            $change['new_rating'],
+            $change['change']
+        );
+    }
+
+    private function sendDiscordNotification(string $message, string $type = 'success'): void
+    {
         Notification::route('discord', config('services.discord.channel_id'))
-            ->notify(new DiscordCommandCompletionNotification($message, 'success'));
+            ->notify(new DiscordCommandCompletionNotification($message, $type));
+    }
+
+    private function notifyError(string $message): void
+    {
+        $this->sendDiscordNotification($message, 'error');
     }
 }

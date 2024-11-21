@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class CollegeFootballPregame extends Model
 {
+    protected $table = 'college_football_pregame';
     protected $fillable = [
         'season',
         'season_type',

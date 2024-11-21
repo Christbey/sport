@@ -2,7 +2,6 @@
 
 namespace App\Models\Nfl;
 
-use App\Models\NflTeamSchedule;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -38,5 +37,10 @@ class NflSheet extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function game()
+    {
+        return $this->belongsTo(NflTeamSchedule::class, 'game_id', 'game_id');
     }
 }

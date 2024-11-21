@@ -16,22 +16,30 @@ class NflSheetController extends Controller
         // Validate the form data
         $request->validate([
             'team_id' => 'required|exists:nfl_teams,id',
-            //'game_id' => 'required|exists:nfl_team_schedule,game_id',
+            'game_id' => 'required|exists:nfl_team_schedules,game_id',
             'user_inputted_notes' => 'nullable|string',
         ]);
+
+        // Get the game from NflTeamSchedule
+        $game = NflTeamSchedule::where('game_id', $request->game_id)->firstOrFail();
 
         // Create a new NflSheet entry
         NflSheet::create([
             'team_id' => $request->team_id,
-            'game_id' => $request->game_id,
+            'game_id' => $request->game_id,  // Use the game_id string directly
             'user_id' => auth()->id(),
             'user_inputted_notes' => $request->user_inputted_notes,
         ]);
 
-        // Fetch data again to refresh the page with updated records
-        return $this->index($request)->with('success', 'Data saved successfully.');
+        return redirect()
+            ->route('nfl.detail', [
+                'team_id' => $request->team_id,
+                'game_id' => $request->game_id
+            ])
+            ->with('success', 'Data saved successfully.');
     }
 
+// Controller update first
     public function index(Request $request)
     {
         // Fetch all NFL teams for the filter
@@ -67,17 +75,19 @@ class NflSheetController extends Controller
                 ->get();
 
             // If a game exists in the current week, set the first game as the default selected game
-            if ($games->isNotEmpty()) {
-                $selectedGameId = $selectedGameId ?: $games->first()->id;
+            if ($games->isNotEmpty() && !$selectedGameId) {
+                $selectedGameId = $games->first()->game_id;
             }
         }
 
-        // Fetch all records, or filter by team and game if selected
-        $nflSheets = NflSheet::when($selectedTeamId, function ($query) use ($selectedTeamId) {
-            return $query->where('team_id', $selectedTeamId);
-        })->when($selectedGameId, function ($query) use ($selectedGameId) {
-            return $query->where('game_id', $selectedGameId);
-        })->get();
+        // Fetch all records for the selected team
+        $nflSheets = NflSheet::with(['game', 'user'])
+            ->when($selectedTeamId, function ($query) use ($selectedTeamId) {
+                return $query->where('team_id', $selectedTeamId);
+            })
+            ->latest()  // Order by most recent first
+            ->take(5)   // Limit to last 5 notes
+            ->get();
 
         return view('nfl.detail', compact('nflSheets', 'teams', 'selectedTeamId', 'games', 'selectedGameId'));
     }

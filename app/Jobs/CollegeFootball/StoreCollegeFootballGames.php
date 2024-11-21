@@ -2,8 +2,7 @@
 
 namespace App\Jobs\CollegeFootball;
 
-use App\Models\CollegeFootball\CollegeFootballGame;
-use App\Models\CollegeFootball\CollegeFootballTeam;
+use App\Models\CollegeFootball\{CollegeFootballGame, CollegeFootballTeam};
 use App\Notifications\DiscordCommandCompletionNotification;
 use Exception;
 use GuzzleHttp\Client;
@@ -18,128 +17,98 @@ class StoreCollegeFootballGames implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    protected $year;
-    protected $apiUrl;
-    protected $apiKey;
+    private const API_URL = 'https://api.collegefootballdata.com/games';
 
-    /**
-     * Create a new job instance.
-     *
-     * @param int $year
-     */
-    public function __construct(int $year)
+    public function __construct(
+        private int     $year,
+        private ?string $apiKey = null
+    )
     {
-        $this->year = $year;
-        $this->apiUrl = 'https://api.collegefootballdata.com/games';
-        $this->apiKey = config('services.college_football_data.key');
+        $this->apiKey = $apiKey ?? config('services.college_football_data.key');
     }
 
-    /**
-     * Execute the job.
-     *
-     * @return void
-     */
-    public function handle()
+    public function handle(): void
     {
         try {
-            $client = new Client();
-            $response = $client->request('GET', $this->apiUrl, [
-                'query' => [
-                    'year' => $this->year,
-                ],
-                'headers' => [
-                    'Authorization' => 'Bearer ' . $this->apiKey,
-                    'Accept' => 'application/json',
-                ],
-            ]);
-
-            $games = json_decode($response->getBody()->getContents(), true);
-
-            foreach ($games as $game) {
-                // Ensure the home and away teams are stored first
-                $homeTeam = CollegeFootballTeam::updateOrCreate(
-                    ['school' => $game['home_team']],
-                    [
-                        'conference' => $game['home_conference'] ?? null,
-                    ]
-                );
-
-                $awayTeam = CollegeFootballTeam::updateOrCreate(
-                    ['school' => $game['away_team']],
-                    [
-                        'conference' => $game['away_conference'] ?? null,
-                    ]
-                );
-
-                // Now store the game data with valid home_id and away_id
-                CollegeFootballGame::updateOrCreate(
-                    ['id' => $game['id']],
-                    [
-                        'season' => $game['season'] ?? null,
-                        'week' => $game['week'] ?? null,
-                        'season_type' => $game['season_type'] ?? null,
-                        'start_date' => $game['start_date'] ?? null,
-                        'start_time_tbd' => $game['start_time_tbd'] ?? false,
-                        'completed' => $game['completed'] ?? false,
-                        'neutral_site' => $game['neutral_site'] ?? false,
-                        'conference_game' => $game['conference_game'] ?? false,
-                        'attendance' => $game['attendance'] ?? null,
-                        'venue_id' => $venue->id ?? null,
-                        'venue' => $game['venue'] ?? null,
-                        'home_id' => $homeTeam->id,
-                        'home_team' => $game['home_team'] ?? null,
-                        'home_conference' => $game['home_conference'] ?? null,
-                        'home_division' => $game['home_division'] ?? null,
-                        'home_points' => $game['home_points'] ?? null,
-                        'home_line_scores' => json_encode($game['home_line_scores'] ?? []),
-                        'home_post_win_prob' => $game['home_post_win_prob'] ?? null,
-                        'home_pregame_elo' => $game['home_pregame_elo'] ?? null,
-                        'home_postgame_elo' => $game['home_postgame_elo'] ?? null,
-                        'away_id' => $awayTeam->id,
-                        'away_team' => $game['away_team'] ?? null,
-                        'away_conference' => $game['away_conference'] ?? null,
-                        'away_division' => $game['away_division'] ?? null,
-                        'away_points' => $game['away_points'] ?? null,
-                        'away_line_scores' => json_encode($game['away_line_scores'] ?? []),
-                        'away_post_win_prob' => $game['away_post_win_prob'] ?? null,
-                        'away_pregame_elo' => $game['away_pregame_elo'] ?? null,
-                        'away_postgame_elo' => $game['away_postgame_elo'] ?? null,
-//                        'excitement_index' => $game['excitement_index'] ?? null,
-//                        'highlights' => $game['highlights'] ?? null,
-//                        'notes' => $game['notes'] ?? null,
-//                        'provider' => $game['provider'] ?? null,
-//                        'spread' => $game['spread'] ?? null,
-//                        'formatted_spread' => $game['formatted_spread'] ?? null,
-//                        'spread_open' => $game['spread_open'] ?? null,
-//                        'over_under' => $game['over_under'] ?? null,
-//                        'over_under_open' => $game['over_under_open'] ?? null,
-//                        'home_moneyline' => $game['home_moneyline'] ?? null,
-//                        'away_moneyline' => $game['away_moneyline'] ?? null,
-//                        'media_type' => $game['media_type'] ?? null,
-//                        'outlet' => $game['outlet'] ?? null,
-//                        'start_time' => $game['start_time'] ?? null,
-//                        'temperature' => $game['temperature'] ?? null,
-//                        'dew_point' => $game['dew_point'] ?? null,
-//                        'humidity' => $game['humidity'] ?? null,
-//                        'precipitation' => $game['precipitation'] ?? null,
-//                        'snowfall' => $game['snowfall'] ?? null,
-//                        'wind_direction' => $game['wind_direction'] ?? null,
-//                        'wind_speed' => $game['wind_speed'] ?? null,
-//                        'pressure' => $game['pressure'] ?? null,
-//                        'weather_condition_code' => $game['weather_condition_code'] ?? null,
-//                        'weather_condition' => $game['weather_condition'] ?? null,
-                    ]
-                );
-            }
-            // Send success notification
-            Notification::route('discord', config('services.discord.channel_id'))
-                ->notify(new DiscordCommandCompletionNotification('', 'success'));
-
+            $games = $this->fetchGamesData();
+            $this->processGames($games);
+            $this->sendNotification();
         } catch (Exception $e) {
-            // Send failure notification
-            Notification::route('discord', config('services.discord.channel_id'))
-                ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'error'));
-
+            $this->sendNotification($e->getMessage(), 'error');
         }
+    }
+
+    private function fetchGamesData(): array
+    {
+        $client = new Client();
+        $response = $client->request('GET', self::API_URL, [
+            'query' => ['year' => $this->year],
+            'headers' => [
+                'Authorization' => "Bearer {$this->apiKey}",
+                'Accept' => 'application/json',
+            ],
+        ]);
+
+        return json_decode($response->getBody()->getContents(), true);
+    }
+
+    private function processGames(array $games): void
+    {
+        foreach ($games as $game) {
+            $homeTeam = $this->storeTeam($game, 'home');
+            $awayTeam = $this->storeTeam($game, 'away');
+            $this->storeGame($game, $homeTeam, $awayTeam);
+        }
+    }
+
+    private function storeTeam(array $game, string $type): CollegeFootballTeam
+    {
+        return CollegeFootballTeam::updateOrCreate(
+            ['school' => $game["{$type}_team"]],
+            ['conference' => $game["{$type}_conference"] ?? null]
+        );
+    }
+
+    private function storeGame(array $game, CollegeFootballTeam $homeTeam, CollegeFootballTeam $awayTeam): void
+    {
+        CollegeFootballGame::updateOrCreate(
+            ['id' => $game['id']],
+            [
+                'season' => $game['season'] ?? null,
+                'week' => $game['week'] ?? null,
+                'season_type' => $game['season_type'] ?? null,
+                'start_date' => $game['start_date'] ?? null,
+                'start_time_tbd' => $game['start_time_tbd'] ?? false,
+                'completed' => $game['completed'] ?? false,
+                'neutral_site' => $game['neutral_site'] ?? false,
+                'conference_game' => $game['conference_game'] ?? false,
+                'attendance' => $game['attendance'] ?? null,
+                'venue' => $game['venue'] ?? null,
+                'home_id' => $homeTeam->id,
+                'home_team' => $game['home_team'] ?? null,
+                'home_conference' => $game['home_conference'] ?? null,
+                'home_division' => $game['home_division'] ?? null,
+                'home_points' => $game['home_points'] ?? null,
+                'home_line_scores' => json_encode($game['home_line_scores'] ?? []),
+                'home_post_win_prob' => $game['home_post_win_prob'] ?? null,
+                'home_pregame_elo' => $game['home_pregame_elo'] ?? null,
+                'home_postgame_elo' => $game['home_postgame_elo'] ?? null,
+                'away_id' => $awayTeam->id,
+                'away_team' => $game['away_team'] ?? null,
+                'away_conference' => $game['away_conference'] ?? null,
+                'away_division' => $game['away_division'] ?? null,
+                'away_points' => $game['away_points'] ?? null,
+                'away_line_scores' => json_encode($game['away_line_scores'] ?? []),
+                'away_post_win_prob' => $game['away_post_win_prob'] ?? null,
+                'away_pregame_elo' => $game['away_pregame_elo'] ?? null,
+                'away_postgame_elo' => $game['away_postgame_elo'] ?? null,
+            ]
+        );
+    }
+
+    private function sendNotification(string $message = '', string $status = 'success'): void
+    {
+        Notification::route('discord', config('services.discord.channel_id'))
+            ->notify(new DiscordCommandCompletionNotification($message, $status));
     }
 }

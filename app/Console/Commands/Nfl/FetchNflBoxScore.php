@@ -37,7 +37,7 @@ class FetchNflBoxScore extends Command
 
         } catch (Exception $e) {
             $this->error('An error occurred: ' . $e->getMessage());
-            // Optionally, handle exception f urther or log it
+            // Optionally, handle exception further or log it
         }
     }
 

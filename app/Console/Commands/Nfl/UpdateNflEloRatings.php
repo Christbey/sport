@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands\Nfl;
 
-use App\Events\Nfl\CalculateTeamEloEvent;
 use App\Models\Nfl\NflEloPrediction;
 use App\Notifications\NflEloUpdateNotification;
 use App\Services\EloRatingService;
@@ -14,8 +13,11 @@ use Illuminate\Support\Facades\{Log, Notification};
 
 class UpdateNflEloRatings extends Command
 {
-    protected $signature = 'nfl:calculate-team-elo {year?} {--force : Force update even if already run today}';
-    protected $description = 'Calculate Elo rating, expected wins, and spreads for all NFL teams for a given season';
+    protected $signature = 'nfl:calculate-team-elo 
+        {year? : The year to calculate ELO ratings for} 
+        {--force : Force update even if already run today}';
+
+    protected $description = 'Calculate Elo ratings, expected wins, and spreads for all NFL teams for a given season';
 
     protected EloRatingService $eloService;
 
@@ -25,49 +27,46 @@ class UpdateNflEloRatings extends Command
         $this->eloService = $eloService;
     }
 
-    public function handle()
+    public function handle(): int
     {
         try {
-            $year = $this->argument('year') ?? config('nfl.seasonYear');
-
-            // Check if already run today unless force option is used
-            if (!$this->option('force') && $this->hasRunToday()) {
-                $this->warn('ELO ratings have already been updated today. Use --force to override.');
-                return;
+            if (!$this->shouldProcess()) {
+                return self::SUCCESS;
             }
 
+            $year = (int)($this->argument('year') ?? config('nfl.seasonYear'));
+            $this->info("Processing ELO ratings for year: {$year}");
+
             $weeks = config('nfl.weeks');
-            $teams = collect($this->eloService->fetchTeams());
             $today = Carbon::now();
 
-            // Get initial predictions for comparison
             $initialPredictions = $this->getExistingPredictions();
 
-            // Process teams
-            $processedTeams = $this->processTeams($teams, $year, $weeks, $today);
+            // Process all teams in a single batch
+            $result = $this->processSeason($year);
 
-            // Get updated predictions
-            $updatedPredictions = $this->getExistingPredictions();
+            $this->processResults($result, $initialPredictions, $year);
 
-            // Calculate significant changes
-            $significantChanges = $this->calculateSignificantChanges(
-                $initialPredictions,
-                $updatedPredictions
-            );
-
-            $this->info('Elo calculation events for all teams have been dispatched.');
-            Log::info('Elo calculation events for all teams have been dispatched.');
-
-            // Send success notification with changes
-            Notification::route('discord', config('services.discord.channel_id'))
-                ->notify(new NflEloUpdateNotification(
-                    teams: $processedTeams,
-                    year: $year,
-                    spreadChanges: $significantChanges));
+            return self::SUCCESS;
 
         } catch (Exception $e) {
-            $this->handleError($e, $year ?? 'Unknown');
+            $this->handleError($e, (string)($year ?? 'Unknown'));
+            return self::FAILURE;
         }
+    }
+
+    protected function shouldProcess(): bool
+    {
+        if ($this->option('force')) {
+            return true;
+        }
+
+        if ($this->hasRunToday()) {
+            $this->warn('ELO ratings have already been updated today. Use --force to override.');
+            return false;
+        }
+
+        return true;
     }
 
     protected function hasRunToday(): bool
@@ -78,44 +77,73 @@ class UpdateNflEloRatings extends Command
     protected function getExistingPredictions(): Collection
     {
         return NflEloPrediction::select([
+            'game_id',
             'team',
             'opponent',
             'week',
             'team_elo',
             'opponent_elo',
             'expected_outcome',
-            'predicted_spread',
-            'game_id'
+            'predicted_spread'
         ])->get()->keyBy('game_id');
     }
 
-    protected function processTeams(Collection $teams, $year, $weeks, $today): Collection
+    protected function processSeason(int $year): array
     {
-        $processedTeams = collect();
+        $teams = $this->eloService->fetchTeams();
 
-        foreach ($teams as $team) {
-            if (!is_string($team)) {
-                if ($team !== '') {  // Only log if it's not an empty string
-                    Log::warning("Invalid team name encountered: {$team}");
-                    $this->error("Invalid team name encountered: {$team}");
-                }
-                continue;
-            }
-
-            event(new CalculateTeamEloEvent($team, $year, $weeks, $today));
-            $processedTeams->push($team);
-
-            $this->info("CalculateTeamEloEvent dispatched for team: {$team}");
-            Log::info("CalculateTeamEloEvent dispatched for team: {$team}");
+        if ($teams->isEmpty()) {
+            throw new Exception('No teams found to process');
         }
 
-        return $processedTeams;
+        $progressBar = $this->output->createProgressBar($teams->count());
+        $progressBar->start();
+
+        try {
+            // Process all teams in one batch
+            $ratings = $this->eloService->processBatch(
+                $teams->toArray(),
+                $year
+            );
+
+            $progressBar->finish();
+            $this->newLine(2);
+
+            return [
+                'teams' => $teams,
+                'ratings' => $ratings
+            ];
+        } catch (Exception $e) {
+            Log::error('Error processing batch', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
+    }
+
+    protected function processResults(array $result, Collection $initialPredictions, int $year): void
+    {
+        // Get updated predictions after processing
+        $updatedPredictions = $this->getExistingPredictions();
+
+        // Calculate significant changes
+        $significantChanges = $this->calculateSignificantChanges(
+            $initialPredictions,
+            $updatedPredictions
+        );
+
+        // Log results
+        $this->logResults($result['teams'], $result['ratings']);
+
+        // Send notification
+        $this->sendNotification($result['teams'], $year, $significantChanges);
     }
 
     protected function calculateSignificantChanges(
         Collection $initial,
         Collection $updated,
-        float      $threshold = 0.5  // Only show changes of 0.5 or more points
+        float      $threshold = 0.5
     ): Collection
     {
         return $updated->map(function ($newPred) use ($initial, $threshold) {
@@ -124,30 +152,60 @@ class UpdateNflEloRatings extends Command
 
             $spreadChange = abs($newPred->predicted_spread - $oldPred->predicted_spread);
 
-            // Only include significant spread changes
             if ($spreadChange < $threshold) return null;
 
             return [
                 'game_id' => $newPred->game_id,
                 'week' => str_replace('Week ', '', $newPred->week),
-                'old_spread' => $oldPred->predicted_spread,
-                'new_spread' => $newPred->predicted_spread
+                'team' => $newPred->team,
+                'opponent' => $newPred->opponent,
+                'old_spread' => round($oldPred->predicted_spread, 1),
+                'new_spread' => round($newPred->predicted_spread, 1),
+                'change' => round($spreadChange, 1)
             ];
         })
             ->filter()
             ->values();
     }
 
+    protected function logResults(Collection $teams, array $ratings): void
+    {
+        foreach ($teams as $team) {
+            $rating = $ratings[$team] ?? 'N/A';
+            $this->info("Team: {$team} - Final ELO: {$rating}");
+            Log::info('Processed ELO rating', [
+                'team' => $team,
+                'rating' => $rating
+            ]);
+        }
+    }
+
+    protected function sendNotification(Collection $teams, int $year, Collection $changes): void
+    {
+        Notification::route('discord', config('services.discord.channel_id'))
+            ->notify(new NflEloUpdateNotification(
+                teams: $teams,
+                year: $year,
+                spreadChanges: $changes,
+                type: 'success'
+            ));
+    }
+
     protected function handleError(Exception $e, string $year): void
     {
+        Log::error('Error in UpdateNflEloRatings command', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
+            'year' => $year
+        ]);
+
+        $this->error("Failed to process ELO ratings: {$e->getMessage()}");
+
         Notification::route('discord', config('services.discord.channel_id'))
             ->notify(new NflEloUpdateNotification(
                 teams: collect(),
                 year: $year,
                 type: 'error'
             ));
-
-        Log::error('Error in UpdateNflEloRatings command: ' . $e->getMessage());
-        $this->error('An error occurred: ' . $e->getMessage());
     }
 }
