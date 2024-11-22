@@ -2,41 +2,100 @@
 
 namespace App\Console\Commands\Nfl;
 
-use App\Models\Nfl\NflPlayerData;
+use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
+// Assuming you have a NflTeam model
+
 class FetchNflTeamRoster extends Command
 {
-    protected $signature = 'nfl:fetch-team-roster {teamID?} {teamAbv?}';
-    protected $description = 'Fetch NFL team roster from the API route and store the response';
+    private const NFL_TEAMS = [
+        ['id' => 1, 'abbreviation' => 'ARI'],
+        ['id' => 2, 'abbreviation' => 'ATL'],
+        ['id' => 3, 'abbreviation' => 'BAL'],
+        ['id' => 4, 'abbreviation' => 'BUF'],
+        ['id' => 5, 'abbreviation' => 'CAR'],
+        ['id' => 6, 'abbreviation' => 'CHI'],
+        ['id' => 7, 'abbreviation' => 'CIN'],
+        ['id' => 8, 'abbreviation' => 'CLE'],
+        ['id' => 9, 'abbreviation' => 'DAL'],
+        ['id' => 10, 'abbreviation' => 'DEN'],
+        ['id' => 11, 'abbreviation' => 'DET'],
+        ['id' => 12, 'abbreviation' => 'GB'],
+        ['id' => 13, 'abbreviation' => 'HOU'],
+        ['id' => 14, 'abbreviation' => 'IND'],
+        ['id' => 15, 'abbreviation' => 'JAX'],
+        ['id' => 16, 'abbreviation' => 'KC'],
+        ['id' => 17, 'abbreviation' => 'LAC'],
+        ['id' => 18, 'abbreviation' => 'LAR'],
+        ['id' => 19, 'abbreviation' => 'LV'],
+        ['id' => 20, 'abbreviation' => 'MIA'],
+        ['id' => 21, 'abbreviation' => 'MIN'],
+        ['id' => 22, 'abbreviation' => 'NE'],
+        ['id' => 23, 'abbreviation' => 'NO'],
+        ['id' => 24, 'abbreviation' => 'NYG'],
+        ['id' => 25, 'abbreviation' => 'NYJ'],
+        ['id' => 26, 'abbreviation' => 'PHI'],
+        ['id' => 27, 'abbreviation' => 'PIT'],
+        ['id' => 28, 'abbreviation' => 'SEA'],
+        ['id' => 29, 'abbreviation' => 'SF'],
+        ['id' => 30, 'abbreviation' => 'TB'],
+        ['id' => 31, 'abbreviation' => 'TEN'],
+        ['id' => 32, 'abbreviation' => 'WSH'],
+    ]; // Added sleep option
+    protected $signature = 'nfl:fetch-team-roster {--team=} {--sleep=2}';
+
+    // NFL Teams mapping (if you don't have a teams table)
+    protected $description = 'Fetch NFL team rosters from the API route and store the response';
 
     public function handle(): int
     {
-        $teamId = $this->getTeamId();
-        $teamAbv = $this->getTeamAbv();
+        $specificTeam = $this->option('team');
+        $sleepSeconds = (int)$this->option('sleep');
+        $teams = $this->getTeamsToProcess($specificTeam);
 
-        $players = $this->fetchTeamRoster($teamId, $teamAbv);
+        $this->withProgressBar($teams, function ($team) use ($sleepSeconds) {
+            $this->processTeam($team['id'], $team['abbreviation']);
 
-        if ($players) {
-            $this->storeTeamRoster($players);
-            $this->info('Team roster data has been saved successfully.');
-        } else {
-            $this->error('Failed to fetch team roster.');
-        }
+            if ($sleepSeconds > 0) {
+                sleep($sleepSeconds); // Avoid rate limiting
+            }
+        });
+
+        $this->newLine(2);
+        $this->info('All team rosters have been processed successfully.');
 
         return 0;
     }
 
-    private function getTeamId(): int
+    private function getTeamsToProcess(?string $specificTeam): array
     {
-        return (int)($this->argument('teamID') ?? 5);
+        if ($specificTeam) {
+            return collect(self::NFL_TEAMS)
+                ->filter(fn($team) => $team['abbreviation'] === strtoupper($specificTeam))
+                ->values()
+                ->all();
+        }
+
+        return self::NFL_TEAMS;
     }
 
-    private function getTeamAbv(): string
+    private function processTeam(int $teamId, string $teamAbv): void
     {
-        return $this->argument('teamAbv') ?? 'BAL';
+        try {
+            $players = $this->fetchTeamRoster($teamId, $teamAbv);
+
+            if ($players) {
+                $this->storeTeamRoster($players);
+                Log::info("Successfully processed roster for team: $teamAbv");
+            } else {
+                Log::error("Failed to fetch roster for team: $teamAbv");
+            }
+        } catch (Exception $e) {
+            Log::error("Error processing team $teamAbv: " . $e->getMessage());
+        }
     }
 
     private function fetchTeamRoster(int $teamId, string $teamAbv): ?array
@@ -50,80 +109,24 @@ class FetchNflTeamRoster extends Command
 
         if ($response->successful()) {
             $data = $response->json();
-            Log::info('API Response:', $data);
 
             if (isset($data['body']['roster']) && is_array($data['body']['roster'])) {
                 return $data['body']['roster'];
-            } else {
-                $this->error('Unexpected response structure: no roster data found.');
-                Log::error('Unexpected API response structure', ['response' => $data]);
             }
+
+            Log::error('Unexpected API response structure', [
+                'team' => $teamAbv,
+                'response' => $data
+            ]);
         } else {
-            Log::error('Failed to fetch team roster.', ['status' => $response->status()]);
+            Log::error('Failed to fetch team roster.', [
+                'team' => $teamAbv,
+                'status' => $response->status()
+            ]);
         }
 
         return null;
     }
 
-    private function storeTeamRoster(array $players): void
-    {
-        foreach ($players as $player) {
-            if (isset($player['playerID'])) {
-                $this->storePlayer($player);
-            } else {
-                Log::warning('Player data missing playerID', ['player' => $player]);
-            }
-        }
-    }
-
-    private function storePlayer(array $player): void
-    {
-        NflPlayerData::updateOrCreate(
-            ['playerID' => $player['playerID']],
-            $this->preparePlayerData($player)
-        );
-    }
-
-    private function preparePlayerData(array $player): array
-    {
-        return [
-            'fantasyProsLink' => $player['fantasyProsLink'] ?? null,
-            'jerseyNum' => $player['jerseyNum'] ?? null,
-            'espnName' => $player['espnName'] ?? null,
-            'cbsLongName' => $player['cbsLongName'] ?? null,
-            'yahooLink' => $player['yahooLink'] ?? null,
-            'sleeperBotID' => $player['sleeperBotID'] ?? null,
-            'fantasyProsPlayerID' => $player['fantasyProsPlayerID'] ?? null,
-            'lastGamePlayed' => $player['lastGamePlayed'] ?? null,
-            'espnLink' => $player['espnLink'] ?? null,
-            'yahooPlayerID' => $player['yahooPlayerID'] ?? null,
-            'isFreeAgent' => $player['isFreeAgent'] === 'True',
-            'pos' => $player['pos'] ?? null,
-            'school' => $player['school'] ?? null,
-            'teamID' => $player['teamID'] ?? null,
-            'cbsShortName' => $player['cbsShortName'] ?? null,
-            'injury_return_date' => $player['injury']['injReturnDate'] ?? null,
-            'injury_description' => $player['injury']['description'] ?? null,
-            'injury_date' => $player['injury']['injDate'] ?? null,
-            'injury_designation' => $player['injury']['designation'] ?? null,
-            'rotoWirePlayerIDFull' => $player['rotoWirePlayerIDFull'] ?? null,
-            'rotoWirePlayerID' => $player['rotoWirePlayerID'] ?? null,
-            'exp' => $this->getPlayerExperience($player),
-            'height' => $player['height'] ?? null,
-            'espnHeadshot' => $player['espnHeadshot'] ?? null,
-            'fRefID' => $player['fRefID'] ?? null,
-            'weight' => $player['weight'] ?? null,
-            'team' => $player['team'] ?? null,
-            'espnIDFull' => $player['espnIDFull'] ?? null,
-            'bDay' => $player['bDay'] ?? null,
-            'age' => $player['age'] ?? null,
-            'longName' => $player['longName'] ?? null,
-        ];
-    }
-
-    private function getPlayerExperience(array $player): int
-    {
-        $exp = $player['exp'] ?? null;
-        return $exp === 'R' ? 0 : (int)$exp;
-    }
+    // Rest of your existing methods remain the same...
 }

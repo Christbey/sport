@@ -1,12 +1,12 @@
 <?php
 
 use App\Http\Controllers\AccessRequestController;
+use App\Http\Controllers\Api\CollegeBasketballHypotheticalController;
+use App\Http\Controllers\Api\CollegeFootballHypotheticalController;
+use App\Http\Controllers\Api\CollegeFootballNoteController;
 use App\Http\Controllers\Api\CoversController;
 use App\Http\Controllers\Api\Espn\EspnQbrController;
 use App\Http\Controllers\Api\TeamRankingController;
-use App\Http\Controllers\Cfb\CollegeFootballHypotheticalController;
-use App\Http\Controllers\Cfb\CollegeFootballNoteController;
-use App\Http\Controllers\CollegeBasketballHypotheticalController;
 use App\Http\Controllers\ForgeApiController;
 use App\Http\Controllers\Nfl\NflEloRatingController;
 use App\Http\Controllers\Nfl\NflSheetController;
@@ -39,8 +39,7 @@ Route::middleware([
     Route::get('/pickem/leaderboard', [PickemController::class, 'showLeaderboard'])->name('picks.leaderboard');
 
     // Route to show the hypothetical matchups
-    Route::get('/cfb/hypotheticals', [CollegeFootballHypotheticalController::class, 'index'])->name('cfb.index');
-    Route::get('/cfb/detail/{game_id}', [CollegeFootballHypotheticalController::class, 'show'])->name('cfb.hypothetical.show');
+
     Route::post('/cfb/notes', [CollegeFootballNoteController::class, 'store'])->name('cfb.notes.store');
     Route::patch('/cfb/hypothetical/{id}/correct', [CollegeFootballHypotheticalController::class, 'updateCorrect'])->name('cfb.hypothetical.correct');
 
@@ -80,7 +79,11 @@ Route::get('/nfl/news', [NflNewsController::class, 'index'])->name('nfl.news.ind
 
 Route::get('/nfl/elo/show/{gameId}', [NflEloRatingController::class, 'show'])->name('nfl.elo.show');
 
-Route::get('/college-basketball-hypotheticals', [CollegeBasketballHypotheticalController::class, 'index'])->name('cbb.index');
+Route::get('/college-basketball', [CollegeBasketballHypotheticalController::class, 'index'])
+    ->name('cbb.index');
+
+Route::get('/college-basketball/{id}', [CollegeBasketballHypotheticalController::class, 'show'])
+    ->name('cbb.show');
 
 Route::post('/request-access', [AccessRequestController::class, 'store'])
     ->name('request-access')
@@ -106,4 +109,16 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
 
 Route::get('/test/form', function () {
     return view('curbbliss');
+});
+
+// routes/web.php
+Route::get('/cfb', [CollegeFootballHypotheticalController::class, 'index'])->name('cfb.index');
+Route::get('/cfb/{game_id}', [CollegeFootballHypotheticalController::class, 'show'])->name('cfb.hypothetical.show');
+
+
+Route::middleware(['auth:sanctum', 'verified'])->group(function () {
+    Route::post('/cfb/notes', [CollegeFootballNoteController::class, 'store'])
+        ->name('cfb.notes.store');
+    Route::get('/cfb/notes', [CollegeFootballNoteController::class, 'index'])
+        ->name('cfb.notes.index');
 });

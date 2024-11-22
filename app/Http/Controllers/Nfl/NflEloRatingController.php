@@ -3,14 +3,10 @@
 namespace App\Http\Controllers\Nfl;
 
 use App\Http\Controllers\Controller;
-use App\Models\Nfl\NflBettingOdds;
-use App\Models\Nfl\NflEloPrediction;
-use App\Models\Nfl\NflPlayerData;
-use App\Models\Nfl\NflTeamSchedule;
+use App\Models\Nfl\{NflBettingOdds, NflEloPrediction, NflPlayerData, NflTeamSchedule};
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-
-// Add the model for team schedules
+use Illuminate\Support\Collection;
 
 class NflEloRatingController extends Controller
 {
@@ -18,214 +14,99 @@ class NflEloRatingController extends Controller
     {
         $week = $request->input('week');
 
-        // Fetch Elo predictions
-        $eloPredictionsQuery = NflEloPrediction::query();
-        if ($week) {
-            $eloPredictionsQuery->where('week', $week);
-        }
-        $eloPredictions = $eloPredictionsQuery->orderBy('team')->get();
+        // Get predictions with optional week filter
+        $eloPredictions = $this->getEloPredictions($week);
 
-        // Fetch available weeks for the dropdown
-        $weeks = NflEloPrediction::select('week')->distinct()->orderBy('week')->pluck('week');
+        // Get all unique weeks for dropdown
+        $weeks = NflEloPrediction::distinct()
+            ->orderBy('week')
+            ->pluck('week');
 
-        // Fetch betting odds
-        $nflBettingOdds = NflBettingOdds::whereIn('event_id', $eloPredictions->pluck('game_id'))->get()->keyBy('event_id');
+        // Get related data
+        $nflBettingOdds = $this->getBettingOdds($eloPredictions->pluck('game_id'));
+        $teamSchedules = $this->getTeamSchedules($eloPredictions->pluck('game_id'));
 
-        // Fetch home and away points from nfl_team_schedules
-        $teamSchedules = NflTeamSchedule::whereIn('game_id', $eloPredictions->pluck('game_id'))
-            ->get()->keyBy('game_id');
+        // Enrich predictions with game data
+        $this->enrichPredictionsWithGameData($eloPredictions, $teamSchedules);
 
-        // Process the Elo predictions and enrich with game data
-        foreach ($eloPredictions as $prediction) {
-            $game = $teamSchedules[$prediction->game_id] ?? null;
-            if ($game) {
-                // Attach homePts, awayPts from teamSchedules
-                $prediction->homePts = $game->home_pts ?? null;
-                $prediction->awayPts = $game->away_pts ?? null;
-                $prediction->gameStatus = $game->game_status ?? null;
-                $prediction->gameStatusDetail = $game->status_type_detail ?? null;
-
-                // Calculate if the prediction was correct (only if the game is completed)
-                if (isset($game->home_pts) && isset($game->away_pts)) {
-                    $actualSpread = $game->home_pts - $game->away_pts; // Actual point difference
-                    $predictedSpread = $prediction->predicted_spread;
-
-                    // Determine if the prediction was correct
-                    $prediction->wasCorrect = ($predictedSpread > 0 && $actualSpread > $predictedSpread) || ($predictedSpread < 0 && $actualSpread < $predictedSpread);
-                } else {
-                    $prediction->wasCorrect = null; // Game is not completed, so no result yet
-                }
-            }
-        }
-
-        // Pass the enriched predictions and betting odds to the view
         return view('nfl.elo_predictions', compact('eloPredictions', 'weeks', 'week', 'nflBettingOdds'));
     }
 
-    public function show($gameId)
+    private function getEloPredictions(?string $week): Collection
     {
-        // Fetch predictions for both teams in the game
-        $predictions = NflEloPrediction::where('game_id', $gameId)->get();
+        return NflEloPrediction::query()
+            ->when($week, fn($query) => $query->where('week', $week))
+            ->orderBy('team')
+            ->get();
+    }
 
-        // Fetch the team schedule details for this game
+    private function getBettingOdds($gameIds): Collection
+    {
+        return NflBettingOdds::whereIn('event_id', $gameIds)
+            ->get()
+            ->keyBy('event_id');
+    }
+
+    private function getTeamSchedules($gameIds): Collection
+    {
+        return NflTeamSchedule::whereIn('game_id', $gameIds)
+            ->get()
+            ->keyBy('game_id');
+    }
+
+    private function enrichPredictionsWithGameData(Collection $predictions, Collection $schedules): void
+    {
+        $predictions->each(function ($prediction) use ($schedules) {
+            $game = $schedules[$prediction->game_id] ?? null;
+            if (!$game) return;
+
+            $prediction->homePts = $game->home_pts;
+            $prediction->awayPts = $game->away_pts;
+            $prediction->gameStatus = $game->game_status;
+            $prediction->gameStatusDetail = $game->status_type_detail;
+
+            $this->calculatePredictionAccuracy($prediction, $game);
+        });
+    }
+
+    private function calculatePredictionAccuracy($prediction, $game): void
+    {
+        if (!isset($game->home_pts) || !isset($game->away_pts)) {
+            $prediction->wasCorrect = null;
+            return;
+        }
+
+        $actualSpread = $game->home_pts - $game->away_pts;
+        $predictedSpread = $prediction->predicted_spread;
+
+        $prediction->wasCorrect = ($predictedSpread > 0 && $actualSpread > $predictedSpread) ||
+            ($predictedSpread < 0 && $actualSpread < $predictedSpread);
+    }
+
+    public function show(string $gameId)
+    {
+        // Fetch core game data
+        $predictions = NflEloPrediction::where('game_id', $gameId)->get();
         $teamSchedule = NflTeamSchedule::where('game_id', $gameId)->first();
 
-        // Check if data exists
         if ($predictions->isEmpty() || !$teamSchedule) {
             return redirect()->back()->with('error', 'No stats available for this game.');
         }
 
-        // Define team IDs
+        // Get team IDs
         $homeTeamId = $teamSchedule->home_team_id;
         $awayTeamId = $teamSchedule->away_team_id;
 
-        // Fetch the last 3 games for the home team with stats
-
-        // Fetch injury descriptions for players with no return date or return date in the future
-        $today = Carbon::today();
-
-        // Fetch injury data for home team
-        $homeTeamInjuries = NflPlayerData::where('teamiD', $homeTeamId)
-            ->where(function ($query) use ($today) {
-                $query->whereNull('injury_return_date')
-                    ->orWhere('injury_return_date', '>', $today);
-            })
-            ->get([
-                'espnName',
-                'injury_description',
-                'injury_designation',
-                'injury_return_date',
-            ]);
-
-        // Fetch injury data for away team
-        $awayTeamInjuries = NflPlayerData::where('teamiD', $awayTeamId)
-            ->where(function ($query) use ($today) {
-                $query->whereNull('injury_return_date')
-                    ->orWhere('injury_return_date', '>', $today);
-            })
-            ->get([
-                'espnName',
-                'injury_description',
-                'injury_designation',
-                'injury_return_date',
-            ]);
-
+        // Get game data
         $bettingOdds = NflBettingOdds::where('event_id', $gameId)->first();
+        $homeTeamInjuries = $this->getTeamInjuries($homeTeamId);
+        $awayTeamInjuries = $this->getTeamInjuries($awayTeamId);
+        $homeTeamLastGames = $this->getTeamLastGames($homeTeamId, $teamSchedule->game_id);
+        $awayTeamLastGames = $this->getTeamLastGames($awayTeamId, $teamSchedule->game_id);
 
-        // Calculate total points and compare with total_over
-        $totalPoints = null;
-        $overUnderResult = null;
+        // Calculate game results
+        [$totalPoints, $overUnderResult] = $this->calculateGameResults($teamSchedule, $bettingOdds);
 
-        if ($teamSchedule->home_pts !== null && $teamSchedule->away_pts !== null) {
-            $totalPoints = $teamSchedule->home_pts + $teamSchedule->away_pts;
-
-            if ($bettingOdds && $bettingOdds->total_over) {
-                $totalOver = $bettingOdds->total_over;
-
-                if ($totalPoints > $totalOver) {
-                    $overUnderResult = 'Over';
-                } elseif ($totalPoints < $totalOver) {
-                    $overUnderResult = 'Under';
-                } else {
-                    $overUnderResult = 'Push';
-                }
-            }
-        }
-
-        $homeTeamLastGames = NflTeamSchedule::where(function ($query) use ($homeTeamId) {
-            $query->where('home_team_id', $homeTeamId)
-                ->orWhere('away_team_id', $homeTeamId);
-        })
-            ->where('game_id', '<', $teamSchedule->game_id)
-            ->orderBy('game_date', 'desc')
-            ->limit(3)
-            ->get()
-            ->map(function ($game) use ($homeTeamId) {
-                // Determine if the team was home or away
-                $isHomeTeam = $game->home_team_id === $homeTeamId;
-
-                // Calculate Margin of Victory
-                if ($game->home_pts !== null && $game->away_pts !== null) {
-                    if ($isHomeTeam) {
-                        $game->marginOfVictory = $game->home_pts - $game->away_pts;
-                    } else {
-                        $game->marginOfVictory = $game->away_pts - $game->home_pts;
-                    }
-                } else {
-                    $game->marginOfVictory = 'N/A';
-                }
-
-                // Fetch betting odds for this game
-                $bettingOdds = NflBettingOdds::where('event_id', $game->game_id)->first();
-
-                // Calculate over/under result
-                if ($game->home_pts !== null && $game->away_pts !== null && $bettingOdds && $bettingOdds->total_over) {
-                    $totalPoints = $game->home_pts + $game->away_pts;
-                    $totalOver = $bettingOdds->total_over;
-
-                    if ($totalPoints > $totalOver) {
-                        $game->overUnderResult = 'Over';
-                    } elseif ($totalPoints < $totalOver) {
-                        $game->overUnderResult = 'Under';
-                    } else {
-                        $game->overUnderResult = 'Push';
-                    }
-                } else {
-                    $game->overUnderResult = 'N/A';
-                }
-
-                return $game;
-            });
-
-
-        // Fetch the last 3 games for the away team with stats and over/under results
-        $awayTeamLastGames = NflTeamSchedule::where(function ($query) use ($awayTeamId) {
-            $query->where('home_team_id', $awayTeamId)
-                ->orWhere('away_team_id', $awayTeamId);
-        })
-            ->where('game_id', '<', $teamSchedule->game_id)
-            ->orderBy('game_date', 'desc')
-            ->limit(3)
-            ->get()
-            ->map(function ($game) use ($awayTeamId) {
-                // Determine if the team was home or away
-                $isHomeTeam = $game->home_team_id === $awayTeamId;
-
-                // Calculate Margin of Victory
-                if ($game->home_pts !== null && $game->away_pts !== null) {
-                    if ($isHomeTeam) {
-                        $game->marginOfVictory = $game->home_pts - $game->away_pts;
-                    } else {
-                        $game->marginOfVictory = $game->away_pts - $game->home_pts;
-                    }
-                } else {
-                    $game->marginOfVictory = 'N/A';
-                }
-
-                // Fetch betting odds for this game
-                $bettingOdds = NflBettingOdds::where('event_id', $game->game_id)->first();
-
-                // Calculate over/under result
-                if ($game->home_pts !== null && $game->away_pts !== null && $bettingOdds && $bettingOdds->total_over) {
-                    $totalPoints = $game->home_pts + $game->away_pts;
-                    $totalOver = $bettingOdds->total_over;
-
-                    if ($totalPoints > $totalOver) {
-                        $game->overUnderResult = 'Over';
-                    } elseif ($totalPoints < $totalOver) {
-                        $game->overUnderResult = 'Under';
-                    } else {
-                        $game->overUnderResult = 'Push';
-                    }
-                } else {
-                    $game->overUnderResult = 'N/A';
-                }
-
-                return $game;
-            });
-
-
-        // Pass data to the view
         return view('nfl.elo.show', compact(
             'predictions',
             'teamSchedule',
@@ -239,5 +120,90 @@ class NflEloRatingController extends Controller
             'totalPoints',
             'overUnderResult'
         ));
+    }
+
+    private function getTeamInjuries(int $teamId): Collection
+    {
+        $today = Carbon::today();
+
+        return NflPlayerData::where('teamiD', $teamId)
+            ->where(function ($query) use ($today) {
+                $query->whereNull('injury_return_date')
+                    ->orWhere('injury_return_date', '>', $today);
+            })
+            ->get(['espnName', 'injury_description', 'injury_designation', 'injury_return_date']);
+    }
+
+    private function getTeamLastGames(int $teamId, string $currentGameId): Collection
+    {
+        return NflTeamSchedule::where(function ($query) use ($teamId) {
+            $query->where('home_team_id', $teamId)
+                ->orWhere('away_team_id', $teamId);
+        })
+            ->where('game_id', '<', $currentGameId)
+            ->orderBy('game_date', 'desc')
+            ->limit(3)
+            ->get()
+            ->map(fn($game) => $this->enrichGameWithStats($game, $teamId));
+    }
+
+    private function enrichGameWithStats($game, int $teamId)
+    {
+        $isHomeTeam = $game->home_team_id === $teamId;
+
+        // Calculate Margin of Victory
+        $game->marginOfVictory = $this->calculateMarginOfVictory($game, $isHomeTeam);
+
+        // Calculate Over/Under
+        $game->overUnderResult = $this->calculateOverUnderResult($game);
+
+        return $game;
+    }
+
+    private function calculateMarginOfVictory($game, bool $isHomeTeam)
+    {
+        if (!isset($game->home_pts) || !isset($game->away_pts)) {
+            return 'N/A';
+        }
+
+        return $isHomeTeam
+            ? $game->home_pts - $game->away_pts
+            : $game->away_pts - $game->home_pts;
+    }
+
+    private function calculateOverUnderResult($game)
+    {
+        if (!isset($game->home_pts) || !isset($game->away_pts)) {
+            return 'N/A';
+        }
+
+        $bettingOdds = NflBettingOdds::where('event_id', $game->game_id)->first();
+        if (!$bettingOdds?->total_over) {
+            return 'N/A';
+        }
+
+        $totalPoints = $game->home_pts + $game->away_pts;
+
+        if ($totalPoints > $bettingOdds->total_over) return 'Over';
+        if ($totalPoints < $bettingOdds->total_over) return 'Under';
+        return 'Push';
+    }
+
+    private function calculateGameResults($teamSchedule, $bettingOdds): array
+    {
+        $totalPoints = null;
+        $overUnderResult = null;
+
+        if (isset($teamSchedule->home_pts, $teamSchedule->away_pts)) {
+            $totalPoints = $teamSchedule->home_pts + $teamSchedule->away_pts;
+
+            if ($bettingOdds?->total_over) {
+                if ($totalPoints > $bettingOdds->total_over) $overUnderResult = 'Over';
+                elseif ($totalPoints < $bettingOdds->total_over) $overUnderResult = 'Under';
+                else $overUnderResult = 'Push';
+            }
+        }
+
+        return [$totalPoints, $overUnderResult];
     }
 }

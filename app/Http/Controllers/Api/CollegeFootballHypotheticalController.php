@@ -1,8 +1,9 @@
 <?php
 
-namespace App\Http\Controllers\Cfb;
+namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\CollegeFootballCollection;
 use App\Models\CollegeFootball\AdvancedGameStat;
 use App\Models\CollegeFootball\CollegeFootballGame;
 use App\Models\CollegeFootball\CollegeFootballHypothetical;
@@ -13,17 +14,27 @@ use App\Services\EnhancedFootballAnalytics;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
+
 class CollegeFootballHypotheticalController extends Controller
 {
+    protected $analytics;
+
+    public function __construct(EnhancedFootballAnalytics $analytics)
+    {
+        $this->analytics = $analytics;
+    }
+
     public function index(Request $request)
     {
-        // Determine the current week based on the date, defaulting to the configured week if none is provided
         $week = $request->input('week', $this->getCurrentWeek());
 
-        // Fetch all distinct weeks for the dropdown
-        $weeks = CollegeFootballHypothetical::select('week')->distinct()->orderBy('week', 'asc')->get();
+        // Fetch weeks for dropdown
+        $weeks = CollegeFootballHypothetical::select('week')
+            ->distinct()
+            ->orderBy('week', 'asc')
+            ->get();
 
-        // Join with the college_football_games table and order by start_date
+        // Main query for hypotheticals
         $hypotheticals = CollegeFootballHypothetical::where('college_football_hypotheticals.week', $week)
             ->join('college_football_games', 'college_football_hypotheticals.game_id', '=', 'college_football_games.id')
             ->orderBy('college_football_games.start_date', 'asc')
@@ -32,30 +43,40 @@ class CollegeFootballHypotheticalController extends Controller
                 'college_football_games.start_date',
                 'college_football_games.completed',
                 'college_football_games.formatted_spread',
-                'college_football_games.home_points',   // Added home points
-                'college_football_games.away_points'    // Added away points
+                'college_football_games.home_points',
+                'college_football_games.away_points'
             )
-            ->with('game') // Eager load the game relationship
+            ->with('game')
             ->get();
 
-        // Calculate home winning percentage and determine the projected winner
+        // Calculate additional data
         foreach ($hypotheticals as $hypothetical) {
-            $homeElo = $hypothetical->home_elo;
-            $awayElo = $hypothetical->away_elo;
-            $homeFpi = $hypothetical->home_fpi;
-            $awayFpi = $hypothetical->away_fpi;
+            $homeWinningPercentage = $this->calculateHomeWinningPercentage(
+                $hypothetical->home_elo,
+                $hypothetical->away_elo,
+                $hypothetical->home_fpi,
+                $hypothetical->away_fpi
+            );
 
-            $homeWinningPercentage = $this->calculateHomeWinningPercentage($homeElo, $awayElo, $homeFpi, $awayFpi);
             $hypothetical->home_winning_percentage = $homeWinningPercentage;
 
             $winnerTeam = $homeWinningPercentage > 0.5
                 ? CollegeFootballTeam::find($hypothetical->home_team_id)
                 : CollegeFootballTeam::find($hypothetical->away_team_id);
 
-            $hypothetical->winner_color = $winnerTeam->color ?? '#000000'; // Default to black if no color is found
+            $hypothetical->winner_color = $winnerTeam->color ?? '#000000';
         }
 
-        // Pass data to the view
+        if ($request->wantsJson()) {
+            return (new CollegeFootballCollection($hypotheticals))
+                ->additional([
+                    'meta' => [
+                        'weeks' => $weeks,
+                        'current_week' => $week
+                    ]
+                ]);
+        }
+
         return view('cfb.index', compact('hypotheticals', 'weeks', 'week'));
     }
 
@@ -92,113 +113,95 @@ class CollegeFootballHypotheticalController extends Controller
         return round(($eloProbability + $fpiProbability) / 2, 4); // Rounded to 4 decimal places
     }
 
-    public function show($game_id)
+
+    public function show(Request $request, $game_id)
     {
-        // Fetch the necessary game, team, and stats data (as you already have)
+        // First, fetch all required data
         $hypothetical = CollegeFootballHypothetical::where('game_id', $game_id)->firstOrFail();
         $game = CollegeFootballGame::findOrFail($game_id);
-        $homeTeam = CollegeFootballTeam::find($hypothetical->home_team_id);
-        $awayTeam = CollegeFootballTeam::find($hypothetical->away_team_id);
 
-        // Fetch advanced stats for home and away teams
+        // Explicitly fetch teams with error checking
+        $homeTeam = CollegeFootballTeam::findOrFail($hypothetical->home_team_id);
+        $awayTeam = CollegeFootballTeam::findOrFail($hypothetical->away_team_id);
+
+        // Fetch stats
         $homeStats = $this->fetchAdvancedStats($homeTeam->id);
         $awayStats = $this->fetchAdvancedStats($awayTeam->id);
 
+        // Calculate winning percentage
+        $homeWinningPercentage = $this->calculateHomeWinningPercentage(
+            $hypothetical->home_elo,
+            $hypothetical->away_elo,
+            $hypothetical->home_fpi,
+            $hypothetical->away_fpi
+        );
 
-        // Calculate winning percentage for home team
-        $homeElo = $hypothetical->home_elo;
-        $awayElo = $hypothetical->away_elo;
-        $homeFpi = $hypothetical->home_fpi;
-        $awayFpi = $hypothetical->away_fpi;
+        // Determine winner
+        $winnerTeam = $homeWinningPercentage > 0.5 ? $homeTeam : $awayTeam;
 
-        // Fetch SP+ ratings for the home and away teams
+        // Fetch SP+ ratings
         $homeSpRating = SpRating::where('team', $homeTeam->school)->first();
         $awaySpRating = SpRating::where('team', $awayTeam->school)->first();
 
-        // Fetch notes for the home and away teams
+        // Fetch team notes
         $homeTeamNotes = CollegeFootballNote::where('team_id', $homeTeam->id)->get();
         $awayTeamNotes = CollegeFootballNote::where('team_id', $awayTeam->id)->get();
 
+        // Calculate analytics
+        $efficiencyMetrics = $this->analytics->calculateEfficiencyMetrics($homeStats, $awayStats);
+        $matchupAdvantages = $this->analytics->calculateMatchupAdvantages($homeStats, $awayStats);
+        $scoringPrediction = $this->analytics->calculateScoringPrediction($homeStats, $awayStats);
+        $driveMetrics = $this->analytics->calculateDriveMetrics($homeStats, $awayStats);
 
-        $homeWinningPercentage = $this->calculateHomeWinningPercentage($homeElo, $awayElo, $homeFpi, $awayFpi);
+        // Calculate mismatches and trends
+        $mismatches = $this->calculateMismatches($homeStats, $awayStats);
+        $homeOffenseTrend = $this->calculateTrend($homeTeam->id, 'offense_ppa');
+        $awayOffenseTrend = $this->calculateTrend($awayTeam->id, 'offense_ppa');
 
+        // Fetch game history
+        $homeTeamLast3Games = $this->fetchLastThreeGames($homeTeam->id, $game->start_date);
+        $awayTeamLast3Games = $this->fetchLastThreeGames($awayTeam->id, $game->start_date);
+        $previousResults = $this->fetchRecentMatchups($homeTeam, $awayTeam);
 
-        $winnerTeam = $homeWinningPercentage > 0.5 ? $homeTeam : $awayTeam;
-
-
-        // Define all metrics to include in the view
-        $metrics = [
-            'offense_plays', 'offense_drives', 'offense_ppa', 'offense_total_ppa', 'offense_success_rate',
-            'offense_explosiveness', 'offense_power_success', 'offense_stuff_rate', 'offense_line_yards',
-            'offense_line_yards_total', 'offense_second_level_yards', 'offense_second_level_yards_total',
-            'offense_open_field_yards', 'offense_open_field_yards_total', 'offense_standard_downs_ppa',
-            'offense_standard_downs_success_rate', 'offense_standard_downs_explosiveness', 'offense_passing_downs_ppa',
-            'offense_passing_downs_success_rate', 'offense_passing_downs_explosiveness', 'offense_rushing_ppa',
-            'offense_rushing_total_ppa', 'offense_rushing_success_rate', 'offense_rushing_explosiveness',
-            'offense_passing_ppa', 'offense_passing_total_ppa', 'offense_passing_success_rate',
-            'offense_passing_explosiveness', 'defense_plays', 'defense_drives', 'defense_ppa', 'defense_total_ppa',
-            'defense_success_rate', 'defense_explosiveness', 'defense_power_success', 'defense_stuff_rate',
-            'defense_line_yards', 'defense_line_yards_total', 'defense_second_level_yards',
-            'defense_second_level_yards_total', 'defense_open_field_yards', 'defense_open_field_yards_total',
-            'defense_standard_downs_ppa', 'defense_standard_downs_success_rate', 'defense_standard_downs_explosiveness',
-            'defense_passing_downs_ppa', 'defense_passing_downs_success_rate', 'defense_passing_downs_explosiveness',
-            'defense_rushing_ppa', 'defense_rushing_total_ppa', 'defense_rushing_success_rate',
-            'defense_rushing_explosiveness', 'defense_passing_ppa', 'defense_passing_total_ppa',
-            'defense_passing_success_rate', 'defense_passing_explosiveness'
-        ];
-        $mismatches = [
-            'Net PPA Differential' => $this->calculateMismatch($awayStats['offense_ppa'], $homeStats['defense_ppa']),
-            'Success Rate Differential' => $this->calculateMismatch($homeStats['offense_success_rate'], $awayStats['defense_success_rate']),
-            'Explosiveness Differential' => $this->calculateMismatch($homeStats['offense_explosiveness'], $awayStats['defense_explosiveness']),
-            'Power Success Rate Differential' => $this->calculateMismatch($homeStats['offense_power_success'], $awayStats['defense_power_success']),
-            'Stuff Rate Differential' => $this->calculateMismatch($awayStats['offense_stuff_rate'], $homeStats['defense_stuff_rate']),
-            'Line Yards Differential' => $this->calculateMismatch($homeStats['offense_line_yards'], $awayStats['defense_line_yards']),
-
-            // Add additional mismatches as required
-        ];
-
-        // Calculate trends based on recent offensive stats
-        $home_offense_trend = $this->calculateTrend($homeTeam->id, 'offense_ppa');
-        $away_offense_trend = $this->calculateTrend($awayTeam->id, 'offense_ppa');
-
-
-        // Prepare the stats array for the view
-        $statsData = [];
-        foreach ($metrics as $metric) {
-            $awayValue = $awayStats[$metric] ?? 0;
-            $homeValue = $homeStats[$metric] ?? 0;
-            $statsData[$metric] = [
-                'home' => round($homeValue, 2),
-                'away' => round($awayValue, 2),
-                'total' => round($awayValue - $homeValue, 2),
-            ];
+        if ($request->wantsJson()) {
+            return response()->json([
+                'data' => [
+                    'hypothetical' => $hypothetical,
+                    'game' => $game,
+                    'teams' => [
+                        'home' => $homeTeam,
+                        'away' => $awayTeam,
+                    ],
+                    // ... rest of your JSON structure
+                ]
+            ]);
         }
 
-        // Fetch the last three games for each team
-        $beforeDate = $game->start_date; // Assuming `start_date` is the date to compare against
-        $homeTeamLast3Games = $this->fetchLastThreeGames($homeTeam->id, $beforeDate);
-        $awayTeamLast3Games = $this->fetchLastThreeGames($awayTeam->id, $beforeDate);
-
-        // Fetch previous matchups between the teams
-        $previousResults = CollegeFootballGame::with(['homeTeam', 'awayTeam'])
-            ->where(function ($query) use ($homeTeam, $awayTeam) {
-                $query->where('home_id', $homeTeam->id)
-                    ->where('away_id', $awayTeam->id)
-                    ->orWhere('home_id', $awayTeam->id)
-                    ->where('away_id', $homeTeam->id);
-            })
-            ->orderBy('start_date', 'desc')
-            ->get();
-
-        $analytics = new EnhancedFootballAnalytics();
-
-        // Calculate enhanced metrics
-        $efficiencyMetrics = $analytics->calculateEfficiencyMetrics($homeStats, $awayStats);
-        $matchupAdvantages = $analytics->calculateMatchupAdvantages($homeStats, $awayStats);
-        $scoringPrediction = $analytics->calculateScoringPrediction($homeStats, $awayStats);
-        $driveMetrics = $analytics->calculateDriveMetrics($homeStats, $awayStats);
-
-        return view('cfb.detail', compact('hypothetical', 'game', 'homeTeamLast3Games', 'previousResults', 'awayTeamLast3Games', 'homeTeam', 'awayTeam', 'statsData', 'winnerTeam', 'homeWinningPercentage', 'homeSpRating', 'awaySpRating', 'homeTeamNotes', 'awayTeamNotes', 'mismatches', 'home_offense_trend', 'away_offense_trend', 'efficiencyMetrics', 'matchupAdvantages', 'scoringPrediction', 'driveMetrics'));
+        // Return view with all required data
+        return view('cfb.detail', compact(
+            'hypothetical',
+            'game',
+            'homeTeam',
+            'awayTeam',
+            'homeStats',
+            'awayStats',
+            'winnerTeam',
+            'homeWinningPercentage',
+            'homeSpRating',
+            'awaySpRating',
+            'homeTeamNotes',
+            'awayTeamNotes',
+            'mismatches',
+            'homeOffenseTrend',
+            'awayOffenseTrend',
+            'efficiencyMetrics',
+            'matchupAdvantages',
+            'scoringPrediction',
+            'driveMetrics',
+            'homeTeamLast3Games',
+            'awayTeamLast3Games',
+            'previousResults'
+        ));
     }
 
     private function fetchAdvancedStats($teamId)
@@ -237,9 +240,48 @@ class CollegeFootballHypotheticalController extends Controller
 
     // Additional helper functions to encapsulate data fetching and calculations
 
+    private function calculateMismatches($homeStats, $awayStats)
+    {
+        // Ensure we're accessing specific stats correctly
+        return [
+            'Net PPA Differential' => $this->calculateMismatch(
+                $awayStats['offense_ppa'] ?? null,
+                $homeStats['defense_ppa'] ?? null
+            ),
+            'Success Rate Differential' => $this->calculateMismatch(
+                $homeStats['offense_success_rate'] ?? null,
+                $awayStats['defense_success_rate'] ?? null
+            ),
+            'Explosiveness Differential' => $this->calculateMismatch(
+                $homeStats['offense_explosiveness'] ?? null,
+                $awayStats['defense_explosiveness'] ?? null
+            ),
+            'Power Success Rate Differential' => $this->calculateMismatch(
+                $homeStats['offense_power_success'] ?? null,
+                $awayStats['defense_power_success'] ?? null
+            ),
+            'Stuff Rate Differential' => $this->calculateMismatch(
+                $awayStats['offense_stuff_rate'] ?? null,
+                $homeStats['defense_stuff_rate'] ?? null
+            ),
+            'Line Yards Differential' => $this->calculateMismatch(
+                $homeStats['offense_line_yards'] ?? null,
+                $awayStats['defense_line_yards'] ?? null
+            ),
+        ];
+    }
+
     private function calculateMismatch($offenseStat, $defenseStat)
     {
-        return $offenseStat && $defenseStat ? round($defenseStat - $offenseStat, 5) : 'N/A';
+        // Convert values to floats and check if they're numeric
+        $offenseValue = is_numeric($offenseStat) ? (float)$offenseStat : null;
+        $defenseValue = is_numeric($defenseStat) ? (float)$defenseStat : null;
+
+        if ($offenseValue !== null && $defenseValue !== null) {
+            return round($defenseValue - $offenseValue, 5);
+        }
+
+        return 'N/A';
     }
 
     private function calculateTrend($teamId, $statKey)

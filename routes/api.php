@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\CollegeBasketballHypotheticalController;
+use App\Http\Controllers\Api\CollegeFootballNoteController;
 use App\Http\Controllers\Api\Espn\EspnQbrController;
 use App\Http\Controllers\Api\Espn\EspnTeamProjectionController;
 use App\Http\Controllers\Api\EspnAthleteController;
@@ -99,3 +101,16 @@ Route::post('/forge/servers/{serverId}/sites/{siteId}/deploy', [ForgeApiControll
 Route::get('/forge/servers/{serverId}/sites/{siteId}/commands', [ForgeApiController::class, 'listCommandHistory']);
 Route::get('/forge/servers/{serverId}/events/{eventId}', [ForgeApiController::class, 'getCommandOutput']);
 Route::get('/forge/servers/{serverId}/sites/{siteId}/commands/{commandId}', [ForgeApiController::class, 'getCommandStatus']);
+
+//College Basketball
+// routes/api.php
+
+Route::prefix('v1')->group(function () {
+    Route::apiResource('college-basketball', CollegeBasketballHypotheticalController::class)
+        ->only(['index', 'show']);
+});
+// routes/api.php
+Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
+    Route::post('/cfb/notes', [CollegeFootballNoteController::class, 'store']);
+    Route::get('/cfb/notes', [CollegeFootballNoteController::class, 'index']);
+});

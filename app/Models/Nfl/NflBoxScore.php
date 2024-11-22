@@ -44,4 +44,9 @@ class NflBoxScore extends Model
     {
         return $this->hasMany(NflTeamStat::class, 'game_id', 'game_id');
     }
+
+    public function bettingOdds()
+    {
+        return $this->hasOne(NflBettingOdds::class, 'event_id', 'game_id');
+    }
 }

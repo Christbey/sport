@@ -95,7 +95,7 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center">
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium
-                                        {{ $hypothetical->hypothetical_spread > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
+                                        {{ $hypothetical->hypothetical_spread > 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800' }}">
                                         {{ $hypothetical->hypothetical_spread > 0 ? '+' : '' }}{{ $hypothetical->hypothetical_spread }}
                                     </span>
                             </td>

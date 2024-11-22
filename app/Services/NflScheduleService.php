@@ -201,6 +201,7 @@ class NflScheduleService
         return $homeConference === $awayConference;
     }
 
+    //@TODO: Move this to a config file
     private function getConference(string $teamAbv)
     {
         $conferenceMap = [
@@ -275,5 +276,4 @@ class NflScheduleService
             );
         }
     }
-
 }
