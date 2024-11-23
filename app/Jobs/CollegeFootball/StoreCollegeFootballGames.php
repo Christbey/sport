@@ -17,7 +17,7 @@ class StoreCollegeFootballGames implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    private const API_URL = 'https://api.collegefootballdata.com/games';
+    private const API_URL = 'https://api.collegefootballdata.com/games?year=2024';
 
     public function __construct(
         private int     $year,
@@ -27,7 +27,7 @@ class StoreCollegeFootballGames implements ShouldQueue
         $this->apiKey = $apiKey ?? config('services.college_football_data.key');
     }
 
-    public function handle(): void
+    public function handle()
     {
         try {
             $games = $this->fetchGamesData();
