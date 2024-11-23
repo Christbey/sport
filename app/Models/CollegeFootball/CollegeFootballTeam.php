@@ -67,4 +67,5 @@ class CollegeFootballTeam extends Model
     {
         return $this->hasMany(CollegeFootballElo::class, 'team_id');
     }
+
 }

@@ -21,7 +21,7 @@
             <div class="bg-gray-50 rounded-lg p-4">
                 <div class="text-sm text-gray-500 mb-1">Hypothetical Spread</div>
                 <div class="text-xl font-bold {{ $hypothetical->hypothetical_spread > 0 ? 'text-green-600' : 'text-blue-600' }}">
-                    {{ $hypothetical->hypothetical_spread }}
+                    {{ $hypothetical->hypothetical_spread * -1 }}
                 </div>
             </div>
 

@@ -4,186 +4,138 @@ namespace App\Services;
 
 class EnhancedFootballAnalytics
 {
-    /**
-     * Calculate advanced efficiency metrics
-     */
     public function calculateEfficiencyMetrics(array $homeStats, array $awayStats): array
     {
         return [
             'offensive_efficiency' => [
                 'home' => $this->calculateOffensiveEfficiency($homeStats),
-                'away' => $this->calculateOffensiveEfficiency($awayStats),
-                'differential' => round($this->calculateOffensiveEfficiency($homeStats) -
-                    $this->calculateOffensiveEfficiency($awayStats), 3)
+                'away' => $this->calculateOffensiveEfficiency($awayStats)
             ],
             'defensive_efficiency' => [
                 'home' => $this->calculateDefensiveEfficiency($homeStats),
-                'away' => $this->calculateDefensiveEfficiency($awayStats),
-                'differential' => round($this->calculateDefensiveEfficiency($homeStats) -
-                    $this->calculateDefensiveEfficiency($awayStats), 3)
+                'away' => $this->calculateDefensiveEfficiency($awayStats)
+            ],
+            'overall_efficiency' => [
+                'home' => $this->calculateOverallEfficiency($homeStats),
+                'away' => $this->calculateOverallEfficiency($awayStats)
             ]
         ];
     }
 
     private function calculateOffensiveEfficiency(array $stats): float
     {
-        return round(
-            ($stats['offense_success_rate'] * 0.4) +
-            ($stats['offense_explosiveness'] * 0.3) +
-            ($stats['offense_ppa'] * 0.3),
-            3
-        );
+        $ppa = $stats['offense_ppa'] ?? 0;
+        $successRate = $stats['offense_success_rate'] ?? 0;
+        $explosiveness = $stats['offense_explosiveness'] ?? 0;
+
+        return round(($ppa * 0.4) + ($successRate * 0.4) + ($explosiveness * 0.2), 3);
     }
 
     private function calculateDefensiveEfficiency(array $stats): float
     {
-        return round(
-            ((1 - $stats['defense_success_rate']) * 0.4) +
-            ((1 - $stats['defense_explosiveness']) * 0.3) +
-            ((1 - $stats['defense_ppa']) * 0.3),
-            3
-        );
+        $ppa = $stats['defense_ppa'] ?? 0;
+        $successRate = $stats['defense_success_rate'] ?? 0;
+        $explosiveness = $stats['defense_explosiveness'] ?? 0;
+
+        return round(($ppa * 0.4) + ($successRate * 0.4) + ($explosiveness * 0.2), 3);
     }
 
-    /**
-     * Calculate advanced matchup analysis
-     */
-    public function calculateMatchupAdvantages(array $homeStats, array $awayStats): array
+    private function calculateOverallEfficiency(array $stats): float
     {
-        return [
-            'rushing_advantage' => [
-                'offense' => $this->calculateRushingAdvantage($homeStats, $awayStats),
-                'defense' => $this->calculateRushingDefenseAdvantage($homeStats, $awayStats)
-            ],
-            'passing_advantage' => [
-                'offense' => $this->calculatePassingAdvantage($homeStats, $awayStats),
-                'defense' => $this->calculatePassingDefenseAdvantage($homeStats, $awayStats)
-            ],
-            'situational_advantages' => $this->calculateSituationalAdvantages($homeStats, $awayStats),
-            'line_play' => $this->calculateLinePlayMetrics($homeStats, $awayStats)
-        ];
+        $offensive = $this->calculateOffensiveEfficiency($stats);
+        $defensive = $this->calculateDefensiveEfficiency($stats);
+
+        return round(($offensive + $defensive) / 2, 3);
     }
 
-    private function calculateRushingAdvantage(array $homeStats, array $awayStats): float
-    {
-        return round(
-            ($homeStats['offense_rushing_success_rate'] - $awayStats['defense_rushing_success_rate']) +
-            ($homeStats['offense_rushing_explosiveness'] - $awayStats['defense_rushing_explosiveness']) +
-            ($homeStats['offense_rushing_ppa'] - $awayStats['defense_rushing_ppa']),
-            3
-        );
-    }
-
-    private function calculateRushingDefenseAdvantage(array $homeStats, array $awayStats)
-    {
-        return round(
-            ($homeStats['defense_rushing_success_rate'] - $awayStats['offense_rushing_success_rate']) +
-            ($homeStats['defense_rushing_explosiveness'] - $awayStats['offense_rushing_explosiveness']) +
-            ($homeStats['defense_rushing_ppa'] - $awayStats['offense_rushing_ppa']),
-            3
-        );
-    }
-
-    private function calculatePassingAdvantage(array $homeStats, array $awayStats): float
-    {
-        return round(
-            ($homeStats['offense_passing_success_rate'] - $awayStats['defense_passing_success_rate']) +
-            ($homeStats['offense_passing_explosiveness'] - $awayStats['defense_passing_explosiveness']) +
-            ($homeStats['offense_passing_ppa'] - $awayStats['defense_passing_ppa']),
-            3
-        );
-    }
-
-    private function calculatePassingDefenseAdvantage(array $homeStats, array $awayStats)
-    {
-        return round(
-            ($homeStats['defense_passing_success_rate'] - $awayStats['offense_passing_success_rate']) +
-            ($homeStats['defense_passing_explosiveness'] - $awayStats['offense_passing_explosiveness']) +
-            ($homeStats['defense_passing_ppa'] - $awayStats['offense_passing_ppa']),
-            3
-        );
-    }
-
-    private function calculateSituationalAdvantages(array $homeStats, array $awayStats): array
-    {
-        return [
-            'standard_downs' => round(
-                $homeStats['offense_standard_downs_success_rate'] -
-                $awayStats['defense_standard_downs_success_rate'],
-                3
-            ),
-            'passing_downs' => round(
-                $homeStats['offense_passing_downs_success_rate'] -
-                $awayStats['defense_passing_downs_success_rate'],
-                3
-            )
-        ];
-    }
-
-    private function calculateLinePlayMetrics(array $homeStats, array $awayStats): array
-    {
-        return [
-            'offensive_line' => round(
-                ($homeStats['offense_line_yards'] * 0.4) +
-                ($homeStats['offense_power_success'] * 0.3) +
-                ((1 - $homeStats['offense_stuff_rate']) * 0.3),
-                3
-            ),
-            'defensive_line' => round(
-                ($homeStats['defense_line_yards'] * 0.4) +
-                ($homeStats['defense_power_success'] * 0.3) +
-                ($homeStats['defense_stuff_rate'] * 0.3),
-                3
-            )
-        ];
-    }
-
-    /**
-     * Calculate predicted scoring ranges
-     */
     public function calculateScoringPrediction(array $homeStats, array $awayStats): array
     {
-        $homePredicted = $this->predictScore($homeStats, $awayStats['defense_ppa'],
-            $homeStats['offense_success_rate'],
-            $awayStats['defense_success_rate']);
-
-        $awayPredicted = $this->predictScore($awayStats, $homeStats['defense_ppa'],
-            $awayStats['offense_success_rate'],
-            $homeStats['defense_success_rate']);
-
         return [
             'home_predicted_range' => [
-                'low' => round($homePredicted * 0.85),
-                'high' => round($homePredicted * 1.15)
+                'low' => $this->calculateLowScorePrediction($homeStats, $awayStats, 'home'),
+                'high' => $this->calculateHighScorePrediction($homeStats, $awayStats, 'home')
             ],
             'away_predicted_range' => [
-                'low' => round($awayPredicted * 0.85),
-                'high' => round($awayPredicted * 1.15)
+                'low' => $this->calculateLowScorePrediction($homeStats, $awayStats, 'away'),
+                'high' => $this->calculateHighScorePrediction($homeStats, $awayStats, 'away')
             ]
         ];
     }
 
-    private function predictScore(array $offenseStats, float $opposingDefensePpa,
-                                  float $offenseSuccessRate, float $defenseSuccessRate): float
+    private function calculateLowScorePrediction(array $homeStats, array $awayStats, string $team): float
     {
-        $baseScore = $offenseStats['offense_ppa'] * $offenseStats['offense_plays'] *
-            ($offenseSuccessRate / $defenseSuccessRate);
-        return round($baseScore * (1 - $opposingDefensePpa), 1);
+        if ($team === 'home') {
+            $offensePPA = $homeStats['offense_ppa'] ?? 0;
+            $offenseSuccess = $homeStats['offense_success_rate'] ?? 0;
+            $defenseAdjustment = $awayStats['defense_success_rate'] ?? 0;
+            $defensePPA = $awayStats['defense_ppa'] ?? 0;
+        } else {
+            $offensePPA = $awayStats['offense_ppa'] ?? 0;
+            $offenseSuccess = $awayStats['offense_success_rate'] ?? 0;
+            $defenseAdjustment = $homeStats['defense_success_rate'] ?? 0;
+            $defensePPA = $homeStats['defense_ppa'] ?? 0;
+        }
+
+        // Calculate base score using conservative metrics
+        $baseScore = (($offensePPA * 0.7) + ($offenseSuccess * 0.3)) * 100;
+
+        // Apply defensive adjustment
+        $defenseMultiplier = 1 - (($defenseAdjustment + abs($defensePPA)) / 2);
+
+        // Calculate conservative score prediction
+        $predictedScore = $baseScore * $defenseMultiplier;
+
+        // Add baseline points and ensure minimum reasonable score
+        return max(round($predictedScore + 10, 1), 7);
     }
 
-    /**
-     * Calculate drive success likelihood
-     */
+    private function calculateHighScorePrediction(array $homeStats, array $awayStats, string $team): float
+    {
+        if ($team === 'home') {
+            $offensePPA = $homeStats['offense_ppa'] ?? 0;
+            $offenseSuccess = $homeStats['offense_success_rate'] ?? 0;
+            $explosiveness = $homeStats['offense_explosiveness'] ?? 0;
+            $defenseAdjustment = $awayStats['defense_success_rate'] ?? 0;
+            $redZoneSuccess = $homeStats['offense_power_success'] ?? 0;
+        } else {
+            $offensePPA = $awayStats['offense_ppa'] ?? 0;
+            $offenseSuccess = $awayStats['offense_success_rate'] ?? 0;
+            $explosiveness = $awayStats['offense_explosiveness'] ?? 0;
+            $defenseAdjustment = $homeStats['defense_success_rate'] ?? 0;
+            $redZoneSuccess = $awayStats['offense_power_success'] ?? 0;
+        }
+
+        // Calculate optimistic base score using peak performance metrics
+        $baseScore = (
+                ($offensePPA * 0.4) +
+                ($offenseSuccess * 0.3) +
+                ($explosiveness * 0.2) +
+                ($redZoneSuccess * 0.1)
+            ) * 100;
+
+        // Apply more lenient defensive adjustment
+        $defenseMultiplier = 1 - ($defenseAdjustment * 0.5);
+
+        // Calculate optimistic score prediction
+        $predictedScore = $baseScore * $defenseMultiplier;
+
+        // Add baseline points and ensure reasonable ceiling
+        $score = max(round($predictedScore + 17, 1), 14);
+
+        // Ensure high prediction is always higher than low prediction
+        return max($score, $this->calculateLowScorePrediction($homeStats, $awayStats, $team) + 7);
+    }
+
     public function calculateDriveMetrics(array $homeStats, array $awayStats): array
     {
         return [
             'scoring_drive_probability' => [
-                'home' => $this->calculateScoringDriveProbability($homeStats, $awayStats),
-                'away' => $this->calculateScoringDriveProbability($awayStats, $homeStats)
+                'home' => $this->calculateScoringProbability($homeStats),
+                'away' => $this->calculateScoringProbability($awayStats)
             ],
             'explosive_drive_probability' => [
-                'home' => $this->calculateExplosiveDriveProbability($homeStats, $awayStats),
-                'away' => $this->calculateExplosiveDriveProbability($awayStats, $homeStats)
+                'home' => $this->calculateExplosiveProbability($homeStats),
+                'away' => $this->calculateExplosiveProbability($awayStats)
             ],
             'red_zone_efficiency' => [
                 'home' => $this->calculateRedZoneEfficiency($homeStats),
@@ -192,33 +144,139 @@ class EnhancedFootballAnalytics
         ];
     }
 
-    private function calculateScoringDriveProbability(array $offenseStats, array $defenseStats): float
+    private function calculateScoringProbability(array $stats): float
     {
-        return round(
-            ($offenseStats['offense_success_rate'] * 0.4) +
-            ($offenseStats['offense_ppa'] * 0.3) +
-            ((1 - $defenseStats['defense_success_rate']) * 0.3),
-            3
-        );
+        $successRate = $stats['offense_success_rate'] ?? 0;
+        $ppa = $stats['offense_ppa'] ?? 0;
+
+        // Weighted calculation based on success rate and PPA
+        return min(($successRate * 0.7 + max($ppa, 0) * 0.3), 1.0);
     }
 
-    private function calculateExplosiveDriveProbability(array $offenseStats, array $defenseStats): float
+    private function calculateExplosiveProbability(array $stats): float
     {
-        return round(
-            ($offenseStats['offense_explosiveness'] * 0.5) +
-            ($offenseStats['offense_success_rate'] * 0.3) +
-            ((1 - $defenseStats['defense_explosiveness']) * 0.2),
-            3
-        );
+        $explosiveness = $stats['offense_explosiveness'] ?? 0;
+        $successRate = $stats['offense_success_rate'] ?? 0;
+
+        // Weight explosiveness more heavily for big play probability
+        return min(($explosiveness * 0.8 + $successRate * 0.2), 1.0);
     }
 
     private function calculateRedZoneEfficiency(array $stats): float
     {
-        return round(
-            ($stats['offense_power_success'] * 0.4) +
-            ($stats['offense_success_rate'] * 0.3) +
-            ($stats['offense_ppa'] * 0.3),
-            3
-        );
+        $powerSuccess = $stats['offense_power_success'] ?? 0;
+        $successRate = $stats['offense_success_rate'] ?? 0;
+
+        // Combine power success and general success rate for red zone efficiency
+        return min(($powerSuccess * 0.6 + $successRate * 0.4), 1.0);
     }
+
+    public function calculateMatchupAdvantages(array $homeStats, array $awayStats): array
+    {
+        return [
+            'rushing_advantage' => [
+                'offense' => $this->calculateRushingOffensiveAdvantage($homeStats, $awayStats),
+                'defense' => $this->calculateRushingDefensiveAdvantage($homeStats, $awayStats)
+            ],
+            'passing_advantage' => [
+                'offense' => $this->calculatePassingOffensiveAdvantage($homeStats, $awayStats),
+                'defense' => $this->calculatePassingDefensiveAdvantage($homeStats, $awayStats)
+            ],
+            'situational_advantages' => [
+                'standard_downs' => $this->calculateStandardDownsAdvantage($homeStats, $awayStats),
+                'passing_downs' => $this->calculatePassingDownsAdvantage($homeStats, $awayStats)
+            ],
+            'line_play' => [
+                'offensive_line' => $this->calculateOffensiveLineRating($homeStats, $awayStats),
+                'defensive_line' => $this->calculateDefensiveLineRating($homeStats, $awayStats)
+            ]
+        ];
+    }
+
+    private function calculateRushingOffensiveAdvantage(array $homeStats, array $awayStats): float
+    {
+        $homePPA = $homeStats['offense_rushing_ppa'] ?? 0;
+        $homeSuccess = $homeStats['offense_rushing_success_rate'] ?? 0;
+        $awayPPA = $awayStats['defense_rushing_ppa'] ?? 0;
+        $awaySuccess = $awayStats['defense_rushing_success_rate'] ?? 0;
+
+        return round(($homePPA - $awayPPA) + ($homeSuccess - $awaySuccess), 3);
+    }
+
+    private function calculateRushingDefensiveAdvantage(array $homeStats, array $awayStats): float
+    {
+        $homePPA = $homeStats['defense_rushing_ppa'] ?? 0;
+        $homeSuccess = $homeStats['defense_rushing_success_rate'] ?? 0;
+        $awayPPA = $awayStats['offense_rushing_ppa'] ?? 0;
+        $awaySuccess = $awayStats['offense_rushing_success_rate'] ?? 0;
+
+        return round(($awayPPA - $homePPA) + ($awaySuccess - $homeSuccess), 3);
+    }
+
+    private function calculatePassingOffensiveAdvantage(array $homeStats, array $awayStats): float
+    {
+        $homePPA = $homeStats['offense_passing_ppa'] ?? 0;
+        $homeSuccess = $homeStats['offense_passing_success_rate'] ?? 0;
+        $awayPPA = $awayStats['defense_passing_ppa'] ?? 0;
+        $awaySuccess = $awayStats['defense_passing_success_rate'] ?? 0;
+
+        return round(($homePPA - $awayPPA) + ($homeSuccess - $awaySuccess), 3);
+    }
+
+    private function calculatePassingDefensiveAdvantage(array $homeStats, array $awayStats): float
+    {
+        $homePPA = $homeStats['defense_passing_ppa'] ?? 0;
+        $homeSuccess = $homeStats['defense_passing_success_rate'] ?? 0;
+        $awayPPA = $awayStats['offense_passing_ppa'] ?? 0;
+        $awaySuccess = $awayStats['offense_passing_success_rate'] ?? 0;
+
+        return round(($awayPPA - $homePPA) + ($awaySuccess - $homeSuccess), 3);
+    }
+
+    private function calculateStandardDownsAdvantage(array $homeStats, array $awayStats): float
+    {
+        $homeAdv = $homeStats['offense_standard_downs_ppa'] ?? 0;
+        $awayAdv = $awayStats['defense_standard_downs_ppa'] ?? 0;
+        $homeSuccess = $homeStats['offense_standard_downs_success_rate'] ?? 0;
+        $awaySuccess = $awayStats['defense_standard_downs_success_rate'] ?? 0;
+
+        return round(($homeAdv - $awayAdv) + ($homeSuccess - $awaySuccess), 3);
+    }
+
+    private function calculatePassingDownsAdvantage(array $homeStats, array $awayStats): float
+    {
+        $homeAdv = $homeStats['offense_passing_downs_ppa'] ?? 0;
+        $awayAdv = $awayStats['defense_passing_downs_ppa'] ?? 0;
+        $homeSuccess = $homeStats['offense_passing_downs_success_rate'] ?? 0;
+        $awaySuccess = $awayStats['defense_passing_downs_success_rate'] ?? 0;
+
+        return round(($homeAdv - $awayAdv) + ($homeSuccess - $awaySuccess), 3);
+    }
+
+    private function calculateOffensiveLineRating(array $homeStats, array $awayStats): float
+    {
+        $lineYards = $homeStats['offense_line_yards'] ?? 0;
+        $powerSuccess = $homeStats['offense_power_success'] ?? 0;
+        $stuffRate = $homeStats['offense_stuff_rate'] ?? 0;
+
+        // Higher line yards and power success is better, lower stuff rate is better
+        return round($lineYards + $powerSuccess - $stuffRate, 3);
+    }
+
+    private function calculateDefensiveLineRating(array $homeStats, array $awayStats): float
+    {
+        $lineYards = $homeStats['defense_line_yards'] ?? 0;
+        $powerSuccess = $homeStats['defense_power_success'] ?? 0;
+        $stuffRate = $homeStats['defense_stuff_rate'] ?? 0;
+
+        // For defense, lower line yards and power success is better, higher stuff rate is better
+        return round(-$lineYards - $powerSuccess + $stuffRate, 3);
+    }
+
+    private function predictPoints(float $offensePPA, float $defensePPA): float
+    {
+        return round(($offensePPA - $defensePPA) * 100, 1);
+    }
+
+
 }

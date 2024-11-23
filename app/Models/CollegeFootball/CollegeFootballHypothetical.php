@@ -47,5 +47,15 @@ class CollegeFootballHypothetical extends Model
             ->where('away_division', 'fbs');
     }
 
+    public function homeTeam()
+    {
+        return $this->belongsTo(CollegeFootballTeam::class, 'home_team_id');
+    }
+
+    public function awayTeam()
+    {
+        return $this->belongsTo(CollegeFootballTeam::class, 'away_team_id');
+    }
+
 
 }
