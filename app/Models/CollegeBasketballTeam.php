@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Models\CollegeFootball\AdvancedGameStat;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CollegeBasketballTeam extends Model
 {
@@ -35,5 +37,11 @@ class CollegeBasketballTeam extends Model
     {
         return $this->hasMany(CollegeBasketballTeamAlias::class, 'team_id');
     }
+
     // Additional relationships or methods for the model can be defined here.
+
+    public function advancedStats(): HasMany
+    {
+        return $this->hasMany(AdvancedGameStat::class, 'team_id');
+    }
 }

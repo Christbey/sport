@@ -45,4 +45,11 @@ class NflPlayerData extends Model
         'age',
         'longName'
     ];
+
+    public function plays()
+    {
+        return $this->belongsToMany(NflPlay::class, 'nfl_play_players', 'player_id', 'play_id')
+            ->withPivot('role', 'team_id')
+            ->withTimestamps();
+    }
 }

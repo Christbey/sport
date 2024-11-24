@@ -17,12 +17,8 @@ class FetchSpRatings extends Command
 
     public function handle()
     {
-        // Define year from the argument or fallback to the config
         $year = $this->argument('year') ?? config('college_football.season');
-
-        // Dispatch the job with the determined year
         StoreSpRatingsJob::dispatch($year);
-
         $this->info("SP+ ratings fetch job dispatched for year {$year}.");
     }
 }

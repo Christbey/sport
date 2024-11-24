@@ -2,7 +2,7 @@
 
 return [
     'seasonYear' => env('NFL_SEASON_YEAR', 2024),
-    'seasonType' => env('NFL_SEASON_TYPE', 'regular'),
+    'seasonType' => env('NFL_SEASON_TYPE', 'Regular Season'),
     'weekNumber' => env('NFL_WEEK_NUMBER', 2),
     'weeks' => [
         '1' => ['start' => '2024-08-30', 'end' => '2024-09-11'],

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use AllowDynamicProperties;
 use App\Models\Nfl\NflEloPrediction;
 use App\Models\Nfl\NflEloRating;
 use App\Models\Nfl\NflTeamSchedule;
@@ -10,7 +11,7 @@ use Exception;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
-class EloRatingService
+#[AllowDynamicProperties] class EloRatingService
 {
     private const GAME_STATUS_COMPLETED = 'Completed';
     private const SEASON_TYPE_REGULAR = 'Regular Season';
