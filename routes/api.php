@@ -118,7 +118,13 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
 });
 
 Route::get('/team-stats/recent-games', [TeamStatsController::class, 'getRecentGames']);
-Route::apiResource('nfl/teams', NflTeamController::class);
+Route::apiResource('nfl/teams', NflTeamController::class)->names([
+    'index' => 'api.nfl.teams.index',
+    'show' => 'api.nfl.teams.show',
+    'store' => 'api.nfl.teams.store',
+    'update' => 'api.nfl.teams.update',
+    'destroy' => 'api.nfl.teams.destroy',
+]);
 Route::get('/nfl/schedules', [NflTeamScheduleController::class, 'index']);
 Route::get('/nfl/schedules/{teamId}', [NflTeamScheduleController::class, 'show']);
 Route::get('/nfl/schedules/{teamId}/date-range', [NflTeamScheduleController::class, 'byDateRange']);
