@@ -1,11 +1,12 @@
-@php use Carbon\Carbon; @endphp
 <x-app-layout>
+    
     <x-nfl.game-layout>
+
         @if($predictions->isNotEmpty())
             <x-nfl.matchup-card :awayTeam="$predictions->first()->opponent" :homeTeam="$predictions->first()->team">
                 <x-nfl.stat-card
                         bgColor="bg-blue-50"
-                        textColor="text-blue-800 ?? "
+                        textColor="text-blue-800"
                         title="Win Probability"
                         :value="number_format($predictions->first()->expected_outcome * 100, 1) . '%'"
                 />
@@ -13,29 +14,30 @@
                         bgColor="bg-green-50"
                         textColor="text-green-800"
                         title="Predicted Spread"
-                        :value="number_format($predictions->first()->predicted_spread, 1)"
-                        :subtitle="$predictions->first()->predicted_spread > 0 ? 'Home Favored' : 'Away Favored'"
+                        :value="number_format($predictions->first()->predicted_spread, 1)*-1"
+                        :subtitle="$predictions->first()->predicted_spread >0 ? 'Home Favored' : 'Away Favored'"
                 />
                 <x-nfl.stat-card
                         bgColor="bg-purple-50"
                         textColor="text-purple-800"
                         title="Game Date"
-                        :value="Carbon::parse($teamSchedule->game_date)->format('D, M j, Y')"
-                        :subtitle="Carbon::parse($teamSchedule->game_date)->format('g:i A T')"
+                        :value="Carbon\Carbon::parse($teamSchedule->game_date)->format('D, M j, Y')"
+                        :subtitle="Carbon\Carbon::parse($teamSchedule->game_date)->format('g:i A T')"
                 />
                 <x-nfl.stat-card
                         bgColor="bg-yellow-50"
                         textColor="text-yellow-800"
-                        title="Over/Under Result"
-                        :value="$overUnderResult ?? 'N/A'"
-                        :subtitle="$bettingOdds ? 'Total Over: ' . $bettingOdds->total_over : 'No Betting Odds'"
+                        title="Over/Under"
+                        :value="$totalPoints ?? 'N/A'"
+                        :subtitle="$overUnderResult . ' (Total: ' . ($totalOver ?? 'N/A') . ')'"
                 />
             </x-nfl.matchup-card>
 
-            {{-- Tables --}}
+            <!-- Tables for Recent Games -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                {{-- Away Team Recent Games --}}
-                <x-nfl.game-table headerColor="bg-blue-700" title="{{ $predictions->first()->opponent }} Recent Games">
+                <!-- Away Team Recent Games -->
+                <x-nfl.game-table headerColor="bg-blue-700"
+                                  title="{{ $predictions->first()->opponent }} Recent Games">
                     <x-slot name="thead">
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Opponent
@@ -43,34 +45,29 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Date
                         </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">O/U
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            O/U
                             Result
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Margin of Victory
                         </th>
                     </x-slot>
-                    <!-- Table body -->
                     @foreach($awayTeamLastGames as $game)
-                        <tr class="hover:bg-gray-50">
+                        <tr>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                {{ $game->home_team_id === $awayTeamId ? $game->away_team : $game->home_team }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {{ Carbon::parse($game->game_date)->format('M j') }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {{ $game->overUnderResult }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {{ is_numeric($game->marginOfVictory) ? ($game->marginOfVictory > 0 ? '+' : '') . $game->marginOfVictory : 'N/A' }}
-                            </td>
+                                {{ $game->home_team_id === $awayTeamId ? $game->away_team : $game->home_team }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {{ Carbon\Carbon::parse($game->game_date)->format('M j') }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {{ $game->overUnderResult ?? 'N/A' }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {{ is_numeric($game->marginOfVictory) ? ($game->marginOfVictory > 0 ? '+' : '') . $game->marginOfVictory : 'N/A' }}</td>
                         </tr>
                     @endforeach
-
                 </x-nfl.game-table>
 
-                {{-- Home Team Recent Games --}}
+                <!-- Home Team Recent Games -->
                 <x-nfl.game-table headerColor="bg-green-700" title="{{ $predictions->first()->team }} Recent Games">
                     <x-slot name="thead">
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -79,31 +76,26 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Date
                         </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">O/U
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            O/U
                             Result
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Margin of Victory
                         </th>
                     </x-slot>
-                    <!-- Table body -->
                     @foreach($homeTeamLastGames as $game)
-                        <tr class="hover:bg-gray-50">
+                        <tr>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                {{ $game->home_team_id === $homeTeamId ? $game->away_team : $game->home_team }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {{ Carbon::parse($game->game_date)->format('M j') }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {{ $game->overUnderResult }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {{ is_numeric($game->marginOfVictory) ? ($game->marginOfVictory > 0 ? '+' : '') . $game->marginOfVictory : 'N/A' }}
-                            </td>
+                                {{ $game->home_team_id === $homeTeamId ? $game->away_team : $game->home_team }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {{ Carbon\Carbon::parse($game->game_date)->format('M j') }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {{ $game->overUnderResult ?? 'N/A' }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {{ is_numeric($game->marginOfVictory) ? ($game->marginOfVictory > 0 ? '+' : '') . $game->marginOfVictory : 'N/A' }}</td>
                         </tr>
                     @endforeach
-
                 </x-nfl.game-table>
             </div>
 

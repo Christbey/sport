@@ -7,11 +7,12 @@ use App\Http\Controllers\Api\CollegeFootballNoteController;
 use App\Http\Controllers\Api\CoversController;
 use App\Http\Controllers\Api\Espn\EspnQbrController;
 use App\Http\Controllers\Api\TeamRankingController;
+use App\Http\Controllers\Api\TeamStatsController;
+use App\Http\Controllers\ContactFormController;
 use App\Http\Controllers\ForgeApiController;
 use App\Http\Controllers\Nfl\NflEloRatingController;
 use App\Http\Controllers\Nfl\NflSheetController;
 use App\Http\Controllers\Nfl\NflStatsViewController;
-use App\Http\Controllers\Nfl\TeamStatsController;
 use App\Http\Controllers\NflNewsController;
 use App\Http\Controllers\PickemController;
 use Illuminate\Support\Facades\Route;
@@ -47,8 +48,11 @@ Route::middleware([
     Route::get('/nfl/detail', [NflSheetController::class, 'index'])->name('nfl.detail');
     Route::post('/nfl/sheet/store', [NflSheetController::class, 'store'])->name('nfl.sheet.store');
 
-    Route::get('/nfl/stats', [TeamStatsController::class, 'index'])->name('nfl.stats.index');
-    Route::get('/nfl/stats/show', [TeamStatsController::class, 'getStats'])->name('nfl.stats.results');
+    Route::prefix('nfl/stats')->group(function () {
+        Route::get('/', [TeamStatsController::class, 'index'])->name('nfl.stats.index');
+        Route::get('/analysis/{queryType}', [TeamStatsController::class, 'showAnalysis'])->name('nfl.stats.show');
+    });
+
 
 });
 
@@ -67,7 +71,7 @@ Route::get('/api/covers/game/{covers_game_id}', [CoversController::class, 'getGa
 // In routes/web.php
 Route::get('/nfl/qbr/{week}', [EspnQbrController::class, 'fetchQbrData'])->name('espn.qbr');
 Route::get('/nfl-elo-ratings', [NflEloRatingController::class, 'index'])->name('nfl.elo');
-Route::get('/nfl-elo-predictions', [NflEloRatingController::class, 'prediction'])->name('nfl.elo.predictions');
+Route::get('/nfl-elo-predictions', [NflEloRatingController::class, 'prediction'])->name('nfl.elo.index');
 
 Route::get('/forge/servers', [ForgeApiController::class, 'listServers'])->name('forge.servers.index');
 Route::get('/forge/servers/{serverId}/sites', [ForgeApiController::class, 'listSites'])->name('forge.sites.index');

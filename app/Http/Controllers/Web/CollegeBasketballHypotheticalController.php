@@ -6,7 +6,6 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Api\CollegeBasketballHypotheticalController as ApiController;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ListCollegeBasketballRequest;
-use App\Models\CollegeBasketballHypothetical;
 use Illuminate\View\View;
 
 class CollegeBasketballHypotheticalController extends Controller
@@ -30,15 +29,15 @@ class CollegeBasketballHypotheticalController extends Controller
         ]);
     }
 
-    public function show(string $id): View
-    {
-        $hypothetical = $this->apiController->show(
-            CollegeBasketballHypothetical::findOrFail($id)
-        );
-
-        return view('cbb.show', [
-            'hypothetical' => $hypothetical->getData()->data
-        ]);
-    }
+//    public function show(string $id): View
+//    {
+//        $hypothetical = $this->apiController->show(
+//            CollegeBasketballHypothetical::findOrFail($id)
+//        );
+//
+//        return view('cbb.show', [
+//            'hypothetical' => $hypothetical->getData()->data
+//        ]);
+//    }
 }
 

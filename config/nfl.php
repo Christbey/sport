@@ -141,4 +141,68 @@ return [
             'UNDER' => 'Under Total',
         ],
     ],
+
+
+    'queries' => [
+        'average_points' => [
+            'name' => 'Average Points by Quarter',
+            'parameters' => ['games_back', 'date_range', 'season', 'week', 'day_of_week', 'location'],
+        ],
+        'quarter_scoring' => [
+            'name' => 'Quarter-by-Quarter Analysis',
+            'parameters' => ['games_back', 'date_range', 'season', 'week', 'day_of_week'],
+        ],
+        // ... other queries
+    ],
+
+    'parameters' => [
+        'games_back' => [
+            'type' => 'numeric',
+            'options' => [3, 5, 10, 15],
+            'default' => null,
+            'validation' => 'nullable|integer|in:3,5,10,15',
+            'description' => 'Number of recent games to analyze'
+        ],
+        'date_range' => [
+            'type' => 'daterange',
+            'requires' => ['start_date', 'end_date'],
+            'validation' => [
+                'start_date' => 'required_with:end_date|nullable|date',
+                'end_date' => 'required_with:start_date|nullable|date|after_or_equal:start_date'
+            ],
+            'default' => null,
+            'description' => 'Custom date range'
+        ],
+        'season' => [
+            'type' => 'numeric',
+            'options' => 'dynamic', // Will be generated from 2020 to current year
+            'validation' => 'nullable|integer|min:2020|max:' . date('Y'),
+            'default' => null,
+            'description' => 'NFL Season year'
+        ],
+        'week' => [
+            'type' => 'numeric',
+            'options' => range(1, 18),
+            'validation' => 'nullable|integer|between:1,18',
+            'default' => null,
+            'description' => 'NFL Week number'
+        ],
+        'day_of_week' => [
+            'type' => 'array',
+            'options' => ['Sunday', 'Monday', 'Thursday', 'Saturday'],
+            'validation' => [
+                'day_of_week' => 'nullable|array',
+                'day_of_week.*' => 'required|in:Sunday,Monday,Thursday,Saturday'
+            ],
+            'default' => null,
+            'description' => 'Game day of the week'
+        ],
+        'location' => [
+            'type' => 'string',
+            'options' => ['home', 'away', 'all'],
+            'validation' => 'nullable|in:home,away,all',
+            'default' => 'all',
+            'description' => 'Game location'
+        ],
+    ],
 ];

@@ -2,6 +2,7 @@
 
 namespace App\Models\Nfl;
 
+use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class NflTeamSchedule extends Model
@@ -57,4 +58,11 @@ class NflTeamSchedule extends Model
     {
         return $this->hasMany(NflTeamStat::class, 'game_id', 'game_id');
     }
+
+    public function scopeForTeam(Builder $query, int $teamId)
+    {
+        return $query->where('home_team_id', $teamId)
+            ->orWhere('away_team_id', $teamId);
+    }
+
 }

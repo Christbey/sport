@@ -9,43 +9,41 @@
 
             {{-- Week Selection --}}
             <div class="bg-white rounded-lg shadow p-6 mb-8">
-                <form method="GET" action="{{ route('nfl.elo.predictions') }}" class="max-w-xs">
+                <form method="GET" action="{{ route('nfl.elo.index') }}" class="max-w-xs">
                     <label for="week" class="block text-sm font-medium text-gray-700">Game Week</label>
                     <div class="mt-2 flex items-center space-x-4">
-                        <select
-                                name="week"
-                                id="week"
-                                onchange="this.form.submit()"
-                                class="block w-full rounded-md border-gray-300 pr-10 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                        >
+                        <select name="week" id="week"
+                                class="block w-full rounded-md border-gray-300 pr-10 focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
                             <option value="">All Weeks</option>
                             @foreach($weeks as $wk)
                                 <option value="{{ $wk }}" @selected(isset($week) && $week == $wk)>
-                                    Week {{ $wk }}
+                                    {{ $wk }}
                                 </option>
                             @endforeach
                         </select>
+                        <button type="submit"
+                                class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                            Submit
+                        </button>
                     </div>
                 </form>
             </div>
 
             {{-- Predictions Grid --}}
             <div class="@container">
-                @empty($eloPredictions)
+                @if($eloPredictions->isEmpty())
                     <div class="text-center py-12 bg-white rounded-lg shadow">
                         <h3 class="mt-2 text-sm font-medium text-gray-900">No predictions available</h3>
                         <p class="mt-1 text-sm text-gray-500">No games found for the selected week</p>
                     </div>
                 @else
-                    <div class="grid grid-cols-1 @lg:grid-cols-2 gap-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         @foreach($eloPredictions as $prediction)
                             <div class="bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200">
                                 {{-- Game Header --}}
                                 <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 rounded-t-lg">
                                     <div class="flex justify-between items-center">
-                                        <span class="text-sm font-medium text-gray-500">
-                                            {{ $prediction->gameStatusDetail ?? 'Time TBD' }}
-                                        </span>
+                                        <span class="text-sm font-medium text-gray-500">{{ $prediction->gameStatusDetail ?? 'Time TBD' }}</span>
                                         <span @class([
                                             'text-xs font-medium px-2.5 py-0.5 rounded-full',
                                             'bg-yellow-100 text-yellow-800' => $prediction->gameStatus === 'Live - In Progress',
@@ -60,40 +58,26 @@
                                 <div class="p-6">
                                     {{-- Teams Matchup --}}
                                     <div class="flex justify-between items-center mb-6">
-                                        {{-- Away Team --}}
-                                        <div class="text-center">
-                                            <p class="text-lg font-bold text-gray-900">{{ $prediction->opponent }}</p>
-                                            @isset($prediction->awayPts)
-                                                <p @class([
-                                                    'text-2xl font-bold',
-                                                    'text-green-600' => $prediction->gameStatus === 'Completed' && $prediction->awayPts > $prediction->homePts,
-                                                    'text-gray-400' => $prediction->gameStatus === 'Completed' && $prediction->awayPts <= $prediction->homePts,
-                                                    'text-gray-900' => $prediction->gameStatus !== 'Completed'
-                                                ])>
-                                                    {{ $prediction->awayPts }}
-                                                </p>
-                                            @endisset
-                                        </div>
-
-                                        {{-- VS Divider --}}
-                                        <div class="px-4">
-                                            <span class="text-gray-400 font-medium">VS</span>
-                                        </div>
-
-                                        {{-- Home Team --}}
-                                        <div class="text-center">
-                                            <p class="text-lg font-bold text-gray-900">{{ $prediction->team }}</p>
-                                            @isset($prediction->homePts)
-                                                <p @class([
-                                                    'text-2xl font-bold',
-                                                    'text-green-600' => $prediction->gameStatus === 'Completed' && $prediction->homePts > $prediction->awayPts,
-                                                    'text-gray-400' => $prediction->gameStatus === 'Completed' && $prediction->homePts <= $prediction->awayPts,
-                                                    'text-gray-900' => $prediction->gameStatus !== 'Completed'
-                                                ])>
-                                                    {{ $prediction->homePts }}
-                                                </p>
-                                            @endisset
-                                        </div>
+                                        @foreach (['opponent' => 'awayPts', 'team' => 'homePts'] as $team => $score)
+                                            <div class="text-center">
+                                                <p class="text-lg font-bold text-gray-900">{{ $prediction->{$team} }}</p>
+                                                @isset($prediction->{$score})
+                                                    <p @class([
+                                                        'text-2xl font-bold',
+                                                        'text-green-600' => $prediction->gameStatus === 'Completed' && $prediction->{$score} > $prediction->{($team === 'team' ? 'awayPts' : 'homePts')},
+                                                        'text-gray-400' => $prediction->gameStatus === 'Completed' && $prediction->{$score} <= $prediction->{($team === 'team' ? 'awayPts' : 'homePts')},
+                                                        'text-gray-900' => $prediction->gameStatus !== 'Completed'
+                                                    ])>
+                                                        {{ $prediction->{$score} }}
+                                                    </p>
+                                                @endisset
+                                            </div>
+                                            @if ($team === 'opponent')
+                                                <div class="px-4">
+                                                    <span class="text-gray-400 font-medium">VS</span>
+                                                </div>
+                                            @endif
+                                        @endforeach
                                     </div>
 
                                     {{-- Predictions Section --}}

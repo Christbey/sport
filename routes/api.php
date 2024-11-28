@@ -6,11 +6,13 @@ use App\Http\Controllers\Api\Espn\EspnQbrController;
 use App\Http\Controllers\Api\Espn\EspnTeamProjectionController;
 use App\Http\Controllers\Api\EspnAthleteController;
 use App\Http\Controllers\Api\EspnAthleteEventLogController;
+use App\Http\Controllers\Api\NflTeamController;
+use App\Http\Controllers\Api\NflTeamScheduleController;
 use App\Http\Controllers\Api\TeamRankingController;
+use App\Http\Controllers\Api\TeamStatsController;
 use App\Http\Controllers\Cfb\CollegeFootballDataController;
 use App\Http\Controllers\ForgeApiController;
 use App\Http\Controllers\Nfl\NflRapidApiController;
-use App\Http\Controllers\Nfl\TeamStatsController;
 use App\Http\Controllers\PickemController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -113,4 +115,16 @@ Route::prefix('v1')->group(function () {
 Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
     Route::post('/cfb/notes', [CollegeFootballNoteController::class, 'store']);
     Route::get('/cfb/notes', [CollegeFootballNoteController::class, 'index']);
+});
+
+Route::get('/team-stats/recent-games', [TeamStatsController::class, 'getRecentGames']);
+Route::apiResource('nfl/teams', NflTeamController::class);
+Route::get('/nfl/schedules', [NflTeamScheduleController::class, 'index']);
+Route::get('/nfl/schedules/{teamId}', [NflTeamScheduleController::class, 'show']);
+Route::get('/nfl/schedules/{teamId}/date-range', [NflTeamScheduleController::class, 'byDateRange']);
+Route::get('/nfl/schedules/{teamId}/recent-games', [NflTeamScheduleController::class, 'recentGames']);
+
+Route::prefix('nfl/stats')->group(function () {
+    Route::get('/{queryType}/data', [TeamStatsController::class, 'getAnalysisData']);
+    Route::get('/recent-games', [TeamStatsController::class, 'getRecentGames']);
 });
