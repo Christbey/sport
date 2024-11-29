@@ -8,6 +8,8 @@ use App\Repositories\{Nfl\NflBettingOddsRepository,
     Nfl\NflPlayerDataRepository,
     NflTeamScheduleRepository};
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use stdClass;
 
 class NflEloRatingController extends Controller
@@ -42,12 +44,35 @@ class NflEloRatingController extends Controller
         // Fetch betting odds and schedules
         $nflBettingOdds = $this->oddsRepo->getOddsByEventIds($gameIds);
         $teamSchedules = $this->scheduleRepo->getSchedulesByGameIds($gameIds);
+        $gameTime = $teamSchedules->pluck('game_time');
 
         // Enrich predictions with game data
         $eloPredictions = $this->eloRepo->enrichPredictionsWithGameData($eloPredictions, $teamSchedules);
 
-        return view('nfl.elo.index', compact('eloPredictions', 'weeks', 'week', 'nflBettingOdds'));
+        // Group and sort predictions by day
+        $sortedPredictions = $this->sortAndGroupPredictions($eloPredictions);
+
+        return view('nfl.elo.index', [
+            'eloPredictions' => $sortedPredictions,
+            'weeks' => $weeks,
+            'week' => $week,
+            'gameTime' => $gameTime,
+            'nflBettingOdds' => $nflBettingOdds
+        ]);
     }
+
+    /**
+     * Sort and group predictions by game day, with Thursday first and Monday last
+     */
+    private function sortAndGroupPredictions(Collection $predictions): Collection
+    {
+        return $predictions->groupBy(function ($prediction) {
+            return Carbon::parse($prediction->game_date)->format('Y-m-d');
+        })
+            ->sortKeys()
+            ->flatten(1);
+    }
+
 
     public function show(string $gameId)
     {

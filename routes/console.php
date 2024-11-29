@@ -59,8 +59,7 @@ Schedule::command('fetch:advanced-game-stats')
 
 // NFL Boxscore
 Schedule::command('nfl:fetch-boxscore')
-    ->sundays()
-    ->everyThirtyMinutes()
+    ->everyFifteenMinutes()
     ->withoutOverlapping()
     ->before(fn() => Log::info('Starting NFL boxscore fetch'))
     ->after(fn() => NflCommandHelper::sendNotification('NFL boxscore fetch completed successfully'))
@@ -264,7 +263,16 @@ Schedule::command('calculate:game-differences')
         'failure'
     ))
     ->runInBackground();
-
+Schedule::command('fetch:nfl-team-roster')
+    ->dailyAt('07:00')
+    ->withoutOverlapping()
+    ->before(fn() => Log::info('Starting NFL team roster fetch'))
+    ->after(fn() => NflCommandHelper::sendNotification('NFL team roster fetch completed successfully'))
+    ->onFailure(fn($e) => NflCommandHelper::sendNotification(
+        "NFL team roster fetch failed: {$e->getMessage()}",
+        'failure'
+    ))
+    ->runInBackground();
 //Schedule::command('scrape:massey')
 
 // Health Checks

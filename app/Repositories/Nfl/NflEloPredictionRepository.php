@@ -12,7 +12,7 @@ class NflEloPredictionRepository
     {
         return NflEloPrediction::query()
             ->when($week, fn($query) => $query->where('week', $week))
-            ->orderBy('team')
+            ->orderBy('game_id')
             ->get();
     }
 

@@ -14,6 +14,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\{DB, Notification};
+use Log;
 
 class StoreCollegeFootballGames implements ShouldQueue
 {
@@ -191,15 +192,24 @@ class StoreCollegeFootballGames implements ShouldQueue
         return $teamsToUpdate;
     }
 
+
     private function processGames(array $games, Collection $teams): void
     {
+        Log::info('Processing games:', ['count' => count($games)]);
+
         $gamesData = collect($games)->map(function ($game) use ($teams) {
+            // Format the start_date
+            $startDate = null;
+            if (!empty($game['start_date'])) {
+                $startDate = Carbon::parse($game['start_date'])->format('Y-m-d');
+            }
+
             return [
                 'id' => $game['id'],
                 'season' => $game['season'] ?? null,
                 'week' => $game['week'] ?? null,
                 'season_type' => $game['season_type'] ?? null,
-                'start_date' => $game['start_date'] ?? null,
+                'start_date' => $startDate,
                 'start_time_tbd' => $game['start_time_tbd'] ?? false,
                 'completed' => $game['completed'] ?? false,
                 'neutral_site' => $game['neutral_site'] ?? false,
@@ -227,7 +237,7 @@ class StoreCollegeFootballGames implements ShouldQueue
             ];
         });
 
-        // Bulk upsert games
+        // Add the actual database save operation
         foreach ($gamesData->chunk(100) as $chunk) {
             CollegeFootballGame::upsert(
                 $chunk->toArray(),
@@ -235,5 +245,7 @@ class StoreCollegeFootballGames implements ShouldQueue
                 array_keys($chunk->first())
             );
         }
+
+        Log::info('Games processed and saved', ['count' => $gamesData->count()]);
     }
 }

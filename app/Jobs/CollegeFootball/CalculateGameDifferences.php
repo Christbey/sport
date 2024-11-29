@@ -2,10 +2,9 @@
 
 namespace App\Jobs\CollegeFootball;
 
-use App\Events\{GameCalculationsStarted, GameResultProcessed, WeeklyCalculationsCompleted};
+use App\Events\{GameResultProcessed, WeeklyCalculationsCompleted};
 use App\Models\CollegeFootball\CollegeFootballGame;
 use App\Notifications\DiscordCommandCompletionNotification;
-use Carbon\Carbon;
 use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -18,38 +17,57 @@ class CalculateGameDifferences implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    protected $week;
+
+    /**
+     * Create a new job instance.
+     *
+     * @param int $week
+     */
+    public function __construct(int $week)
+    {
+        $this->week = $week;
+    }
+
     public function handle()
     {
         try {
-            $now = Carbon::now();
-            $dateRange = [
-                'start' => $now->copy()->startOfWeek(),
-                'end' => $now->copy()->endOfWeek()
-            ];
+            $weeks = config('college_football.weeks');
+            if (!isset($weeks[$this->week])) {
+                throw new Exception("Invalid week: {$this->week}");
+            }
 
-            // Dispatch start event
-            GameCalculationsStarted::dispatch($dateRange);
+            $dateRange = $weeks[$this->week];
+            Log::info('Starting game calculations', $dateRange);
+
+            $games = CollegeFootballGame::with(['hypothetical', 'homeTeam', 'awayTeam'])
+                ->whereHas('hypothetical')
+                ->where('completed', '1')
+                ->whereBetween('start_date', [$dateRange['start'], $dateRange['end']])
+                ->get();
 
             $totalProcessedGames = 0;
             $correctPredictions = 0;
             $gamesData = collect();
 
-            $games = CollegeFootballGame::with(['hypothetical', 'homeTeam', 'awayTeam'])
-                ->whereHas('hypothetical')
-                ->where('completed', '1')
-                ->whereBetween('start_date', array_values($dateRange))
-                ->get();
-
             foreach ($games as $game) {
+                // Skip if required fields are missing
                 if (is_null($game->away_points) || is_null($game->home_points)) {
+                    Log::info('Skipped game due to missing points', ['game_id' => $game->id]);
                     continue;
                 }
 
+                // Calculate the actual point difference and compare with the spread
                 $actualPointDifference = $game->home_points - $game->away_points;
                 $hypotheticalSpread = $game->hypothetical->hypothetical_spread;
                 $wasCorrect = ($actualPointDifference >= $hypotheticalSpread);
 
-                // Dispatch individual game process event
+                // Grade the record by updating the game
+                $game->update([
+                    'result' => $wasCorrect ? 1 : 0, // 1 for correct, 0 for incorrect
+                ]);
+
+                // Dispatch event for each processed game
                 GameResultProcessed::dispatch(
                     $game,
                     $wasCorrect,
@@ -57,11 +75,13 @@ class CalculateGameDifferences implements ShouldQueue
                     $actualPointDifference
                 );
 
+                // Increment counters
                 $totalProcessedGames++;
                 if ($wasCorrect) {
                     $correctPredictions++;
                 }
 
+                // Collect game data for reporting
                 $gamesData->push([
                     'id' => $game->id,
                     'homeTeam' => $game->homeTeam->school ?? 'Home Team',
@@ -69,14 +89,14 @@ class CalculateGameDifferences implements ShouldQueue
                     'homePoints' => $game->home_points,
                     'awayPoints' => $game->away_points,
                     'spreadOpen' => $game->spread_open,
-                    'result' => $wasCorrect ? 1 : 0
+                    'result' => $wasCorrect ? 1 : 0,
                 ]);
             }
 
+            // Log and notify results
             if ($gamesData->isNotEmpty()) {
                 $percentage = number_format(($correctPredictions / $totalProcessedGames) * 100, 2);
 
-                // Dispatch completion event
                 WeeklyCalculationsCompleted::dispatch(
                     $gamesData->toArray(),
                     $totalProcessedGames,
@@ -86,7 +106,10 @@ class CalculateGameDifferences implements ShouldQueue
             }
 
             Notification::route('discord', config('services.discord.channel_id'))
-                ->notify(new DiscordCommandCompletionNotification('Processed games for current week', 'success'));
+                ->notify(new DiscordCommandCompletionNotification(
+                    "Processed games for week {$this->week}. Total: {$totalProcessedGames}, Correct: {$correctPredictions}",
+                    'success'
+                ));
 
         } catch (Exception $e) {
             Log::error('Error processing games: ' . $e->getMessage());

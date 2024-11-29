@@ -43,7 +43,7 @@
                                 {{-- Game Header --}}
                                 <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 rounded-t-lg">
                                     <div class="flex justify-between items-center">
-                                        <span class="text-sm font-medium text-gray-500">{{ $prediction->gameStatusDetail ?? 'Time TBD' }}</span>
+                                        <span class="text-sm font-medium text-gray-500">{{ $prediction->gameTime ?? 'Time TBD' }}</span>
                                         <span @class([
                                             'text-xs font-medium px-2.5 py-0.5 rounded-full',
                                             'bg-yellow-100 text-yellow-800' => $prediction->gameStatus === 'Live - In Progress',

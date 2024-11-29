@@ -109,25 +109,7 @@ class NflScheduleService
                     'gameID' => $gameId,
                     'playByPlay' => 'true',
                     'fantasyPoints' => 'true',
-                    'twoPointConversions' => '2',
-                    'passYards' => '.04',
-                    'passAttempts' => '0',
-                    'passTD' => '4',
-                    'passCompletions' => '0',
-                    'passInterceptions' => '-2',
-                    'pointsPerReception' => '.5',
-                    'carries' => '.2',
-                    'rushYards' => '.1',
-                    'rushTD' => '6',
-                    'fumbles' => '-2',
-                    'receivingYards' => '.1',
-                    'receivingTD' => '6',
-                    'targets' => '0',
-                    'defTD' => '6',
-                    'fgMade' => '3',
-                    'fgMissed' => '-3',
-                    'xpMade' => '1',
-                    'xpMissed' => '-1'
+
                 ],
                 'headers' => $this->getHeaders()
             ]);
@@ -152,11 +134,12 @@ class NflScheduleService
         $shortName = "$awayTeam @ $homeTeam";
 
         $gameData = [
-            'game_status' => 'Final',
+            'game_status' => $gameStatus,
             'away_result' => $scheduleData['awayResult'] ?? null,
             'home_result' => $scheduleData['homeResult'] ?? null,
             'home_pts' => $scheduleData['homePts'] ?? null,
             'away_pts' => $scheduleData['awayPts'] ?? null,
+            'attendance' => $gameDetails['body']['attendance'] ?? null,
             'game_status_code' => $scheduleData['gameStatusCode'] ?? null,
             'status_type_detail' => $gameDetails['body']['gameStatus'] ?? 'Final',
             'home_team_record' => $gameDetails['body']['homeTeamRecord'] ?? null,
@@ -271,9 +254,10 @@ class NflScheduleService
                     'yards_per_pass' => $stats['yardsPerPass'] ?? null,
                     'redzone_scores' => $redZone[0] ?? 0,
                     'redzone_attempts' => $redZone[1] ?? 0,
-                    'team_abbr' => $stats['teamAbv'] ?? null,
+                    'team_abr' => $stats['teamAbv'] ?? null,
                 ]
             );
+
         }
     }
 }
