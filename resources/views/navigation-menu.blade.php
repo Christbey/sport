@@ -22,6 +22,7 @@
                             ['label' => 'Covers Games', 'route' => 'covers.games'],
                             ['label' => 'ESPN QBR', 'route' => 'espn.qbr', 'params' => ['week' => 1]],
                             ['label' => 'Elo Predictions', 'route' => 'nfl.elo.index'],
+                            ['label' => 'Trends Analysis', 'route' => 'nfl.trends.config'],
                         ],
                         'College' => [
                             ['label' => 'CFB Hypotheticals', 'route' => 'cfb.index'],

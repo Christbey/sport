@@ -8,12 +8,12 @@ use App\Http\Controllers\Api\CoversController;
 use App\Http\Controllers\Api\Espn\EspnQbrController;
 use App\Http\Controllers\Api\TeamRankingController;
 use App\Http\Controllers\Api\TeamStatsController;
-use App\Http\Controllers\ContactFormController;
 use App\Http\Controllers\ForgeApiController;
 use App\Http\Controllers\Nfl\NflEloRatingController;
 use App\Http\Controllers\Nfl\NflSheetController;
 use App\Http\Controllers\Nfl\NflStatsViewController;
 use App\Http\Controllers\NflNewsController;
+use App\Http\Controllers\NflTrendsController;
 use App\Http\Controllers\PickemController;
 use Illuminate\Support\Facades\Route;
 
@@ -126,3 +126,6 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
     Route::get('/cfb/notes', [CollegeFootballNoteController::class, 'index'])
         ->name('cfb.notes.index');
 });
+
+Route::get('/nfl/trends', [NflTrendsController::class, 'show'])->name('nfl.trends.config');
+
