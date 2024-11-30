@@ -169,15 +169,42 @@ class NflTrendsController extends Controller
         $spread = $isHome ? $odds->spread_home : $odds->spread_away;
         $actualDiff = $this->calculateMargin($game, $isHome);
 
-        $covered = $spread < 0 ?
-            $actualDiff > abs($spread) :
-            $actualDiff > -$spread;
+        // Check for push - when actual difference equals the spread exactly
+        $covered = null;
+        if ($spread) {
+            if ($spread < 0) {
+                // Team is favorite
+                if ($actualDiff > abs($spread)) {
+                    $covered = true;  // Covered as favorite
+                } elseif ($actualDiff < abs($spread)) {
+                    $covered = false; // Did not cover as favorite
+                }
+                // If equal, it's a push ($covered remains null)
+            } else {
+                // Team is underdog
+                if ($actualDiff > -$spread) {
+                    $covered = true;  // Covered as underdog
+                } elseif ($actualDiff < -$spread) {
+                    $covered = false; // Did not cover as underdog
+                }
+                // If equal, it's a push ($covered remains null)
+            }
+        }
 
+        // Add detailed tracking for debugging
         $this->trends['spread_cover'][] = [
             'covered' => $covered,
             'spread' => $spread,
             'margin' => $actualDiff,
-            'game_id' => $game->game_id
+            'game_id' => $game->game_id,
+            'game_date' => $game->game_date,
+            'home_team' => $game->home_team,
+            'away_team' => $game->away_team,
+            'home_points' => $game->home_points,
+            'away_points' => $game->away_points,
+            'is_home' => $isHome,
+            'is_favorite' => $spread < 0,
+            'is_push' => $covered === null
         ];
     }
 
@@ -304,7 +331,14 @@ class NflTrendsController extends Controller
     private function formatGeneralTrends(int $totalGames): array
     {
         $wins = collect($this->trends['margin'])->where('is_win', true)->count();
-        $covers = collect($this->trends['spread_cover'])->where('covered', true)->count();
+        $spreadData = collect($this->trends['spread_cover']);
+
+        // Filter out pushes
+        $validBets = $spreadData->filter(fn($bet) => $bet['covered'] !== null);
+        $covers = $validBets->where('covered', true)->count();
+        $totalValidBets = $validBets->count();
+        $pushes = $totalGames - $totalValidBets;
+
         $overs = collect($this->trends['totals'])->where('went_over', true)->count();
 
         return [
@@ -315,8 +349,9 @@ class NflTrendsController extends Controller
             ],
             'ats' => [
                 'wins' => $covers,
-                'losses' => $totalGames - $covers,
-                'percentage' => round(($covers / $totalGames) * 100)
+                'losses' => $totalValidBets - $covers,
+                'pushes' => $pushes,
+                'percentage' => $totalValidBets ? round(($covers / $totalValidBets) * 100) : 0
             ],
             'over_under' => [
                 'overs' => $overs,

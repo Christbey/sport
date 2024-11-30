@@ -1,14 +1,21 @@
 <x-app-layout>
-    <div class="max-w-7xl mx-auto">
-        <div class="bg-white rounded-lg shadow-lg p-6">
-            <h1 class="text-2xl font-bold mb-6">NFL Trends Analysis</h1>
+    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <div class="bg-white rounded-xl shadow-lg p-6 space-y-8">
+            <div class="flex items-center justify-between">
+                <h1 class="text-3xl font-bold text-gray-900">NFL Trends Analysis</h1>
+                <div class="text-sm text-gray-500">
+                    @if(isset($selectedTeam))
+                        Analyzing: <span class="font-semibold">{{ $selectedTeam }}</span>
+                    @endif
+                </div>
+            </div>
 
-            <form action="{{ route('nfl.trends.config') }}" method="GET" class="mb-8">
-                <div class="mb-6">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Select Team</label>
-                    <div class="flex gap-4">
+            <form action="{{ route('nfl.trends.config') }}" method="GET">
+                <div class="grid sm:grid-cols-4 gap-4">
+                    <div class="sm:col-span-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Team</label>
                         <select name="team"
-                                class="w-48 rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                             <option value="">Select a team...</option>
                             @foreach(['ARI', 'ATL', 'BAL', 'BUF', 'CAR', 'CHI', 'CIN', 'CLE',
                                     'DAL', 'DEN', 'DET', 'GB', 'HOU', 'IND', 'JAX', 'KC',
@@ -19,9 +26,12 @@
                                 </option>
                             @endforeach
                         </select>
+                    </div>
 
+                    <div class="sm:col-span-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Season</label>
                         <select name="season"
-                                class="w-32 rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                             <option value="">All Seasons</option>
                             @foreach(range(date('Y'), 2020) as $year)
                                 <option value="{{ $year }}" {{ $year == ($season ?? '') ? 'selected' : '' }}>
@@ -29,17 +39,21 @@
                                 </option>
                             @endforeach
                         </select>
+                    </div>
 
+                    <div class="sm:col-span-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Games to Analyze</label>
                         <input type="number"
                                name="games"
                                value="{{ $games ?? 20 }}"
                                min="1"
                                max="100"
-                               placeholder="# of games"
-                               class="w-32 rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
 
+                    <div class="sm:col-span-1 flex items-end">
                         <button type="submit"
-                                class="px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                class="w-full h-10 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors">
                             Analyze
                         </button>
                     </div>
@@ -48,51 +62,102 @@
 
             @if(isset($trends))
                 <div class="space-y-6">
-                    {{-- General Record --}}
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <h2 class="text-lg font-medium mb-3">Record (Last {{ $totalGames }} Games)</h2>
-                        <div class="grid grid-cols-3 gap-4">
-                            <div>
-                                <p class="text-gray-600">Overall</p>
-                                <p class="text-xl font-bold">
+                    {{-- General Record Card --}}
+                    <div class="bg-gradient-to-br from-gray-50 to-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <h2 class="text-xl font-bold text-gray-900 mb-4">Record Summary (Last {{ $totalGames }}
+                            Games)</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            @php
+                                $getStatusColor = function($wins, $total) {
+                                    $percentage = ($wins / $total) * 100;
+                                    return $percentage >= 55 ? 'text-green-600' : ($percentage <= 45 ? 'text-red-600' : 'text-gray-600');
+                                };
+                            @endphp
+
+                            {{-- Overall Record --}}
+                            <div class="bg-white rounded-lg p-4 shadow-sm">
+                                <p class="text-sm font-medium text-gray-500">Overall Record</p>
+                                <p class="mt-2 text-2xl font-bold {{ $getStatusColor($trends['general']['record']['wins'], $totalGames) }}">
                                     {{ $trends['general']['record']['wins'] }}
                                     -{{ $trends['general']['record']['losses'] }}
-                                    ({{ $trends['general']['record']['percentage'] }}%)
+                                    <span class="text-sm">({{ $trends['general']['record']['percentage'] }}%)</span>
                                 </p>
                             </div>
-                            <div>
-                                <p class="text-gray-600">Against The Spread</p>
-                                <p class="text-xl font-bold">
+
+                            {{-- ATS Record --}}
+                            <div class="bg-white rounded-lg p-4 shadow-sm">
+                                <p class="text-sm font-medium text-gray-500">Against The Spread</p>
+                                <p class="mt-2 text-2xl font-bold {{ $getStatusColor($trends['general']['ats']['wins'], $trends['general']['ats']['wins'] + $trends['general']['ats']['losses']) }}">
                                     {{ $trends['general']['ats']['wins'] }}-{{ $trends['general']['ats']['losses'] }}
-                                    ({{ $trends['general']['ats']['percentage'] }}%)
+                                    <span class="text-sm">({{ $trends['general']['ats']['percentage'] }}%)</span>
                                 </p>
                             </div>
-                            <div>
-                                <p class="text-gray-600">Over/Under</p>
-                                <p class="text-xl font-bold">
+
+                            {{-- Over/Under Record --}}
+                            <div class="bg-white rounded-lg p-4 shadow-sm">
+                                <p class="text-sm font-medium text-gray-500">Over/Under</p>
+                                <p class="mt-2 text-2xl font-bold {{ $getStatusColor($trends['general']['over_under']['overs'], $totalGames) }}">
                                     {{ $trends['general']['over_under']['overs'] }}
                                     -{{ $trends['general']['over_under']['unders'] }}
-                                    ({{ $trends['general']['over_under']['percentage'] }}%)
+                                    <span class="text-sm">({{ $trends['general']['over_under']['percentage'] }}%)</span>
                                 </p>
                             </div>
                         </div>
                     </div>
-
-                    {{-- Display other trends sections --}}
-                    @foreach(['scoring', 'quarters', 'halves', 'margins', 'totals', 'first_score'] as $section)
-                        @if(isset($trends[$section]) && !empty($trends[$section]))
-                            <div class="bg-gray-50 p-4 rounded-lg">
-                                <h2 class="text-lg font-medium mb-3">{{ ucfirst($section) }} Trends</h2>
-                                <ul class="space-y-2">
-                                    @foreach($trends[$section] as $trend)
-                                        <li class="text-gray-700">{{ $trend }}</li>
-                                    @endforeach
-                                </ul>
-                            </div>
-                        @endif
-                    @endforeach
                 </div>
-            @endif
+
+                {{-- Trend Sections --}}
+                @if(isset($trends))
+                    <div class="space-y-6">
+                    
+
+                        {{-- Trend Sections --}}
+                        @foreach(['scoring', 'quarters', 'halves', 'margins', 'totals', 'first_score'] as $sectionKey)
+                            @if(isset($trends[$sectionKey]) && !empty($trends[$sectionKey]))
+                                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                                    <h2 class="text-xl font-bold text-gray-900 mb-4">{{ ucfirst($sectionKey) }}
+                                        Trends</h2>
+                                    <div class="space-y-3">
+                                        @foreach($trends[$sectionKey] as $trend)
+                                            @php
+                                                $trend = (string)$trend;
+                                                $positiveTerms = ['won', 'scored', 'covered', 'over'];
+                                                $negativeTerms = ['lost', 'under', 'fewer'];
+
+                                                $isPositive = false;
+                                                $isNegative = false;
+
+                                                foreach ($positiveTerms as $term) {
+                                                    if (str_contains(strtolower($trend), $term)) {
+                                                        $isPositive = true;
+                                                        break;
+                                                    }
+                                                }
+
+                                                foreach ($negativeTerms as $term) {
+                                                    if (str_contains(strtolower($trend), $term)) {
+                                                        $isNegative = true;
+                                                        break;
+                                                    }
+                                                }
+
+                                                $trendColor = $isPositive ? 'bg-green-50 border-green-200' :
+                                                            ($isNegative ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200');
+                                                $textColor = $isPositive ? 'text-green-700' :
+                                                            ($isNegative ? 'text-red-700' : 'text-gray-700');
+                                            @endphp
+                                            <div class="rounded-lg border {{ $trendColor }} p-3">
+                                                <p class="text-sm {{ $textColor }}">{{ $trend }}</p>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endif
+                        @endforeach            @endif
+
+                    </div>
+                @endif
         </div>
     </div>
+
 </x-app-layout>
