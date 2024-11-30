@@ -2,8 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Nfl\NflBettingOdds;
-use App\Models\Nfl\NflBoxScore;
+use App\Models\Nfl\{NflBettingOdds, NflBoxScore};
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\View\View;
@@ -51,6 +50,13 @@ class NflTrendsController extends Controller
         ]
     ];
 
+    private const VALID_TEAMS = [
+        'ARI', 'ATL', 'BAL', 'BUF', 'CAR', 'CHI', 'CIN', 'CLE',
+        'DAL', 'DEN', 'DET', 'GB', 'HOU', 'IND', 'JAX', 'KC',
+        'LAC', 'LAR', 'LV', 'MIA', 'MIN', 'NE', 'NO', 'NYG',
+        'NYJ', 'PHI', 'PIT', 'SEA', 'SF', 'TB', 'TEN', 'WAS'
+    ];
+
     private Collection $games;
     private Collection $bettingOdds;
     private string $teamName;
@@ -59,7 +65,6 @@ class NflTrendsController extends Controller
 
     public function show(Request $request): View
     {
-        // If no team is selected, just show the form
         if (!$request->has('team') || empty($request->input('team'))) {
             return view('nfl.trends.config');
         }
@@ -72,30 +77,22 @@ class NflTrendsController extends Controller
 
         $this->teamName = strtoupper($request->input('team'));
 
-        // Add error handling for invalid team
-        if (!in_array($this->teamName, [
-            'ARI', 'ATL', 'BAL', 'BUF', 'CAR', 'CHI', 'CIN', 'CLE',
-            'DAL', 'DEN', 'DET', 'GB', 'HOU', 'IND', 'JAX', 'KC',
-            'LAC', 'LAR', 'LV', 'MIA', 'MIN', 'NE', 'NO', 'NYG',
-            'NYJ', 'PHI', 'PIT', 'SEA', 'SF', 'TB', 'TEN', 'WAS'
-        ])) {
+        if (!in_array($this->teamName, self::VALID_TEAMS)) {
             return view('nfl.trends.config')->withErrors(['Invalid team selected']);
         }
 
         $this->games = $this->fetchGames($request);
-        $this->bettingOdds = $this->fetchBettingOdds();
 
         if ($this->games->isEmpty()) {
             return view('nfl.trends.config')->withErrors(['No games found for ' . $this->teamName]);
         }
 
-        $this->initializeTrends();
-        $this->analyzeTrends();
-        $trends = $this->formatTrends();
+        $this->bettingOdds = $this->fetchBettingOdds();
+        $this->trends = $this->generateTrends();
 
         return view('nfl.trends.config', [
             'selectedTeam' => $this->teamName,
-            'trends' => $trends,
+            'trends' => $this->formatTrends(),
             'totalGames' => $this->games->count(),
             'season' => $request->input('season'),
             'games' => $request->input('games', 10)
@@ -104,24 +101,18 @@ class NflTrendsController extends Controller
 
     private function fetchGames(Request $request): Collection
     {
-        $query = NflBoxScore::query()
+        return NflBoxScore::query()
             ->join('nfl_team_schedules', function ($join) {
                 $join->on('nfl_box_scores.game_id', '=', 'nfl_team_schedules.game_id')
                     ->where('nfl_team_schedules.season_type', 'Regular Season');
             })
-            ->where(function ($q) {
-                $q->where('nfl_box_scores.home_team', $this->teamName)
-                    ->orWhere('nfl_box_scores.away_team', $this->teamName);
-            })
+            ->where(fn($q) => $q->where('nfl_box_scores.home_team', $this->teamName)
+                ->orWhere('nfl_box_scores.away_team', $this->teamName))
+            ->when($request->input('season'), fn($q, $season) => $q->whereYear('nfl_box_scores.game_date', $season))
             ->with('teamStats')
             ->orderBy('nfl_box_scores.game_date', 'desc')
-            ->select('nfl_box_scores.*');
-
-        if ($season = $request->input('season')) {
-            $query->whereYear('nfl_box_scores.game_date', $season);
-        }
-
-        return $query->take($request->input('games', 20))->get();
+            ->take($request->input('games', 20))
+            ->get();
     }
 
     private function fetchBettingOdds(): Collection
@@ -131,157 +122,119 @@ class NflTrendsController extends Controller
             ->keyBy('event_id');
     }
 
-    private function initializeTrends(): void
+    private function generateTrends(): array
     {
-        foreach (array_keys(self::ANALYSES) as $type) {
-            $this->trends[$type] = [];
-        }
-        $this->trends['spread_cover'] = [];
-        $this->trends['first_score'] = [];
-    }
+        $trends = array_fill_keys(
+            [...array_keys(self::ANALYSES), 'spread_cover', 'first_score'],
+            []
+        );
 
-    private function analyzeTrends(): void
-    {
         foreach ($this->games as $game) {
-            $this->collectGameData($game);
+            $isHome = $game->home_team === $this->teamName;
+            $this->collectGameData($game, $isHome, $trends);
         }
+
+        return $trends;
     }
 
-    private function collectGameData(NflBoxScore $game): void
+    private function collectGameData(NflBoxScore $game, bool $isHome, array &$trends): void
     {
-        $isHome = $game->home_team === $this->teamName;
-        $this->analyzeSpread($game, $isHome);
-        $this->analyzeScoring($game, $isHome);
-        $this->analyzeQuarters($game, $isHome);
-        $this->analyzeMargins($game, $isHome);
-        $this->analyzeTotals($game);
-        $this->analyzeFirstScore($game, $isHome);
+        $lineScore = $isHome ? $game->home_line_score : $game->away_line_score;
+        $oppLineScore = $isHome ? $game->away_line_score : $game->home_line_score;
+        $teamScore = $isHome ? $game->home_points : $game->away_points;
+        $margin = $this->calculateMargin($game, $isHome);
+
+        $this->collectSpreadData($game, $isHome, $margin, $trends);
+        $this->collectScoringData($teamScore, $game->game_id, $trends);
+        $this->collectQuarterData($lineScore, $oppLineScore, $game->game_id, $trends);
+        $this->collectMarginData($margin, $game->game_id, $trends);
+        $this->collectTotalsData($game, $trends);
+        $this->collectFirstScoreData($lineScore, $oppLineScore, $game->game_id, $trends);
     }
 
-    // Include all the analysis methods from your command...
-    // [analyzeSpread, analyzeScoring, analyzeQuarters, etc.]
+    private function calculateMargin(NflBoxScore $game, bool $isHome): float
+    {
+        return ($game->home_points - $game->away_points) * ($isHome ? 1 : -1);
+    }
 
-    private function analyzeSpread(NflBoxScore $game, bool $isHome): void
+    private function collectSpreadData(NflBoxScore $game, bool $isHome, float $margin, array &$trends): void
     {
         $odds = $this->bettingOdds->get($game->game_id);
         if (!$odds) return;
 
         $spread = $isHome ? $odds->spread_home : $odds->spread_away;
-        $actualDiff = $this->calculateMargin($game, $isHome);
+        $covered = $this->determineSpreadCover($spread, $margin);
 
-        // Check for push - when actual difference equals the spread exactly
-        $covered = null;
-        if ($spread) {
-            if ($spread < 0) {
-                // Team is favorite
-                if ($actualDiff > abs($spread)) {
-                    $covered = true;  // Covered as favorite
-                } elseif ($actualDiff < abs($spread)) {
-                    $covered = false; // Did not cover as favorite
-                }
-                // If equal, it's a push ($covered remains null)
-            } else {
-                // Team is underdog
-                if ($actualDiff > -$spread) {
-                    $covered = true;  // Covered as underdog
-                } elseif ($actualDiff < -$spread) {
-                    $covered = false; // Did not cover as underdog
-                }
-                // If equal, it's a push ($covered remains null)
-            }
-        }
-
-        // Add detailed tracking for debugging
-        $this->trends['spread_cover'][] = [
+        $trends['spread_cover'][] = [
             'covered' => $covered,
             'spread' => $spread,
-            'margin' => $actualDiff,
+            'margin' => $margin,
             'game_id' => $game->game_id,
-            'game_date' => $game->game_date,
-            'home_team' => $game->home_team,
-            'away_team' => $game->away_team,
-            'home_points' => $game->home_points,
-            'away_points' => $game->away_points,
             'is_home' => $isHome,
             'is_favorite' => $spread < 0,
             'is_push' => $covered === null
         ];
     }
 
-    private function calculateMargin(NflBoxScore $game, bool $isHome): float
+    private function determineSpreadCover(?float $spread, float $margin): ?bool
     {
-        $diff = $game->home_points - $game->away_points;
-        return $isHome ? $diff : -$diff;
+        if (!$spread) return null;
+        if ($spread < 0) return $margin > abs($spread) ? true : ($margin < abs($spread) ? false : null);
+        return $margin > -$spread ? true : ($margin < -$spread ? false : null);
     }
 
-
-    private function analyzeScoring(NflBoxScore $game, bool $isHome): void
+    private function collectScoringData(int $teamScore, string $gameId, array &$trends): void
     {
-        $teamScore = $isHome ? $game->home_points : $game->away_points;
-
-        $this->trends['scoring'][] = [
-            'points' => $teamScore,
-            'game_id' => $game->game_id
-        ];
+        $trends['scoring'][] = compact('teamScore', 'gameId');
     }
 
-    private function analyzeQuarters(NflBoxScore $game, bool $isHome): void
+    private function collectQuarterData(?array $lineScore, ?array $oppLineScore, string $gameId, array &$trends): void
     {
-        $lineScore = $isHome ? $game->home_line_score : $game->away_line_score;
-        $oppLineScore = $isHome ? $game->away_line_score : $game->home_line_score;
-
         if (!$lineScore || !$oppLineScore) return;
 
         foreach (self::QUARTERS as $quarter) {
             $teamScore = (int)($lineScore[$quarter] ?? 0);
             $oppScore = (int)($oppLineScore[$quarter] ?? 0);
 
-            $this->trends['quarter'][] = [
+            $trends['quarter'][] = [
                 'quarter' => $quarter,
                 'team_score' => $teamScore,
                 'opp_score' => $oppScore,
                 'won_quarter' => $teamScore > $oppScore,
-                'game_id' => $game->game_id
+                'game_id' => $gameId
             ];
         }
 
-        // Analyze halves
         foreach (self::HALVES as $half => $quarters) {
             $teamHalfScore = array_sum(array_map(fn($q) => (int)($lineScore[$q] ?? 0), $quarters));
             $oppHalfScore = array_sum(array_map(fn($q) => (int)($oppLineScore[$q] ?? 0), $quarters));
 
-            $this->trends['half'][] = [
+            $trends['half'][] = [
                 'half' => $half,
                 'team_score' => $teamHalfScore,
                 'opp_score' => $oppHalfScore,
                 'won_half' => $teamHalfScore > $oppHalfScore,
-                'game_id' => $game->game_id
+                'game_id' => $gameId
             ];
         }
     }
 
-    private function analyzeMargins(NflBoxScore $game, bool $isHome): void
+    private function collectMarginData(float $margin, string $gameId, array &$trends): void
     {
-        $margin = $this->calculateMargin($game, $isHome);
-
-        $this->trends['margin'][] = [
+        $trends['margin'][] = [
             'margin' => $margin,
             'is_win' => $margin > 0,
-            'game_id' => $game->game_id
+            'game_id' => $gameId
         ];
     }
 
-    // Rest of the methods remain largely the same, just streamlined...
-    // I can continue with the rest of the implementation if you'd like
-
-    private function analyzeTotals(NflBoxScore $game): void
+    private function collectTotalsData(NflBoxScore $game, array &$trends): void
     {
         $odds = $this->bettingOdds->get($game->game_id);
         if (!$odds) return;
 
         $totalPoints = $game->home_points + $game->away_points;
-
-        $this->trends['totals'][] = [
+        $trends['totals'][] = [
             'total_points' => $totalPoints,
             'over_under' => $odds->total_over ?? 0,
             'went_over' => $totalPoints > ($odds->total_over ?? 0),
@@ -289,11 +242,8 @@ class NflTrendsController extends Controller
         ];
     }
 
-    private function analyzeFirstScore(NflBoxScore $game, bool $isHome): void
+    private function collectFirstScoreData(?array $lineScore, ?array $oppLineScore, string $gameId, array &$trends): void
     {
-        $lineScore = $isHome ? $game->home_line_score : $game->away_line_score;
-        $oppLineScore = $isHome ? $game->away_line_score : $game->home_line_score;
-
         if (!$lineScore || !$oppLineScore) return;
 
         foreach (self::QUARTERS as $quarter) {
@@ -301,21 +251,21 @@ class NflTrendsController extends Controller
             $oppScore = (int)($oppLineScore[$quarter] ?? 0);
 
             if ($teamScore > 0 || $oppScore > 0) {
-                $this->trends['first_score'][] = [
+                $trends['first_score'][] = [
                     'scoring_quarter' => $quarter,
                     'scored_first' => $teamScore > 0 && ($oppScore === 0 || $teamScore > $oppScore),
-                    'game_id' => $game->game_id
+                    'game_id' => $gameId
                 ];
                 break;
             }
         }
     }
 
-
     private function formatTrends(): array
     {
         $totalGames = $this->games->count();
-        $formattedTrends = [
+
+        return [
             'general' => $this->formatGeneralTrends($totalGames),
             'scoring' => $this->formatScoringTrends($totalGames),
             'quarters' => $this->formatQuarterTrends($totalGames),
@@ -324,61 +274,69 @@ class NflTrendsController extends Controller
             'totals' => $this->formatTotalsTrends($totalGames),
             'first_score' => $this->formatFirstScoreTrends($totalGames)
         ];
-
-        return $formattedTrends;
     }
 
     private function formatGeneralTrends(int $totalGames): array
     {
-        $wins = collect($this->trends['margin'])->where('is_win', true)->count();
         $spreadData = collect($this->trends['spread_cover']);
-
-        // Filter out pushes
         $validBets = $spreadData->filter(fn($bet) => $bet['covered'] !== null);
-        $covers = $validBets->where('covered', true)->count();
-        $totalValidBets = $validBets->count();
-        $pushes = $totalGames - $totalValidBets;
-
-        $overs = collect($this->trends['totals'])->where('went_over', true)->count();
 
         return [
-            'record' => [
-                'wins' => $wins,
-                'losses' => $totalGames - $wins,
-                'percentage' => round(($wins / $totalGames) * 100)
-            ],
-            'ats' => [
-                'wins' => $covers,
-                'losses' => $totalValidBets - $covers,
-                'pushes' => $pushes,
-                'percentage' => $totalValidBets ? round(($covers / $totalValidBets) * 100) : 0
-            ],
-            'over_under' => [
-                'overs' => $overs,
-                'unders' => $totalGames - $overs,
-                'percentage' => round(($overs / $totalGames) * 100)
-            ]
+            'record' => $this->formatRecord($totalGames),
+            'ats' => $this->formatATS($validBets, $totalGames),
+            'over_under' => $this->formatOverUnder($totalGames)
+        ];
+    }
+
+    private function formatRecord(int $totalGames): array
+    {
+        $wins = collect($this->trends['margin'])->where('is_win', true)->count();
+        return [
+            'wins' => $wins,
+            'losses' => $totalGames - $wins,
+            'percentage' => round(($wins / $totalGames) * 100)
+        ];
+    }
+
+    private function formatATS(Collection $validBets, int $totalGames): array
+    {
+        $covers = $validBets->where('covered', true)->count();
+        $totalValidBets = $validBets->count();
+
+        return [
+            'wins' => $covers,
+            'losses' => $totalValidBets - $covers,
+            'pushes' => $totalGames - $totalValidBets,
+            'percentage' => $totalValidBets ? round(($covers / $totalValidBets) * 100) : 0
+        ];
+    }
+
+    private function formatOverUnder(int $totalGames): array
+    {
+        $overs = collect($this->trends['totals'])->where('went_over', true)->count();
+        return [
+            'overs' => $overs,
+            'unders' => $totalGames - $overs,
+            'percentage' => round(($overs / $totalGames) * 100)
         ];
     }
 
     private function formatScoringTrends(int $totalGames): array
     {
-        $trends = [];
-        foreach (self::ANALYSES['scoring']['thresholds'] as $threshold) {
-            $count = collect($this->trends['scoring'])
-                ->where('points', '>', $threshold)
-                ->count();
-
-            if ($count >= $this->minOccurrences) {
-                $trends[] = sprintf(
-                    self::ANALYSES['scoring']['message'],
-                    $threshold,
-                    $count,
-                    $totalGames
-                );
-            }
-        }
-        return $trends;
+        return collect(self::ANALYSES['scoring']['thresholds'])
+            ->map(fn($threshold) => [
+                'count' => collect($this->trends['scoring'])->where('points', '>', $threshold)->count(),
+                'threshold' => $threshold
+            ])
+            ->filter(fn($data) => $data['count'] >= $this->minOccurrences)
+            ->map(fn($data) => sprintf(
+                self::ANALYSES['scoring']['message'],
+                $data['threshold'],
+                $data['count'],
+                $totalGames
+            ))
+            ->values()
+            ->all();
     }
 
     private function formatQuarterTrends(int $totalGames): array
@@ -436,16 +394,7 @@ class NflTrendsController extends Controller
             }
 
             foreach (self::ANALYSES['half']['score_thresholds'] as $threshold) {
-                $filteredStats = $halfStats;
-                if (isset($threshold['min']) && isset($threshold['max'])) {
-                    $filteredStats = $filteredStats->whereBetween('team_score', [$threshold['min'], $threshold['max']]);
-                } elseif (isset($threshold['min'])) {
-                    $filteredStats = $filteredStats->where('team_score', '>=', $threshold['min']);
-                } else {
-                    $filteredStats = $filteredStats->where('team_score', '<', $threshold['max']);
-                }
-
-                $count = $filteredStats->count();
+                $count = $this->countHalfScores($halfStats, $threshold);
                 if ($count >= $this->minOccurrences) {
                     $trends[] = sprintf(
                         'The %s %s in the %s half in %d of their last %d games',
@@ -461,22 +410,26 @@ class NflTrendsController extends Controller
         return $trends;
     }
 
+    private function countHalfScores(Collection $stats, array $threshold): int
+    {
+        return $stats->filter(function ($stat) use ($threshold) {
+            if (isset($threshold['min']) && isset($threshold['max'])) {
+                return $stat['team_score'] >= $threshold['min'] && $stat['team_score'] <= $threshold['max'];
+            }
+            if (isset($threshold['min'])) {
+                return $stat['team_score'] >= $threshold['min'];
+            }
+            return $stat['team_score'] < $threshold['max'];
+        })->count();
+    }
+
     private function formatMarginTrends(int $totalGames): array
     {
         $trends = [];
         $marginData = collect($this->trends['margin']);
 
         foreach (self::ANALYSES['margin']['thresholds'] as $threshold) {
-            $filteredData = $marginData;
-            if (isset($threshold['min']) && isset($threshold['max'])) {
-                $filteredData = $filteredData->whereBetween('margin', [$threshold['min'], $threshold['max']]);
-            } elseif (isset($threshold['min'])) {
-                $filteredData = $filteredData->where('margin', '>=', $threshold['min']);
-            } else {
-                $filteredData = $filteredData->where('margin', '<=', $threshold['max']);
-            }
-
-            $count = $filteredData->count();
+            $count = $this->countMarginThresholds($marginData, $threshold);
             if ($count >= $this->minOccurrences) {
                 $trends[] = sprintf(
                     'The %s %s in %d of their last %d games',
@@ -488,6 +441,18 @@ class NflTrendsController extends Controller
             }
         }
         return $trends;
+    }
+
+    private function countMarginThresholds(Collection $data, array $threshold): int
+    {
+        return $data->filter(function ($item) use ($threshold) {
+            if (isset($threshold['min']) && isset($threshold['max'])) {
+                return $item['margin'] >= $threshold['min'] && $item['margin'] <= $threshold['max'];
+            }
+            return isset($threshold['min'])
+                ? $item['margin'] >= $threshold['min']
+                : $item['margin'] <= $threshold['max'];
+        })->count();
     }
 
     private function formatTotalsTrends(int $totalGames): array
@@ -507,14 +472,7 @@ class NflTrendsController extends Controller
         }
 
         foreach (self::ANALYSES['totals']['thresholds'] as $threshold) {
-            $filteredData = $totalsData;
-            if (isset($threshold['min'])) {
-                $filteredData = $filteredData->where('total_points', '>=', $threshold['min']);
-            } else {
-                $filteredData = $filteredData->where('total_points', '<=', $threshold['max']);
-            }
-
-            $count = $filteredData->count();
+            $count = $this->countTotalThresholds($totalsData, $threshold);
             if ($count >= $this->minOccurrences) {
                 $trends[] = sprintf(
                     'The %s %s in %d of their last %d games',
@@ -526,6 +484,15 @@ class NflTrendsController extends Controller
             }
         }
         return $trends;
+    }
+
+    private function countTotalThresholds(Collection $data, array $threshold): int
+    {
+        return $data->filter(function ($item) use ($threshold) {
+            return isset($threshold['min'])
+                ? $item['total_points'] >= $threshold['min']
+                : $item['total_points'] <= $threshold['max'];
+        })->count();
     }
 
     private function formatFirstScoreTrends(int $totalGames): array
@@ -557,5 +524,4 @@ class NflTrendsController extends Controller
         }
         return $trends;
     }
-    // Add other formatting methods for each trend type...
 }

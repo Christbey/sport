@@ -2,7 +2,7 @@
     <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div class="bg-white rounded-xl shadow-lg p-6 space-y-8">
             <div class="flex items-center justify-between">
-                <h1 class="text-3xl font-bold text-gray-900">NFL Trends Analysis</h1>
+                <h1 class="text-3xl font-semibold text-gray-900">NFL Trends Analysis</h1>
                 <div class="text-sm text-gray-500">
                     @if(isset($selectedTeam))
                         Analyzing: <span class="font-semibold">{{ $selectedTeam }}</span>
@@ -109,7 +109,7 @@
                 {{-- Trend Sections --}}
                 @if(isset($trends))
                     <div class="space-y-6">
-                    
+
 
                         {{-- Trend Sections --}}
                         @foreach(['scoring', 'quarters', 'halves', 'margins', 'totals', 'first_score'] as $sectionKey)
@@ -141,10 +141,14 @@
                                                     }
                                                 }
 
-                                                $trendColor = $isPositive ? 'bg-green-50 border-green-200' :
-                                                            ($isNegative ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200');
-                                                $textColor = $isPositive ? 'text-green-700' :
-                                                            ($isNegative ? 'text-red-700' : 'text-gray-700');
+                                            $trend = (string)$trend;
+    // Extract percentage from the trend string using regex
+    preg_match('/(\d+) of their last (\d+)/', $trend, $matches);
+    $percentage = $matches ? ($matches[1] / $matches[2]) * 100 : 0;
+
+    $isOverFifty = $percentage >= 50;
+    $trendColor = $isOverFifty ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200';
+    $textColor = $isOverFifty ? 'text-green-700' : 'text-red-700';
                                             @endphp
                                             <div class="rounded-lg border {{ $trendColor }} p-3">
                                                 <p class="text-sm {{ $textColor }}">{{ $trend }}</p>
