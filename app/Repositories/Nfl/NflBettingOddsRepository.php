@@ -15,6 +15,9 @@ class NflBettingOddsRepository
                 'game_date',
                 'spread_home',
                 'spread_away',
+                'away_team_id',
+                'home_team_id',
+                'source',
                 'total_over',
                 'total_under',
                 'moneyline_home',
@@ -29,7 +32,7 @@ class NflBettingOddsRepository
     public function getOddsByGameId(string $gameId)
     {
         return NflBettingOdds::where('event_id', $gameId)
-            ->select(['event_id', 'total_over', 'total_under', 'moneyline_home', 'moneyline_away'])
+            ->select(['event_id', 'total_over'])
             ->first();
     }
 }

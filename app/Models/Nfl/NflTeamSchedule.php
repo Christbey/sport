@@ -40,6 +40,7 @@ class NflTeamSchedule extends Model
         'attendance', // Attendance count
         'name', // Event name
         'short_name', // Event short name
+        'referees', // Referees for the game
     ];
 
     // Define the relationship for the home team

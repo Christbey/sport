@@ -68,10 +68,19 @@
                             Games)</h2>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                             @php
-                                $getStatusColor = function($wins, $total) {
-                                    $percentage = ($wins / $total) * 100;
-                                    return $percentage >= 55 ? 'text-green-600' : ($percentage <= 45 ? 'text-red-600' : 'text-gray-600');
-                                };
+                                $getStatusColor = function ($wins, $total) {
+    if ($total === 0) {
+        return 'text-gray-600'; // Default color if total is 0
+    }
+
+    $percentage = ($wins / $total) * 100;
+
+    return $percentage >= 55
+        ? 'text-green-600'
+        : ($percentage <= 45 ? 'text-red-600' : 'text-gray-600');
+};
+
+
                             @endphp
 
                             {{-- Overall Record --}}
