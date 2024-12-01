@@ -32,7 +32,7 @@ class NflEloRatingController extends Controller
         $this->playerRepo = $playerRepo;
     }
 
-    public function prediction(Request $request)
+    public function index(Request $request)
     {
         $week = $request->input('week');
 
