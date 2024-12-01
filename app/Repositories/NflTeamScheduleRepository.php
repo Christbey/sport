@@ -266,4 +266,9 @@ class NflTeamScheduleRepository implements NflTeamScheduleRepositoryInterface
             ->limit($limit)
             ->get();
     }
+
+    public function getSchedulesByGameIds(Collection $gameIds): Collection
+    {
+        return NflTeamSchedule::whereIn('game_id', $gameIds)->get()->keyBy('game_id');
+    }
 }
