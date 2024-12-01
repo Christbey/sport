@@ -35,7 +35,7 @@
         <div x-data="{ isFilterOpen: false }" class="mb-8">
             <div class="bg-white  overflow-hidden shadow-sm rounded-xl">
                 <div class="p-6">
-                    <form method="GET" action="{{ route('picks.leaderboard') }}" class="space-y-4">
+                    <form method="GET" action="{{ route('pickem.leaderboard') }}" class="space-y-4">
                         <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-4">
                             <div class="flex-1">
                                 <label for="game_week"
@@ -93,7 +93,7 @@
                                 <th scope="col"
                                     class="px-6 py-3 text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                     <a
-                                            href="{{ route('picks.leaderboard', ['sort' => $key, 'direction' => request('sort') == $key && request('direction') == 'asc' ? 'desc' : 'asc']) }}"
+                                            href="{{ route('pickem.leaderboard', ['sort' => $key, 'direction' => request('sort') == $key && request('direction') == 'asc' ? 'desc' : 'asc']) }}"
                                             class="group flex items-center space-x-1"
                                     >
                                         <span>{{ $label }}</span>

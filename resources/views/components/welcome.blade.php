@@ -17,7 +17,7 @@
                           clip-rule="evenodd"></path>
                 </svg>
             </a>
-            <a href="{{ route('picks.leaderboard') }}"
+            <a href="{{ route('pickem.leaderboard') }}"
                class="inline-flex items-center justify-center py-2.5 px-5 text-base font-medium text-gray-900 bg-white rounded-lg border border-gray-300 hover:bg-gray-100 focus:ring-4 focus:ring-gray-100">
                 <svg class="w-5 h-5 text-gray-800 mr-2" fill="none" stroke="currentColor" stroke-width="2"
                      viewBox="0 0 24 24">

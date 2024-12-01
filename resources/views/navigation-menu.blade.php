@@ -12,7 +12,7 @@
                     $navigationItems = [
                         'Pickem' => [
                             ['label' => 'Submit Picks', 'route' => 'pickem.schedule'],
-                            ['label' => 'Leaderboard', 'route' => 'picks.leaderboard'],
+                            ['label' => 'Leaderboard', 'route' => 'pickem.leaderboard'],
                         ],
                         'NFL' => [
                             ['label' => 'NFL Sheet', 'route' => 'nfl.detail'],
@@ -20,7 +20,7 @@
                             ['label' => 'Player Stats', 'route' => 'nfl.stats.index'],
                             ['label' => 'Offense Defense', 'route' => 'team_rankings.scoring'],
                             ['label' => 'Covers Games', 'route' => 'covers.games'],
-                            ['label' => 'ESPN QBR', 'route' => 'espn.qbr', 'params' => ['week' => 1]],
+                            ['label' => 'ESPN QBR', 'route' => 'nfl.qbr', 'params' => ['week' => 1]],
                             ['label' => 'Elo Predictions', 'route' => 'nfl.elo.index'],
                             ['label' => 'Trends Analysis', 'route' => 'nfl.trends.config'],
                         ],
