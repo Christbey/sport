@@ -271,4 +271,16 @@ class NflTeamScheduleRepository implements NflTeamScheduleRepositoryInterface
     {
         return NflTeamSchedule::whereIn('game_id', $gameIds)->get()->keyBy('game_id');
     }
+
+    public function getTeamLast3Games(int $teamId, string $currentGameId): Collection
+    {
+        return NflTeamSchedule::where(function ($query) use ($teamId) {
+            $query->where('home_team_id', $teamId)
+                ->orWhere('away_team_id', $teamId);
+        })
+            ->where('game_id', '<', $currentGameId)
+            ->orderBy('game_date', 'desc')
+            ->limit(3)
+            ->get();
+    }
 }
