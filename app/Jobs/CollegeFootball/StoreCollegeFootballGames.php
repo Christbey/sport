@@ -114,7 +114,7 @@ class StoreCollegeFootballGames implements ShouldQueue
     private function getSeasonType(): string
     {
         // Championship weeks are typically 15 and 16
-        return $this->week >= 15 ? 'postseason' : 'regular';
+        return $this->week >= 17 ? 'postseason' : 'regular';
     }
 
     private function sendNotification(string $message = '', string $status = 'success'): void
