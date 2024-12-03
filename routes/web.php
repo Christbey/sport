@@ -14,7 +14,10 @@ use App\Http\Controllers\Nfl\NflSheetController;
 use App\Http\Controllers\Nfl\NflStatsViewController;
 use App\Http\Controllers\NflNewsController;
 use App\Http\Controllers\NflTrendsController;
+use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\PickemController;
+use App\Http\Controllers\RoleController;
+use App\Http\Controllers\UserRoleController;
 use Illuminate\Support\Facades\Route;
 
 // Basic Routes
@@ -94,20 +97,23 @@ Route::middleware([
 });
 
 // Public NFL Routes
-Route::prefix('nfl')->name('nfl.')->group(function () {
-    Route::get('/receivers', [NflStatsViewController::class, 'showReceivers']);
-    Route::get('/rushers', [NflStatsViewController::class, 'showRushers']);
-    Route::get('/qbr/{week}', [EspnQbrController::class, 'fetchQbrData'])->name('qbr');
-    Route::get('/news', [NflNewsController::class, 'index'])->name('news.index');
-    Route::get('/trends', [NflTrendsController::class, 'show'])->name('trends.config');
+Route::middleware(['role:admin'])->group(function () {
 
-    // NFL Elo Routes
-    Route::prefix('elo')->name('elo.')->group(function () {
-        Route::get('/', [NflEloRatingController::class, 'index'])->name('index');
-        Route::get('/predictions', [NflEloRatingController::class, 'prediction'])->name('predictions');
-        Route::get('/show/{gameId}', [NflEloRatingController::class, 'show'])->name('show');
+    Route::prefix('nfl')->name('nfl.')->group(function () {
+        Route::get('/receivers', [NflStatsViewController::class, 'showReceivers']);
+        Route::get('/rushers', [NflStatsViewController::class, 'showRushers']);
+        Route::get('/qbr/{week}', [EspnQbrController::class, 'fetchQbrData'])->name('qbr');
+        Route::get('/news', [NflNewsController::class, 'index'])->name('news.index');
+        Route::get('/trends', [NflTrendsController::class, 'show'])->name('trends.config');
+        // NFL Elo Routes
+        Route::prefix('elo')->name('elo.')->group(function () {
+            Route::get('/', [NflEloRatingController::class, 'index'])->name('index');
+            Route::get('/predictions', [NflEloRatingController::class, 'prediction'])->name('predictions');
+            Route::get('/show/{gameId}', [NflEloRatingController::class, 'show'])->name('show');
+        });
     });
 });
+
 
 // Public Team Rankings Routes
 Route::prefix('team-rankings')->name('team_rankings.')->group(function () {
@@ -131,3 +137,12 @@ Route::prefix('cfb')->name('cfb.')->group(function () {
     Route::get('/', [CollegeFootballHypotheticalController::class, 'index'])->name('index');
     Route::get('/{game_id}', [CollegeFootballHypotheticalController::class, 'show'])->name('hypothetical.show');
 });
+
+// routes/web.php
+Route::resource('roles', RoleController::class);
+Route::resource('permissions', PermissionController::class);
+#Route::resource('user-roles', UserRoleController::class)->except(['create', 'store', 'destroy']);
+// routes/web.php
+Route::get('user-roles', [UserRoleController::class, 'index'])->name('user-roles.index');
+Route::get('user-roles/{user}/edit', [UserRoleController::class, 'edit'])->name('user-roles.edit');
+Route::put('user-roles/{user}', [UserRoleController::class, 'update'])->name('user-roles.update');
