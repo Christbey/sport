@@ -3,92 +3,131 @@
 namespace App\Http\Controllers\Nfl;
 
 use App\Http\Controllers\Controller;
-use App\Models\Nfl\NflSheet;
-use App\Models\Nfl\NflTeam;
-use App\Models\Nfl\NflTeamSchedule;
+use App\Models\Nfl\{NflSheet, NflTeam, NflTeamSchedule};
 use Carbon\Carbon;
+use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class NflSheetController extends Controller
 {
+    protected $weeksConfig;
+
+    public function __construct()
+    {
+        $this->weeksConfig = config('nfl.weeks');
+    }
+
     public function store(Request $request)
     {
         // Validate the form data
         $request->validate([
             'team_id' => 'required|exists:nfl_teams,id',
             'game_id' => 'required|exists:nfl_team_schedules,game_id',
-            'user_inputted_notes' => 'nullable|string',
+            'user_inputted_notes' => 'required|string|min:1', // Added required and min length
+        ], [
+            'user_inputted_notes.required' => 'Notes cannot be empty.',
+            'user_inputted_notes.min' => 'Notes must contain at least 1 character.'
         ]);
 
-        // Get the game from NflTeamSchedule
-        $game = NflTeamSchedule::where('game_id', $request->game_id)->firstOrFail();
+        try {
+            DB::beginTransaction();
 
-        // Create a new NflSheet entry
-        NflSheet::create([
-            'team_id' => $request->team_id,
-            'game_id' => $request->game_id,  // Use the game_id string directly
-            'user_id' => auth()->id(),
-            'user_inputted_notes' => $request->user_inputted_notes,
-        ]);
-
-        return redirect()
-            ->route('nfl.detail', [
+            // Create a new NflSheet entry
+            NflSheet::create([
                 'team_id' => $request->team_id,
-                'game_id' => $request->game_id
-            ])
-            ->with('success', 'Data saved successfully.');
+                'game_id' => $request->game_id,
+                'user_id' => auth()->id(),
+                'user_inputted_notes' => trim($request->user_inputted_notes), // Added trim to remove whitespace
+            ]);
+
+            DB::commit();
+
+            return redirect()
+                ->route('nfl.detail', [
+                    'team_id' => $request->team_id,
+                    'game_id' => $request->game_id
+                ])
+                ->with('success', 'Data saved successfully.');
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            return back()
+                ->withInput()
+                ->with('error', 'Failed to save notes. Please try again.');
+        }
     }
 
-// Controller update first
     public function index(Request $request)
     {
-        // Fetch all NFL teams for the filter
-        $teams = NflTeam::all();
+        try {
+            $data = $this->prepareIndexData($request);
+            return view('nfl.detail', $data);
+        } catch (Exception $e) {
+            return back()->with('error', 'Failed to load data. Please try again.');
+        }
+    }
 
-        // Fetch the selected team and game
+    protected function prepareIndexData(Request $request)
+    {
+        $teams = NflTeam::all();
         $selectedTeamId = $request->input('team_id');
         $selectedGameId = $request->input('game_id');
+        $currentWeek = $this->getCurrentWeek();
 
-        // Get current date
+        $games = $this->getTeamGames($selectedTeamId, $currentWeek);
+
+        // Set default game if none selected
+        if ($games->isNotEmpty() && !$selectedGameId) {
+            $selectedGameId = $games->first()->game_id;
+        }
+
+        $nflSheets = $this->getRecentNflSheets($selectedTeamId);
+
+        return compact('nflSheets', 'teams', 'selectedTeamId', 'games', 'selectedGameId');
+    }
+
+    protected function getCurrentWeek(): ?string
+    {
         $currentDate = Carbon::now()->format('Y-m-d');
 
-        // Get NFL weeks from config
-        $weeks = config('nfl.weeks');
-
-        // Find the current week based on the current date
-        $currentWeek = null;
-        foreach ($weeks as $week => $dates) {
+        foreach ($this->weeksConfig as $week => $dates) {
             if ($currentDate >= $dates['start'] && $currentDate <= $dates['end']) {
-                $currentWeek = $week;
-                break;
+                return $week;
             }
         }
 
-        // Fetch games where the selected team is either the home or away team for the current week
-        $games = [];
-        if ($selectedTeamId && $currentWeek) {
-            $games = NflTeamSchedule::where(function ($query) use ($selectedTeamId) {
-                $query->where('home_team_id', $selectedTeamId)
-                    ->orWhere('away_team_id', $selectedTeamId);
-            })
-                // ->whereBetween('game_date', [$weeks[$currentWeek]['start'], $weeks[$currentWeek]['end']])
-                ->get();
+        return null;
+    }
 
-            // If a game exists in the current week, set the first game as the default selected game
-            if ($games->isNotEmpty() && !$selectedGameId) {
-                $selectedGameId = $games->first()->game_id;
-            }
+    protected function getTeamGames($teamId, $currentWeek)
+    {
+        if (!$teamId || !$currentWeek) {
+            return collect();
         }
 
-        // Fetch all records for the selected team
-        $nflSheets = NflSheet::with(['game', 'user'])
-            ->when($selectedTeamId, function ($query) use ($selectedTeamId) {
-                return $query->where('team_id', $selectedTeamId);
+        return NflTeamSchedule::query()
+            ->where(function ($query) use ($teamId) {
+                $query->where('home_team_id', $teamId)
+                    ->orWhere('away_team_id', $teamId);
             })
-            ->latest()  // Order by most recent first
-            ->take(5)   // Limit to last 5 notes
+            // If you want to filter by week dates, uncomment this:
+            // ->whereBetween('game_date', [
+            //     $this->weeksConfig[$currentWeek]['start'],
+            //     $this->weeksConfig[$currentWeek]['end']
+            // ])
             ->get();
+    }
 
-        return view('nfl.detail', compact('nflSheets', 'teams', 'selectedTeamId', 'games', 'selectedGameId'));
+    protected function getRecentNflSheets($teamId)
+    {
+        return NflSheet::query()
+            ->with(['game', 'user'])
+            ->when($teamId, function ($query, $teamId) {
+                return $query->where('team_id', $teamId);
+            })
+            ->latest()
+            ->take(5)
+            ->get();
     }
 }

@@ -2,7 +2,7 @@
     <div class="min-h-screen bg-gray-50 py-8">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
             <!-- Back Button -->
-        
+
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                 <div class="p-6 lg:p-8">
                     <div class="mb-8">
@@ -11,7 +11,6 @@
                             Select a query type to analyze NFL statistics
                         </p>
                     </div>
-
                     <form id="statsForm" method="GET" onsubmit="handleSubmit(event)" class="space-y-6">
                         <!-- Query Selection -->
                         <div class="space-y-1">
