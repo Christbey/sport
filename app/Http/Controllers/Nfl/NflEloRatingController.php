@@ -27,7 +27,7 @@ class NflEloRatingController extends Controller
     public function index(Request $request)
     {
         $week = $request->input('week');
-        $eloPredictions = $this->eloRepo->getPredictions($week);
+        $eloPredictions = $this->eloRepo->getPredictions($week)->where('year', 2024);
         $gameIds = $eloPredictions->pluck('game_id');
 
         $odds = $this->oddsRepo->findByEventIds($gameIds);
@@ -40,7 +40,7 @@ class NflEloRatingController extends Controller
             'eloPredictions' => $sortedPredictions,
             'weeks' => $this->eloRepo->getDistinctWeeks(),
             'week' => $week,
-            'schedules' => $schedules, // Pass full collection instead of plucking
+            'gameTime' => $schedules->pluck('game_time'),
             'nflBettingOdds' => $odds
         ]);
     }
@@ -59,16 +59,26 @@ class NflEloRatingController extends Controller
             $schedule = $this->gameEnrichmentService->enrichWithBettingData($schedule, $odds);
         }
 
+        $homeTeamLastGames = $this->getTeamRecentGames($schedule->home_team_id, $gameId);
+        $awayTeamLastGames = $this->getTeamRecentGames($schedule->away_team_id, $gameId);
+
+        $homeTeamInjuries = $schedule->home_team_id ? $this->playerRepo->getTeamInjuries($schedule->home_team_id) : collect();
+        $awayTeamInjuries = $schedule->away_team_id ? $this->playerRepo->getTeamInjuries($schedule->away_team_id) : collect();
+
         return view('nfl.elo.show', [
             'predictions' => $predictions,
             'teamSchedule' => $schedule,
-            'homeTeamLastGames' => $this->getTeamRecentGames($schedule->home_team_id, $gameId),
-            'awayTeamLastGames' => $this->getTeamRecentGames($schedule->away_team_id, $gameId),
-            'homeTeamInjuries' => $schedule->home_team_id ? $this->playerRepo->getTeamInjuries($schedule->home_team_id) : collect(),
-            'awayTeamInjuries' => $schedule->away_team_id ? $this->playerRepo->getTeamInjuries($schedule->away_team_id) : collect(),
+            'homeTeamLastGames' => $homeTeamLastGames,
+            'awayTeamLastGames' => $awayTeamLastGames,
+            'homeTeamInjuries' => $homeTeamInjuries,
+            'awayTeamInjuries' => $awayTeamInjuries,
             'bettingOdds' => $odds,
             'homeTeamId' => $schedule->home_team_id,
-            'awayTeamId' => $schedule->away_team_id
+            'awayTeamId' => $schedule->away_team_id,
+            'totalPoints' => $schedule->totalPoints ?? 'N/A',
+            'overUnderResult' => $schedule->overUnderResult ?? 'N/A',
+            'totalOver' => $schedule->totalOver ?? 'N/A',
+            'totalUnder' => $schedule->totalUnder ?? 'N/A'
         ]);
     }
 
