@@ -3,201 +3,94 @@
 namespace App\Http\Controllers\Nfl;
 
 use App\Http\Controllers\Controller;
-use App\Repositories\{Nfl\NflBettingOddsRepository,
-    Nfl\NflEloPredictionRepository,
-    Nfl\NflPlayerDataRepository,
-    NflTeamScheduleRepository};
+use App\Repositories\Nfl\Interfaces\{NflBettingOddsRepositoryInterface,
+    NflEloPredictionRepositoryInterface,
+    NflPlayerDataRepositoryInterface,
+    NflTeamScheduleRepositoryInterface};
+use App\Services\NflGameEnrichmentService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use stdClass;
 
 class NflEloRatingController extends Controller
 {
-    protected NflPlayerDataRepository $playerRepo;
-    protected NflTeamScheduleRepository $scheduleRepo;
-    protected NflBettingOddsRepository $oddsRepo;
-    protected NflEloPredictionRepository $eloRepo;
-
     public function __construct(
-        NflEloPredictionRepository $eloRepo,
-        NflBettingOddsRepository   $oddsRepo,
-        NflTeamScheduleRepository  $scheduleRepo,
-        NflPlayerDataRepository    $playerRepo
+        private readonly NflEloPredictionRepositoryInterface $eloRepo,
+        private readonly NflBettingOddsRepositoryInterface   $oddsRepo,
+        private readonly NflTeamScheduleRepositoryInterface  $scheduleRepo,
+        private readonly NflPlayerDataRepositoryInterface    $playerRepo,
+        private readonly NflGameEnrichmentService            $gameEnrichmentService
     )
     {
-        $this->eloRepo = $eloRepo;
-        $this->oddsRepo = $oddsRepo;
-        $this->scheduleRepo = $scheduleRepo;
-        $this->playerRepo = $playerRepo;
     }
 
     public function index(Request $request)
     {
         $week = $request->input('week');
-
-        // Fetch predictions and weeks
         $eloPredictions = $this->eloRepo->getPredictions($week);
-        $weeks = $this->eloRepo->getDistinctWeeks();
         $gameIds = $eloPredictions->pluck('game_id');
 
-        // Fetch betting odds and schedules
-        $nflBettingOdds = $this->oddsRepo->getOddsByEventIds($gameIds);
-        $teamSchedules = $this->scheduleRepo->getSchedulesByGameIds($gameIds);
-        $gameTime = $teamSchedules->pluck('game_time');
+        $odds = $this->oddsRepo->findByEventIds($gameIds);
+        $schedules = $this->scheduleRepo->findByGameIds($gameIds) ?? collect();
 
-        // Enrich predictions with game data
-        $eloPredictions = $this->eloRepo->enrichPredictionsWithGameData($eloPredictions, $teamSchedules);
-
-        // Group and sort predictions by day
-        $sortedPredictions = $this->sortAndGroupPredictions($eloPredictions);
+        $enrichedPredictions = $this->eloRepo->enrichPredictionsWithGameData($eloPredictions, $schedules);
+        $sortedPredictions = $this->gameEnrichmentService->sortAndGroupPredictions($enrichedPredictions);
 
         return view('nfl.elo.index', [
             'eloPredictions' => $sortedPredictions,
-            'weeks' => $weeks,
+            'weeks' => $this->eloRepo->getDistinctWeeks(),
             'week' => $week,
-            'gameTime' => $gameTime,
-            'nflBettingOdds' => $nflBettingOdds
+            'schedules' => $schedules, // Pass full collection instead of plucking
+            'nflBettingOdds' => $odds
         ]);
     }
 
-    /**
-     * Sort and group predictions by game day, with Thursday first and Monday last
-     */
-    private function sortAndGroupPredictions(Collection $predictions): Collection
-    {
-        return $predictions->groupBy(function ($prediction) {
-            return Carbon::parse($prediction->game_date)->format('Y-m-d');
-        })
-            ->sortKeys()
-            ->flatten(1);
-    }
-
-
     public function show(string $gameId)
     {
-        // Fetch schedule, betting odds, and predictions
-        $teamSchedule = $this->getTeamSchedule($gameId);
-        $bettingOdds = $this->oddsRepo->getOddsByGameId($gameId);
+        $schedule = $this->scheduleRepo->findByGameId($gameId) ?? $this->getDefaultSchedule();
+        $odds = $this->oddsRepo->findByGameId($gameId);
         $predictions = $this->eloRepo->getPredictions(null)->where('game_id', $gameId);
 
         if ($predictions->isEmpty()) {
             return redirect()->back()->with('error', 'No predictions available for this game.');
         }
 
-        // Enrich game data if betting odds are available
-        if ($bettingOdds) {
-            $teamSchedule = $this->enrichGameWithBettingData($teamSchedule, $bettingOdds);
+        if ($odds) {
+            $schedule = $this->gameEnrichmentService->enrichWithBettingData($schedule, $odds);
         }
 
-        $homeTeamId = $teamSchedule->home_team_id ?? null;
-        $awayTeamId = $teamSchedule->away_team_id ?? null;
-
-        // Fetch recent games and injuries for both teams
-        $homeTeamLastGames = $this->getRecentGamesWithBettingData($homeTeamId, $teamSchedule->game_id);
-        $awayTeamLastGames = $this->getRecentGamesWithBettingData($awayTeamId, $teamSchedule->game_id);
-
-        $homeTeamInjuries = $homeTeamId ? $this->playerRepo->getTeamInjuries($homeTeamId) : collect();
-        $awayTeamInjuries = $awayTeamId ? $this->playerRepo->getTeamInjuries($awayTeamId) : collect();
-
-        // Pass all required variables to the view
         return view('nfl.elo.show', [
             'predictions' => $predictions,
-            'teamSchedule' => $teamSchedule,
-            'homeTeamLastGames' => $homeTeamLastGames,
-            'awayTeamLastGames' => $awayTeamLastGames,
-            'homeTeamInjuries' => $homeTeamInjuries,
-            'awayTeamInjuries' => $awayTeamInjuries,
-            'bettingOdds' => $bettingOdds,
-            'totalOver' => $teamSchedule->totalOver ?? 'N/A',
-            'totalUnder' => $teamSchedule->totalUnder ?? 'N/A',
-            'totalPoints' => $teamSchedule->totalPoints ?? 'N/A',
-            'overUnderResult' => $teamSchedule->overUnderResult ?? 'N/A',
-            'homeTeamId' => $homeTeamId,
-            'awayTeamId' => $awayTeamId,
+            'teamSchedule' => $schedule,
+            'homeTeamLastGames' => $this->getTeamRecentGames($schedule->home_team_id, $gameId),
+            'awayTeamLastGames' => $this->getTeamRecentGames($schedule->away_team_id, $gameId),
+            'homeTeamInjuries' => $schedule->home_team_id ? $this->playerRepo->getTeamInjuries($schedule->home_team_id) : collect(),
+            'awayTeamInjuries' => $schedule->away_team_id ? $this->playerRepo->getTeamInjuries($schedule->away_team_id) : collect(),
+            'bettingOdds' => $odds,
+            'homeTeamId' => $schedule->home_team_id,
+            'awayTeamId' => $schedule->away_team_id
         ]);
     }
 
-    /**
-     * Fetch the team schedule or return an empty object with default values.
-     */
-    private function getTeamSchedule(string $gameId)
+    private function getDefaultSchedule(): stdClass
     {
-        $teamSchedule = $this->scheduleRepo->getSchedulesByGameIds(collect([$gameId]))->first();
-
-        if (!$teamSchedule) {
-            $teamSchedule = new stdClass();
-            $teamSchedule->home_pts = null;
-            $teamSchedule->away_pts = null;
-            $teamSchedule->home_team_id = null;
-            $teamSchedule->away_team_id = null;
-            $teamSchedule->totalPoints = 'N/A';
-            $teamSchedule->overUnderResult = 'N/A';
-            $teamSchedule->totalOver = null;
-            $teamSchedule->totalUnder = null;
-        }
-
-        return $teamSchedule;
+        return (object)[
+            'home_pts' => null,
+            'away_pts' => null,
+            'home_team_id' => null,
+            'away_team_id' => null,
+            'totalPoints' => 'N/A',
+            'overUnderResult' => 'N/A',
+            'totalOver' => null,
+            'totalUnder' => null
+        ];
     }
 
-    /**
-     * Enrich a game with betting data, like over/under results.
-     */
-    private function enrichGameWithBettingData($teamSchedule, $bettingOdds)
+    private function getTeamRecentGames(?int $teamId, string $currentGameId): Collection
     {
-        if (!isset($teamSchedule->home_pts, $teamSchedule->away_pts)) {
-            $teamSchedule->totalPoints = null;
-            $teamSchedule->overUnderResult = 'N/A';
-            $teamSchedule->totalOver = $bettingOdds->total_over ?? null;
-            $teamSchedule->totalUnder = $bettingOdds->total_under ?? null;
-        } else {
-            $totalPoints = $teamSchedule->home_pts + $teamSchedule->away_pts;
-            $teamSchedule->totalPoints = $totalPoints;
-            $teamSchedule->overUnderResult = match (true) {
-                $totalPoints > $bettingOdds->total_over => 'Over',
-                $totalPoints < $bettingOdds->total_over => 'Under',
-                default => 'Push',
-            };
-            $teamSchedule->totalOver = $bettingOdds->total_over;
-            $teamSchedule->totalUnder = $bettingOdds->total_under;
-        }
+        if (!$teamId) return collect();
 
-        return $teamSchedule;
-    }
-
-    /**
-     * Fetch recent games for a team and enrich them with betting data.
-     */
-    private function getRecentGamesWithBettingData(?int $teamId, string $currentGameId)
-    {
-        if (!$teamId) {
-            return collect();
-        }
-
-        $recentGames = $this->scheduleRepo->getTeamLast3Games($teamId, $currentGameId);
-
-        return $recentGames->map(function ($game) use ($teamId) {
-            $bettingOdds = $this->oddsRepo->getOddsByGameId($game->game_id);
-            if ($bettingOdds) {
-                $game = $this->enrichGameWithBettingData($game, $bettingOdds);
-            }
-            $game->marginOfVictory = $this->calculateMarginOfVictory($game, $game->home_team_id === $teamId);
-
-            return $game;
-        });
-    }
-
-    /**
-     * Calculate the margin of victory for a game.
-     */
-    private function calculateMarginOfVictory($game, bool $isHomeTeam)
-    {
-        if (!isset($game->home_pts, $game->away_pts)) {
-            return null;
-        }
-
-        return $isHomeTeam
-            ? $game->home_pts - $game->away_pts
-            : $game->away_pts - $game->home_pts;
+        $games = $this->scheduleRepo->getTeamLast3Games($teamId, $currentGameId);
+        return $games->map(fn($game) => $this->gameEnrichmentService->enrichGame($game, $teamId));
     }
 }

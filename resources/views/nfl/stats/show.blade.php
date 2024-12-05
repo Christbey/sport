@@ -2,7 +2,7 @@
 <x-app-layout>
     <div class="min-h-screen bg-gray-50 py-8">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-            {{-- Back Button --}}
+            <!-- Back Button -->
             <div class="mb-6">
                 <a href="{{ route('nfl.stats.index') }}"
                    class="inline-flex items-center px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors">
@@ -10,14 +10,14 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                               d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
                     </svg>
-                    Back to Predictions
+                    Back to Analysis
                 </a>
             </div>
 
-            {{-- Main Content Card --}}
+            <!-- Main Content Card -->
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                 <div class="p-6 lg:p-8">
-                    {{-- Header Section --}}
+                    <!-- Header Section -->
                     <div class="flex justify-between items-start mb-8">
                         <div>
                             <h1 class="text-2xl font-bold text-gray-900">Stats Analysis</h1>
@@ -32,7 +32,7 @@
                         </div>
                     </div>
 
-                    {{-- Active Filters Display --}}
+                    <!-- Active Filters Display -->
                     <div class="mb-6 bg-blue-50 p-4 rounded-lg">
                         <span class="text-blue-700 font-medium">
                             Showing games for:
@@ -61,14 +61,15 @@
                         </div>
                     </div>
 
-                    {{-- Filter Form --}}
+                    <!-- Filter Form -->
                     <form method="GET" action="{{ route('nfl.stats.show', ['queryType' => $queryType]) }}"
                           class="mb-8 space-y-4 bg-gray-50 p-6 rounded-lg">
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            {{-- Team Filter --}}
+                            <!-- Team Filter -->
                             <div>
-                                <label for="teamFilter" class="block text-sm font-medium text-gray-700 mb-1">Filter by
-                                    Team</label>
+                                <label for="teamFilter" class="block text-sm font-medium text-gray-700 mb-1">
+                                    Filter by Team
+                                </label>
                                 <select name="teamFilter" id="teamFilter"
                                         class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                                     <option value="">All Teams</option>
@@ -80,10 +81,11 @@
                                 </select>
                             </div>
 
-                            {{-- Conference Filter --}}
+                            <!-- Conference Filter -->
                             <div>
-                                <label for="conferenceFilter" class="block text-sm font-medium text-gray-700 mb-1">Filter
-                                    by Conference</label>
+                                <label for="conferenceFilter" class="block text-sm font-medium text-gray-700 mb-1">
+                                    Filter by Conference
+                                </label>
                                 <select name="conferenceFilter" id="conferenceFilter"
                                         class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                                     <option value="">All Conferences</option>
@@ -96,10 +98,11 @@
                                 </select>
                             </div>
 
-                            {{-- Division Filter --}}
+                            <!-- Division Filter -->
                             <div>
-                                <label for="divisionFilter" class="block text-sm font-medium text-gray-700 mb-1">Filter
-                                    by Division</label>
+                                <label for="divisionFilter" class="block text-sm font-medium text-gray-700 mb-1">
+                                    Filter by Division
+                                </label>
                                 <select name="divisionFilter" id="divisionFilter"
                                         class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                                     <option value="">All Divisions</option>
@@ -118,10 +121,11 @@
                                 </select>
                             </div>
 
-                            {{-- Location Filter --}}
+                            <!-- Location Filter -->
                             <div>
-                                <label for="locationFilter" class="block text-sm font-medium text-gray-700 mb-1">Filter
-                                    by Location</label>
+                                <label for="locationFilter" class="block text-sm font-medium text-gray-700 mb-1">
+                                    Filter by Location
+                                </label>
                                 <select name="locationFilter" id="locationFilter"
                                         class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                                     <option value="">All Locations</option>
@@ -135,7 +139,7 @@
                             </div>
                         </div>
 
-                        {{-- Submit Button --}}
+                        <!-- Submit Button -->
                         <div class="mt-4">
                             <button type="submit"
                                     class="w-full md:w-auto px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center justify-center">
@@ -148,7 +152,7 @@
                         </div>
                     </form>
 
-                    {{-- Stats Table --}}
+                    <!-- Stats Table -->
                     <div class="overflow-x-auto rounded-lg border border-gray-200">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
@@ -169,7 +173,6 @@
                                     $matchesDivision = !request('divisionFilter') || $row->division == request('divisionFilter');
                                     $matchesLocation = !request('locationFilter') || strtolower($row->location_type) == strtolower(request('locationFilter'));
 
-                                    // Calculate win percentage for team strength indicator
                                     $winPercentage = isset($row->wins, $row->losses) ?
                                         $row->wins / ($row->wins + $row->losses) : null;
                                 @endphp
@@ -184,7 +187,6 @@
                                                     {{ $value }}
                                                 @endif
 
-                                                {{-- Add team strength indicator for team column --}}
                                                 @if($loop->first && isset($winPercentage))
                                                     @if($winPercentage > 0.7)
                                                         <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -217,7 +219,7 @@
                         </table>
                     </div>
 
-                    {{-- Pagination Links --}}
+                    <!-- Pagination Links -->
                     @if($data instanceof LengthAwarePaginator)
                         <div class="mt-6">
                             {{ $data->links() }}

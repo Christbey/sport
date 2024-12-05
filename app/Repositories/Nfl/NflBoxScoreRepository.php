@@ -4,6 +4,8 @@ namespace App\Repositories\Nfl;
 
 use App\Models\Nfl\NflBoxScore;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Collection;
+use LaravelIdea\Helper\App\Models\Nfl\_IH_NflBoxScore_C;
 
 class NflBoxScoreRepository
 {
@@ -41,4 +43,22 @@ class NflBoxScoreRepository
             $data
         );
     }
+
+
+    public function getGamesByTeam(string $teamName, ?int $season, int $limit = 20): array|Collection|_IH_NflBoxScore_C
+    {
+        return NflBoxScore::query()
+            ->join('nfl_team_schedules', function ($join) {
+                $join->on('nfl_box_scores.game_id', '=', 'nfl_team_schedules.game_id')
+                    ->where('nfl_team_schedules.season_type', 'Regular Season');
+            })
+            ->where(fn($q) => $q->where('nfl_box_scores.home_team', $teamName)
+                ->orWhere('nfl_box_scores.away_team', $teamName))
+            ->when($season, fn($q) => $q->whereYear('nfl_box_scores.game_date', $season))
+            ->with('teamStats')
+            ->orderBy('nfl_box_scores.game_date', 'desc')
+            ->take($limit)
+            ->get();
+    }
 }
+

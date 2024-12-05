@@ -4,11 +4,34 @@ namespace App\Repositories;
 
 use App\Models\Nfl\NflTeam;
 use App\Models\Nfl\NflTeamSchedule;
+use App\Repositories\Nfl\Interfaces\NflTeamScheduleRepositoryInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 class NflTeamScheduleRepository implements NflTeamScheduleRepositoryInterface
 {
+
+    private const DEFAULT_COLUMNS = [
+        'game_id',
+        'season',
+        'season_type',
+        'game_week',
+        'home_team',
+        'away_team',
+        'home_team_id',
+        'away_team_id',
+        'game_date',
+        'game_status',
+        'game_status_code',
+        'home_pts',
+        'away_pts',
+        'home_result',
+        'away_result',
+        'game_time',
+        'status_type_detail',
+        'home_team_record',
+        'away_team_record'
+    ];
     /**
      * Cache for team conferences to reduce database queries.
      *
@@ -281,6 +304,13 @@ class NflTeamScheduleRepository implements NflTeamScheduleRepositoryInterface
             ->where('game_id', '<', $currentGameId)
             ->orderBy('game_date', 'desc')
             ->limit(3)
+            ->get();
+    }
+
+    public function findByGameIds(Collection $gameIds): Collection
+    {
+        return NflTeamSchedule::whereIn('game_id', $gameIds)
+            ->select(self::DEFAULT_COLUMNS)
             ->get();
     }
 }

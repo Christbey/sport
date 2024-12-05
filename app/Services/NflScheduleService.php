@@ -2,8 +2,11 @@
 
 namespace App\Services;
 
-use App\Repositories\Nfl\{NflBoxScoreRepository, NflPlayerStatRepository, NflTeamStatRepository};
-use App\Repositories\NflTeamScheduleRepositoryInterface;
+use App\Repositories\Nfl\{NflBoxScoreRepository,
+    NflPlayByPlayRepository,
+    NflPlayerStatRepository,
+    NflTeamStatRepository};
+use App\Repositories\Nfl\Interfaces\NflTeamScheduleRepositoryInterface;
 use Exception;
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Log;
@@ -24,7 +27,8 @@ class NflScheduleService
         private NflTeamScheduleRepositoryInterface $scheduleRepository,
         private NflBoxScoreRepository              $boxScoreRepository,
         private NflPlayerStatRepository            $playerStatRepository,
-        private NflTeamStatRepository              $teamStatRepository
+        private NflTeamStatRepository              $teamStatRepository,
+        private NflPlayByPlayRepository            $playByPlayRepository
     )
     {
         $this->apiKey = config('services.rapidapi.key');
@@ -109,10 +113,12 @@ class NflScheduleService
     private function fetchBoxScore(string $gameId): array
     {
         try {
+            Log::info('Fetching play-by-play data', ['game_id' => $gameId]);
+
             $response = $this->client->request('GET', "https://{$this->apiHost}/getNFLBoxScore", [
                 'query' => [
                     'gameID' => $gameId,
-                    'playByPlay' => 'false',
+                    'playByPlay' => 'true',
                     'fantasyPoints' => 'false',
                 ],
                 'headers' => $this->getHeaders(),
@@ -120,16 +126,19 @@ class NflScheduleService
 
             $data = json_decode($response->getBody()->getContents(), true);
 
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                throw new Exception('JSON decode error: ' . json_last_error_msg());
+            if (isset($data['body']['allPlayByPlay'])) {
+                $this->playByPlayRepository->updateOrCreateFromApi($data['body'], $gameId);
+                Log::info('Play-by-play data saved', [
+                    'game_id' => $gameId,
+                    'plays_count' => count($data['body']['allPlayByPlay'])
+                ]);
             }
 
             return $data['body'] ?? $data;
         } catch (Exception $e) {
             Log::error('Error fetching box score data', [
                 'gameId' => $gameId,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error' => $e->getMessage()
             ]);
             return [];
         }

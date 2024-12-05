@@ -1,5 +1,6 @@
 <?php
 
+use App\Console\Commands\TestNflScheduleSync;
 use App\Helpers\CollegeFootballCommandHelpers;
 use App\Helpers\NflCommandHelper;
 use App\Models\CollegeFootball\{AdvancedGameStat, CollegeFootballElo, CollegeFootballFpi, Sagarin};
@@ -57,17 +58,6 @@ Schedule::command('fetch:advanced-game-stats')
     ))
     ->runInBackground();
 
-// NFL Boxscore
-Schedule::command('nfl:fetch-boxscore')
-    ->everyFifteenMinutes()
-    ->withoutOverlapping()
-    ->before(fn() => Log::info('Starting NFL boxscore fetch'))
-    ->after(fn() => NflCommandHelper::sendNotification('NFL boxscore fetch completed successfully'))
-    ->onFailure(fn($e) => NflCommandHelper::sendNotification(
-        "NFL boxscore fetch failed: {$e->getMessage()}",
-        'failure'
-    ))
-    ->runInBackground();
 
 // NFL News
 Schedule::command('nfl:news')
@@ -151,16 +141,6 @@ Schedule::command('fetch:college-football-rankings')
     ))
     ->runInBackground();
 
-Schedule::command('nfl:fetch-team-schedule')
-    ->dailyAt('18:00')
-    ->withoutOverlapping()
-    ->before(fn() => Log::info('Starting NFL team schedule fetch'))
-    ->after(fn() => NflCommandHelper::sendNotification('NFL team schedule fetch completed successfully'))
-    ->onFailure(fn($e) => NflCommandHelper::sendNotification(
-        "NFL team schedule fetch failed: {$e->getMessage()}",
-        'failure'
-    ))
-    ->runInBackground();
 
 // NFL Team ELO Calculation
 Schedule::command('nfl:calculate-team-elo')
@@ -273,6 +253,25 @@ Schedule::command('fetch:nfl-team-roster')
         'failure'
     ))
     ->runInBackground();
+
+// Get the current NFL season and week from your config
+$seasonYear = config('nfl.config.seasonYear');
+$currentWeek = config('nfl.config.current_week');
+
+// Schedule the command to run every 30 minutes on the specified days/times
+Artisan::command('nfl:test-sync {season} {week} {type}', function () use ($seasonYear, $currentWeek) {
+    $this->call(TestNflScheduleSync::class, [
+        'season' => $seasonYear,
+        'week' => $currentWeek,
+        'type' => '2', // Regular season
+    ]);
+})
+    ->everyThirtyMinutes()
+    ->between('18:00', '22:00')
+    ->mondays()
+    ->thursdays()
+    ->sundays()
+    ->withoutOverlapping();
 //Schedule::command('scrape:massey')
 
 // Health Checks

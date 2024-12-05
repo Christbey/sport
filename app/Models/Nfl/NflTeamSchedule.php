@@ -43,17 +43,28 @@ class NflTeamSchedule extends Model
         'referees', // Referees for the game
     ];
 
-    // Define the relationship for the home team
+    protected $casts = [
+        'game_date' => 'date',
+        'home_pts' => 'integer',
+        'away_pts' => 'integer',
+        'game_time' => 'string',
+        'game_time_epoch' => 'datetime',
+
+    ];
+
     public function homeTeam()
     {
         return $this->belongsTo(NflTeam::class, 'home_team_id');
     }
 
-    // Define the away team relationship
+    // Define the relationship for the home team
+
     public function awayTeam()
     {
         return $this->belongsTo(NflTeam::class, 'away_team_id');
     }
+
+    // Define the away team relationship
 
     public function stats()
     {
@@ -66,4 +77,5 @@ class NflTeamSchedule extends Model
             ->orWhere('away_team_id', $teamId);
     }
 
+   
 }

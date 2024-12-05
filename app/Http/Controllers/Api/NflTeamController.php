@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 
 class NflTeamController extends Controller
 {
-    protected $nflTeamRepository;
+    protected NflTeamRepositoryInterface $nflTeamRepository;
 
     public function __construct(NflTeamRepositoryInterface $nflTeamRepository)
     {

@@ -1,5 +1,5 @@
 <?php
-
+/*
 namespace App\Console\Commands\Nfl;
 
 use AllowDynamicProperties;
@@ -125,4 +125,4 @@ use Illuminate\Support\Facades\Notification;
     {
         Cache::forget(self::CACHE_KEY);
     }
-}
+}*/

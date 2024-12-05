@@ -132,7 +132,9 @@ class TeamStatsController extends Controller
         $teamsList = NflTeam::pluck('team_abv')->toArray();
         $conferencesList = ['AFC', 'NFC'];
         $divisionsList = ['North', 'South', 'East', 'West'];
+
         return view('nfl.stats.show', [
+            'queries' => self::QUERIES, // Add this line
             'data' => $result['data'],
             'tableHeadings' => $result['headings'],
             'queryType' => $queryType,

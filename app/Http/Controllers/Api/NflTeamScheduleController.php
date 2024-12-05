@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Repositories\NflTeamScheduleRepositoryInterface;
+use App\Repositories\Nfl\Interfaces\NflTeamScheduleRepositoryInterface;
 use Illuminate\Http\Request;
 
 class NflTeamScheduleController extends Controller

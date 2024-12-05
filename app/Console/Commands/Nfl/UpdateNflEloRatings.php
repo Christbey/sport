@@ -4,6 +4,8 @@ namespace App\Console\Commands\Nfl;
 
 use App\Models\Nfl\NflEloPrediction;
 use App\Notifications\NflEloUpdateNotification;
+use App\Repositories\Nfl\Interfaces\NflEloPredictionRepositoryInterface;
+use App\Repositories\Nfl\Interfaces\NflTeamScheduleRepositoryInterface;
 use App\Services\EloRatingService;
 use Exception;
 use Illuminate\Console\Command;
@@ -13,18 +15,21 @@ use Illuminate\Support\Facades\{Log, Notification};
 
 class UpdateNflEloRatings extends Command
 {
+
     protected $signature = 'nfl:calculate-team-elo 
         {year? : The year to calculate ELO ratings for} 
         {--force : Force update even if already run today}';
 
     protected $description = 'Calculate Elo ratings, expected wins, and spreads for all NFL teams for a given season';
 
-    protected EloRatingService $eloService;
 
-    public function __construct(EloRatingService $eloService)
+    public function __construct(
+        protected EloRatingService                    $eloService,
+        protected NflEloPredictionRepositoryInterface $eloPredictionRepo,
+        protected NflTeamScheduleRepositoryInterface  $scheduleRepo
+    )
     {
         parent::__construct();
-        $this->eloService = $eloService;
     }
 
     public function handle(): int
@@ -61,7 +66,7 @@ class UpdateNflEloRatings extends Command
             return true;
         }
 
-        if ($this->hasRunToday()) {
+        if ($this->eloPredictionRepo->hasUpdatedToday()) {
             $this->warn('ELO ratings have already been updated today. Use --force to override.');
             return false;
         }
@@ -69,23 +74,10 @@ class UpdateNflEloRatings extends Command
         return true;
     }
 
-    protected function hasRunToday(): bool
-    {
-        return NflEloPrediction::whereDate('created_at', today())->exists();
-    }
-
     protected function getExistingPredictions(): Collection
     {
-        return NflEloPrediction::select([
-            'game_id',
-            'team',
-            'opponent',
-            'week',
-            'team_elo',
-            'opponent_elo',
-            'expected_outcome',
-            'predicted_spread'
-        ])->get()->keyBy('game_id');
+        return $this->eloPredictionRepo->getPredictions(null)
+            ->keyBy('game_id');
     }
 
     protected function processSeason(int $year): array
@@ -100,12 +92,7 @@ class UpdateNflEloRatings extends Command
         $progressBar->start();
 
         try {
-            // Process all teams in one batch
-            $ratings = $this->eloService->processBatch(
-                $teams->toArray(),
-                $year
-            );
-
+            $ratings = $this->eloService->processBatch($teams->toArray(), $year);
             $progressBar->finish();
             $this->newLine(2);
 
@@ -207,5 +194,10 @@ class UpdateNflEloRatings extends Command
                 year: $year,
                 type: 'error'
             ));
+    }
+
+    protected function hasRunToday(): bool
+    {
+        return NflEloPrediction::whereDate('created_at', today())->exists();
     }
 }

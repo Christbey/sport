@@ -267,9 +267,12 @@ class AnalyzeNflTrends extends Command
             $this->info(sprintf(
                 'The %s have covered the spread in %d of their last %d games',
                 $this->teamName, $covers, $totalGames
+
             ));
+
         }
     }
+
 
     private function displayConfiguredTrends(int $totalGames): void
     {
@@ -534,6 +537,7 @@ class AnalyzeNflTrends extends Command
             ->get()
             ->keyBy('event_id');
     }
+
 
     // ... Additional display methods would follow the same pattern
 }

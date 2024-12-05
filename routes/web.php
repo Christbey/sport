@@ -146,3 +146,6 @@ Route::resource('permissions', PermissionController::class);
 Route::get('user-roles', [UserRoleController::class, 'index'])->name('user-roles.index');
 Route::get('user-roles/{user}/edit', [UserRoleController::class, 'edit'])->name('user-roles.edit');
 Route::put('user-roles/{user}', [UserRoleController::class, 'update'])->name('user-roles.update');
+
+Route::get('/nfl/trends/compare', [NflTrendsController::class, 'compare'])->name('nfl.trends.compare');
+
