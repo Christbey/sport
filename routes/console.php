@@ -1,6 +1,5 @@
 <?php
 
-use App\Console\Commands\TestNflScheduleSync;
 use App\Helpers\CollegeFootballCommandHelpers;
 use App\Helpers\NflCommandHelper;
 use App\Models\CollegeFootball\{AdvancedGameStat, CollegeFootballElo, CollegeFootballFpi, Sagarin};
@@ -253,25 +252,24 @@ Schedule::command('fetch:nfl-team-roster')
         'failure'
     ))
     ->runInBackground();
-
 // Get the current NFL season and week from your config
 $seasonYear = config('nfl.config.seasonYear');
 $currentWeek = config('nfl.config.current_week');
 
-// Schedule the command to run every 30 minutes on the specified days/times
-Artisan::command('nfl:test-sync {season} {week} {type}', function () use ($seasonYear, $currentWeek) {
-    $this->call(TestNflScheduleSync::class, [
-        'season' => $seasonYear,
-        'week' => $currentWeek,
-        'type' => '2', // Regular season
-    ]);
-})
+// Schedule the nfl:test-sync command to run every 30 minutes on the specified days/times
+Schedule::command('nfl:test-sync', [
+    'season' => $seasonYear,
+    'week' => $currentWeek,
+    'type' => '2', // Regular season
+])
     ->everyThirtyMinutes()
     ->between('18:00', '22:00')
     ->mondays()
     ->thursdays()
     ->sundays()
     ->withoutOverlapping();
+
+
 //Schedule::command('scrape:massey')
 
 // Health Checks
