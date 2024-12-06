@@ -74,7 +74,6 @@ Route::get('/nfl/teams', [NflRapidApiController::class, 'getNFLTeams']);
 Route::get('/nfl/player-info', [NflRapidApiController::class, 'getNFLPlayerInfo']);
 Route::get('/nfl/games-for-player', [NflRapidApiController::class, 'getNFLGamesForPlayer']);
 Route::get('/nfl/player-list', [NflRapidApiController::class, 'getNFLPlayerList']);
-
 Route::get('/nfl/team-roster', [NflRapidApiController::class, 'getNFLTeamRoster'])->name('nfl.teamRoster');
 Route::get('/nfl/boxscore', [NflRapidApiController::class, 'getNFLBoxScore'])->name('nfl.boxscore');
 Route::get('/nfl-player-stats', [TeamStatsController::class, 'index']);
@@ -121,9 +120,9 @@ Route::get('/team-stats/recent-games', [TeamStatsController::class, 'getRecentGa
 Route::apiResource('nfl/teams', NflTeamController::class)->names([
     'index' => 'api.nfl.teams.index',
     'show' => 'api.nfl.teams.show',
-    'store' => 'api.nfl.teams.store',
-    'update' => 'api.nfl.teams.update',
-    'destroy' => 'api.nfl.teams.destroy',
+    //'store' => 'api.nfl.teams.store',
+    //'update' => 'api.nfl.teams.update',
+    //'destroy' => 'api.nfl.teams.destroy',
 ]);
 Route::get('/nfl/schedules', [NflTeamScheduleController::class, 'index']);
 Route::get('/nfl/schedules/{teamId}', [NflTeamScheduleController::class, 'show']);

@@ -57,5 +57,10 @@ return [
         'base_uri' => 'https://forge.laravel.com/api/v1/', // Forge API base URL
     ],
 
+    'openai' => [
+        'key' => env('OPENAI_API_KEY'),
+
+    ],
+
 
 ];

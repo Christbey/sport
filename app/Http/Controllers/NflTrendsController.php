@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Nfl\NflTeamSchedule;
-use App\Repositories\Nfl\TeamStatsRepository;
 use App\Repositories\NflTeamScheduleRepository;
 use App\Services\NflTrendsAnalyzer;
 use Exception;
@@ -23,7 +22,6 @@ class NflTrendsController extends Controller
     public function __construct(
         private readonly NflTrendsAnalyzer         $trendsAnalyzer,
         private readonly NflTeamScheduleRepository $scheduleRepository,
-        private TeamStatsRepository                $teamStatsRepository
     )
     {
     }

@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\Nfl\NflTeam;
+use App\Repositories\Nfl\Interfaces\NflTeamRepositoryInterface;
 use Illuminate\Support\Collection;
 
 class NflTeamRepository implements NflTeamRepositoryInterface

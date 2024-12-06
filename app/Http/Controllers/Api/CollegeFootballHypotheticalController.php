@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Cache;
 class CollegeFootballHypotheticalController extends Controller
 {
     private const CACHE_TTL = 3600;
-    protected $analytics; // 1 hour
+    protected EnhancedFootballAnalytics $analytics; // 1 hour
 
     public function __construct(EnhancedFootballAnalytics $analytics)
     {

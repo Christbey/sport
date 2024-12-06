@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\CoversController;
 use App\Http\Controllers\Api\Espn\EspnQbrController;
 use App\Http\Controllers\Api\TeamRankingController;
 use App\Http\Controllers\Api\TeamStatsController;
+use App\Http\Controllers\ChatGPTController;
 use App\Http\Controllers\ForgeApiController;
 use App\Http\Controllers\Nfl\NflEloRatingController;
 use App\Http\Controllers\Nfl\NflSheetController;
@@ -149,3 +150,5 @@ Route::put('user-roles/{user}', [UserRoleController::class, 'update'])->name('us
 
 Route::get('/nfl/trends/compare', [NflTrendsController::class, 'compare'])->name('nfl.trends.compare');
 
+Route::get('/ask-chatgpt', [ChatGPTController::class, 'showChat'])->name('show-chatgpt');
+Route::post('/ask-chatgpt', [ChatGPTController::class, 'ask'])->name('ask-chatgpt');
