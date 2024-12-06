@@ -33,7 +33,7 @@ class OpenAIChatService
         $response = $this->client->post('/v1/chat/completions', [
             'headers' => [
                 'Content-Type' => 'application/json',
-                'Authorization' => 'Bearer ' . config('services.openai.api_key'),
+                'Authorization' => 'Bearer ' . config('services.openai.key'),
             ],
             'json' => [
                 'model' => $model,
