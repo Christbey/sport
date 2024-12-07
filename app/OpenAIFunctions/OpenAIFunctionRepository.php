@@ -12,6 +12,7 @@ class OpenAIFunctionRepository
     public static function getFunctions(): array
     {
         return [
+
             [
                 'name' => 'get_recent_games',
                 'description' => 'Get recent games for a specific team.',
@@ -56,32 +57,128 @@ class OpenAIFunctionRepository
                     ]
                 ]
             ],
+
+            // NFL scores
+            [
+                'name' => 'calculate_team_scores',
+                'description' => 'Calculates scores for teams based on various parameters such as team abbreviations, game IDs, week, and location.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'gameIds' => [
+                            'type' => 'array',
+                            'description' => 'Array of game IDs to filter scores.',
+                            'items' => [
+                                'type' => 'string',
+                                'description' => 'Game ID'
+                            ]
+                        ],
+                        'teamAbv1' => [
+                            'type' => 'string',
+                            'description' => 'Abbreviation of the first team (optional)'
+                        ],
+                        'teamAbv2' => [
+                            'type' => 'string',
+                            'description' => 'Abbreviation of the second team (optional)'
+                        ],
+                        'week' => [
+                            'type' => 'integer',
+                            'description' => 'Week number for which the scores are calculated (optional)'
+                        ],
+                        'locationFilter' => [
+                            'type' => 'string',
+                            'description' => "Location filter for scores, can be 'home' or 'away' (optional)"
+                        ]
+                    ],
+                    'required' => [], // No fields are strictly required; logic handles optional cases dynamically
+                    'additionalProperties' => false
+                ]
+            ],
+
+            // NFL best receivers by week,
             [
                 'name' => 'get_best_receivers',
-                'description' => 'Get the top NFL receivers based on receiving yards, receptions, and touchdowns.',
+                'description' => 'Retrieves the best receivers based on receiving statistics filtered by team and week(s).',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'teamFilter' => [
                             'type' => 'string',
-                            'description' => 'The team abbreviation to filter by (optional).'
+                            'description' => 'The abbreviation of the team to filter the results. Optional.'
+                        ],
+                        'week' => [
+                            'type' => 'integer',
+                            'description' => 'Specific week number to filter the results. Optional.'
+                        ],
+                        'startWeek' => [
+                            'type' => 'integer',
+                            'description' => 'Start week for filtering results within a range. Optional.'
+                        ],
+                        'endWeek' => [
+                            'type' => 'integer',
+                            'description' => 'End week for filtering results within a range. Optional.'
                         ]
-                    ]
+                    ],
+                    'required' => [] // If no required fields, this can be left empty
                 ]
             ],
+
+            // NFL best tacklers by week,
+            [
+                'name' => 'get_best_tacklers',
+                'description' => 'Retrieves the best tacklers based on defensive statistics filtered by team and week(s).',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'teamFilter' => [
+                            'type' => 'string',
+                            'description' => 'The abbreviation of the team to filter the results. Optional.'
+                        ],
+                        'week' => [
+                            'type' => 'integer',
+                            'description' => 'Specific week number to filter the results. Optional.'
+                        ],
+                        'startWeek' => [
+                            'type' => 'integer',
+                            'description' => 'Start week for filtering results within a range. Optional.'
+                        ],
+                        'endWeek' => [
+                            'type' => 'integer',
+                            'description' => 'End week for filtering results within a range. Optional.'
+                        ]
+                    ],
+                    'required' => [] // If no required fields, this can be left empty
+                ]
+            ],
+
+            // NFL best rushers by week,
             [
                 'name' => 'get_best_rushers',
-                'description' => 'Get the top NFL rushers based on rushing yards, attempts, and touchdowns.',
+                'description' => 'Retrieves the best rushers based on rushing statistics filtered by team and week(s).',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'teamFilter' => [
                             'type' => 'string',
-                            'description' => 'The team abbreviation to filter by (optional).'
+                            'description' => 'The abbreviation of the team to filter the results. Optional.'
+                        ],
+                        'week' => [
+                            'type' => 'integer',
+                            'description' => 'Specific week number to filter the results. Optional.'
+                        ],
+                        'startWeek' => [
+                            'type' => 'integer',
+                            'description' => 'Start week for filtering results within a range. Optional.'
+                        ],
+                        'endWeek' => [
+                            'type' => 'integer',
+                            'description' => 'End week for filtering results within a range. Optional.'
                         ]
-                    ]
+                    ],
+                    'required' => [] // If no required fields, this can be left empty
                 ]
             ],
+
             [
                 'name' => 'get_big_playmakers',
                 'description' => 'Get the top NFL players with significant plays (e.g., receptions or rushes over 20 yards).',
@@ -296,7 +393,7 @@ class OpenAIFunctionRepository
                     'required' => ['position']
                 ]
             ],
-            
+
             [
                 'name' => 'find_players_by_experience',
                 'description' => 'Find players by their number of years of experience.',

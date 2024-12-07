@@ -26,6 +26,7 @@ class OpenAIChatService
      */
     public function getChatCompletion(array $messages, string $model = 'gpt-3.5-turbo', string $functionCall = 'auto'): array
     {
+
         // Load function definitions from the repository
         $functions = OpenAIFunctionRepository::getFunctions();
 

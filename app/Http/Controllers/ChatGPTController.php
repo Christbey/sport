@@ -8,6 +8,7 @@ use App\Repositories\Nfl\TeamStatsRepository;
 use App\Services\OpenAIChatService;
 use Exception;
 use Illuminate\Http\Request;
+use League\CommonMark\CommonMarkConverter;
 
 class ChatGPTController extends Controller
 {
@@ -53,6 +54,21 @@ class ChatGPTController extends Controller
                 $functionName = $functionCall['name'];
                 $arguments = json_decode($functionCall['arguments'], true);
 
+                // Determine the current week. Adjust this logic as needed.
+                $currentWeek = 10;
+
+                // Parse natural language week references
+                if (str_contains($userMessage, 'last week')) {
+                    $arguments['week'] = $currentWeek - 1;
+                }
+
+                if (preg_match('/over the last (\d+) weeks/', $userMessage, $matches)) {
+                    $weeksBack = (int)$matches[1];
+                    $arguments['start_week'] = $currentWeek - $weeksBack;
+                    $arguments['end_week'] = $currentWeek - 1;
+                }
+
+                // Invoke the function with updated arguments
                 $functionResult = $this->invokeFunction($functionName, $arguments);
 
                 $messages[] = [
@@ -63,10 +79,18 @@ class ChatGPTController extends Controller
 
                 $finalResponse = $this->chatService->getChatCompletion($messages);
 
-                return view('openai.index', ['response' => $finalResponse['choices'][0]['message']['content']]);
+                // Convert the final response content (which may contain Markdown) to HTML
+                $converter = new CommonMarkConverter();
+                $htmlResponse = $converter->convert($finalResponse['choices'][0]['message']['content'])->getContent();
+
+                return view('openai.index', ['response' => $htmlResponse]);
             }
 
-            return view('openai.index', ['response' => $response['choices'][0]['message']['content']]);
+            // If no function call, convert the normal text response (also possible Markdown) to HTML
+            $converter = new CommonMarkConverter();
+            $htmlResponse = $converter->convert($response['choices'][0]['message']['content'])->getContent();
+
+            return view('openai.index', ['response' => $htmlResponse]);
         } catch (Exception $e) {
             return view('openai.index', ['response' => 'An error occurred: ' . $e->getMessage()]);
         }
@@ -94,10 +118,39 @@ class ChatGPTController extends Controller
                     $arguments['conferenceFilter'] ?? null,
                     $arguments['divisionFilter'] ?? null
                 );
+            case 'calculate_team_scores':
+                return $this->teamStatsRepository->calculateTeamScores(
+                    $arguments['gameIds'] ?? [],                  // Array of game IDs (optional)
+                    $arguments['teamAbv1'] ?? null,              // First team abbreviation (optional)
+                    $arguments['teamAbv2'] ?? null,              // Second team abbreviation (optional)
+                    $arguments['week'] ?? null,                  // Week number (optional)
+                    $arguments['locationFilter'] ?? null         // Location filter (optional)
+                );
+
+            // NFL best receivers
             case 'get_best_receivers':
-                return $this->teamStatsRepository->getBestReceivers($arguments['teamFilter'] ?? null);
+                return $this->teamStatsRepository->getBestReceivers(
+                    $arguments['teamFilter'] ?? null,
+                    $arguments['week'] ?? null,
+                    $arguments['start_week'] ?? null,
+                    $arguments['end_week'] ?? null
+                );
+            // NFL best rushers
             case 'get_best_rushers':
-                return $this->teamStatsRepository->getBestRushers($arguments['teamFilter'] ?? null);
+                return $this->teamStatsRepository->getBestRushers(
+                    $arguments['teamFilter'] ?? null,
+                    $arguments['week'] ?? null,
+                    $arguments['start_week'] ?? null,
+                    $arguments['end_week'] ?? null
+                );
+            // NFL best tacklers
+            case 'get_best_tacklers':
+                return $this->teamStatsRepository->getBestTacklers(
+                    $arguments['teamFilter'] ?? null,
+                    $arguments['week'] ?? null,
+                    $arguments['start_week'] ?? null,
+                    $arguments['end_week'] ?? null
+                );
             case 'get_big_playmakers':
                 return $this->teamStatsRepository->getBigPlaymakers($arguments['teamFilter'] ?? null);
             case 'get_team_matchup_edge':

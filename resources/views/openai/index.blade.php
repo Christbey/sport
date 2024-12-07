@@ -23,10 +23,11 @@
         </div>
 
         @if (isset($response))
-            <div class="mt-8 p-4 bg-blue-100 rounded-lg">
+            <div class="mt-8 p-4 bg-blue-100 rounded-lg prose">
                 <h4 class="text-lg font-semibold mb-2">Response:</h4>
-                <p class="text-gray-800">{{ $response }}</p>
+                {!! $response !!}
             </div>
+
         @endif
     </div>
 

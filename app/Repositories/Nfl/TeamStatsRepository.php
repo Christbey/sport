@@ -156,8 +156,72 @@ class TeamStatsRepository
         return $query;
     }
 
-    protected function calculateTeamScores(array $gameIds, ?string $locationFilter = null): Collection
+    // Calculate Team Scores
+    public function calculateTeamScores(
+        array   $gameIds = [],
+        ?string $teamAbv1 = null,
+        ?string $teamAbv2 = null,
+        ?int    $week = null,
+        ?string $locationFilter = null
+    ): Collection
     {
+        $query = NflTeamSchedule::query();
+
+        // Case 1: Two team abbreviations provided
+        if ($teamAbv1 && $teamAbv2) {
+            return $query
+                ->where(function ($q) use ($teamAbv1, $teamAbv2) {
+                    $q->where(function ($q1) use ($teamAbv1, $teamAbv2) {
+                        $q1->where('home_team', $teamAbv1)
+                            ->where('away_team', $teamAbv2);
+                    })->orWhere(function ($q2) use ($teamAbv1, $teamAbv2) {
+                        $q2->where('home_team', $teamAbv2)
+                            ->where('away_team', $teamAbv1);
+                    });
+                })
+                ->get([
+                    'game_id',
+                    'home_team',
+                    'away_team',
+                    'home_pts',
+                    'away_pts',
+                    'game_week'
+                ]);
+        }
+
+        // Case 2: One team abbreviation and a specific week
+        if ($teamAbv1 && $week) {
+            return $query
+                ->where(function ($q) use ($teamAbv1) {
+                    $q->where('home_team', $teamAbv1)
+                        ->orWhere('away_team', $teamAbv1);
+                })
+                ->where('game_week', $week)
+                ->get([
+                    'game_id',
+                    'home_team',
+                    'away_team',
+                    'home_pts',
+                    'away_pts',
+                    'game_week'
+                ]);
+        }
+
+        // Case 3: Scores for all games in a specific week
+        if ($week) {
+            return $query
+                ->where('game_week', $week)
+                ->get([
+                    'game_id',
+                    'home_team',
+                    'away_team',
+                    'home_pts',
+                    'away_pts',
+                    'game_week'
+                ]);
+        }
+
+        // Default case: Use game IDs and location filter logic
         // Query for home team scores
         $homeScoresQuery = NflBoxScore::query()
             ->filterByGameIds($gameIds)
@@ -173,13 +237,13 @@ class TeamStatsRepository
         // Union the home and away queries
         $scoresQuery = $homeScoresQuery->union($awayScoresQuery);
 
-        // When no specific location is provided, sum the scores for both home and away for each team
+        // Case 4: No location filter - sum scores for both home and away
         if (!$locationFilter) {
             return DB::query()
                 ->fromSub($scoresQuery, 'team_scores')
                 ->select([
                     'team_abv',
-                    DB::raw("'combined' as location_type"),  // Assign 'combined' as location_type when aggregating both home and away
+                    DB::raw("'combined' as location_type"),
                     'conference',
                     'division',
                     DB::raw('ROUND(AVG(CAST(Q1 AS UNSIGNED)), 1) as avg_q1_points'),
@@ -196,7 +260,7 @@ class TeamStatsRepository
                 ->get();
         }
 
-        // When 'home' or 'away' is selected, keep the data separate for each location
+        // Case 5: Location filter ('home' or 'away')
         return DB::query()
             ->fromSub($scoresQuery, 'team_scores')
             ->select([
@@ -632,13 +696,7 @@ class TeamStatsRepository
 
     }
 
-    /**
-     * Get best receivers statistics
-     *
-     * @param string|null $teamFilter
-     * @return array
-     */
-    public function getBestReceivers(?string $teamFilter = null): array
+    public function getBestReceivers(?string $teamFilter = null, ?int $week = null, ?int $startWeek = null, ?int $endWeek = null): array
     {
         $query = DB::table('nfl_player_stats')
             ->join('nfl_box_scores', 'nfl_player_stats.game_id', '=', 'nfl_box_scores.game_id')
@@ -656,6 +714,14 @@ class TeamStatsRepository
             )
             ->when($teamFilter, function ($q) use ($teamFilter) {
                 $q->where('nfl_player_stats.team_abv', $teamFilter);
+            })
+            // If a specific week is provided, filter by that week.
+            ->when($week !== null, function ($q) use ($week) {
+                $q->where('nfl_team_schedules.game_week', $week);
+            })
+            // If a start and end week are provided (and no single week is given), filter by the range.
+            ->when($week === null && $startWeek !== null && $endWeek !== null, function ($q) use ($startWeek, $endWeek) {
+                $q->whereBetween('nfl_team_schedules.game_week', [$startWeek, $endWeek]);
             })
             ->groupBy('nfl_player_stats.long_name', 'nfl_player_stats.team_abv')
             ->orderBy('total_receiving_yards', 'desc')
@@ -682,7 +748,7 @@ class TeamStatsRepository
      * @return array
      */
     public
-    function getBestRushers(?string $teamFilter = null): array
+    function getBestRushers(?string $teamFilter = null, ?int $week = null, ?int $startWeek = null, ?int $endWeek = null): array
     {
         $query = DB::table('nfl_player_stats')
             ->join('nfl_box_scores', 'nfl_player_stats.game_id', '=', 'nfl_box_scores.game_id')
@@ -699,6 +765,17 @@ class TeamStatsRepository
                 DB::raw('COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, "$.rushYds")) AS SIGNED)) / NULLIF(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, "$.carries")) AS UNSIGNED)), 0), 0) AS average_yards_per_attempt'),
                 DB::raw('COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, "$.rushYds")) AS SIGNED)) / NULLIF(COUNT(DISTINCT nfl_box_scores.game_id), 0), 0) AS avg_yards_per_game')
             )
+            ->when($teamFilter, function ($q) use ($teamFilter) {
+                $q->where('nfl_player_stats.team_abv', $teamFilter);
+            })
+            // If a specific week is provided, filter by that week.
+            ->when($week !== null, function ($q) use ($week) {
+                $q->where('nfl_team_schedules.game_week', $week);
+            })
+            // If a start and end week are provided (and no single week is given), filter by the range.
+            ->when($week === null && $startWeek !== null && $endWeek !== null, function ($q) use ($startWeek, $endWeek) {
+                $q->whereBetween('nfl_team_schedules.game_week', [$startWeek, $endWeek]);
+            })
             ->when($teamFilter, function ($q) use ($teamFilter) {
                 $q->where('nfl_player_stats.team_abv', $teamFilter);
             })
@@ -728,7 +805,7 @@ class TeamStatsRepository
      * @return array
      */
     public
-    function getBestTacklers(?string $teamFilter = null): array
+    function getBestTacklers(?string $teamFilter = null, ?int $week = null, ?int $startWeek = null, ?int $endWeek = null): array
     {
         $query = DB::table('nfl_player_stats')
             ->join('nfl_box_scores', 'nfl_player_stats.game_id', '=', 'nfl_box_scores.game_id')
@@ -743,6 +820,17 @@ class TeamStatsRepository
                 DB::raw('COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(defense, "$.totalTackles")) AS UNSIGNED)) / NULLIF(COUNT(DISTINCT nfl_box_scores.game_id), 0), 0) AS avg_tackles_per_game'),
                 DB::raw('COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(defense, "$.sacks")) AS UNSIGNED)) / NULLIF(COUNT(DISTINCT nfl_box_scores.game_id), 0), 0) AS avg_sacks_per_game')
             )
+            ->when($teamFilter, function ($q) use ($teamFilter) {
+                $q->where('nfl_player_stats.team_abv', $teamFilter);
+            })
+            // If a specific week is provided, filter by that week.
+            ->when($week !== null, function ($q) use ($week) {
+                $q->where('nfl_team_schedules.game_week', $week);
+            })
+            // If a start and end week are provided (and no single week is given), filter by the range.
+            ->when($week === null && $startWeek !== null && $endWeek !== null, function ($q) use ($startWeek, $endWeek) {
+                $q->whereBetween('nfl_team_schedules.game_week', [$startWeek, $endWeek]);
+            })
             ->when($teamFilter, function ($q) use ($teamFilter) {
                 $q->where('nfl_player_stats.team_abv', $teamFilter);
             })
