@@ -6,6 +6,7 @@ use App\Repositories\Nfl\NflBettingOddsRepository;
 use App\Repositories\Nfl\NflEloPredictionRepository;
 use App\Repositories\Nfl\NflPlayerDataRepository;
 use App\Repositories\Nfl\TeamStatsRepository;
+use App\Repositories\NflTeamScheduleRepository;
 use App\Services\OpenAIChatService;
 use Exception;
 use Illuminate\Http\Request;
@@ -19,6 +20,8 @@ class ChatGPTController extends Controller
     protected NflBettingOddsRepository $bettingOddsRepository;
     private NflPlayerDataRepository $playerDataRepository;
 
+    private NflTeamScheduleRepository $scheduleRepository;
+
     public function __construct(OpenAIChatService $chatService, NflEloPredictionRepository $repository)
     {
         $this->chatService = $chatService;
@@ -26,6 +29,7 @@ class ChatGPTController extends Controller
         $this->teamStatsRepository = new TeamStatsRepository();
         $this->playerDataRepository = new NflPlayerDataRepository();
         $this->bettingOddsRepository = new NflBettingOddsRepository();
+        $this->scheduleRepository = new NflTeamScheduleRepository();
     }
 
     /**
@@ -199,7 +203,7 @@ class ChatGPTController extends Controller
                     $arguments['maxAge'] ?? null,
                     $arguments['teamFilter'] ?? null
                 );
-                
+
             // NFL player by experience
             case 'find_players_by_experience':
                 return $this->playerDataRepository->findByExperience($arguments['years']);
@@ -233,6 +237,15 @@ class ChatGPTController extends Controller
                 return $this->bettingOddsRepository->getOddsByDateRange($arguments['startDate'], $arguments['endDate']);
             case 'get_odds_by_moneyline':
                 return $this->bettingOddsRepository->getOddsByMoneyline($arguments['moneyline']);
+
+            // NFL schedule by team
+            case 'get_schedule_by_team':
+                $teamId = $arguments['teamId'] ?? null;
+                $teamFilter = $arguments['teamFilter'] ?? null;
+
+
+                return $this->scheduleRepository->getScheduleByTeam($teamId, $teamFilter);
+
 
             default:
                 throw new Exception("Unknown function: $functionName");

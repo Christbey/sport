@@ -281,16 +281,21 @@ class OpenAIFunctionRepository
             // NFL get schedule by team
             [
                 'name' => 'get_schedule_by_team',
-                'description' => 'Get the schedule for a specific team.',
+                'description' => 'Get the schedule for a specific team or teams based on filters.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'teamId' => [
                             'type' => 'string',
-                            'description' => 'The ID of the NFL team to get the schedule for.'
+                            'description' => 'The ID of the NFL team to get the schedule for (optional if teamFilter is used).'
+                        ],
+                        'teamFilter' => [
+                            'type' => 'string',
+                            'description' => 'The abbreviation of the NFL team to filter the schedule for (e.g., KC for Kansas City Chiefs).'
                         ]
                     ],
-                    'required' => ['teamId']
+                    'required' => [], // Neither is strictly required; one or the other can be provided
+                    'additionalProperties' => false
                 ]
             ],
 

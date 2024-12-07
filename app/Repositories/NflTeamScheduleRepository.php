@@ -238,13 +238,25 @@ class NflTeamScheduleRepository implements NflTeamScheduleRepositoryInterface
      * @param string $teamId Team ID.
      * @return array
      */
-    public function getScheduleByTeam(string $teamId): array
+    public function getScheduleByTeam(?string $teamId = null, ?string $teamFilter = null): array
     {
-        return NflTeamSchedule::where('home_team_id', $teamId)
-            ->orWhere('away_team_id', $teamId)
-            ->get()
-            ->toArray();
+        $query = NflTeamSchedule::query();
+
+        if ($teamFilter) {
+            $query->where(function ($q) use ($teamFilter) {
+                $q->where('home_team', $teamFilter)
+                    ->orWhere('away_team', $teamFilter);
+            });
+        } elseif ($teamId) {
+            $query->where(function ($q) use ($teamId) {
+                $q->where('home_team_id', $teamId)
+                    ->orWhere('away_team_id', $teamId);
+            });
+        }
+
+        return $query->get()->toArray();
     }
+
 
     /**
      * Get all schedules.
