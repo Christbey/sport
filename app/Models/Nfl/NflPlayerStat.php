@@ -34,7 +34,11 @@ class NflPlayerStat extends Model
         'defense' => 'array',
     ];
 
-    public static function getPlayerVsConference(?string $teamFilter = null): array
+    public static function getPlayerVsConference(
+        ?string $teamFilter = null,
+        ?string $playerFilter = null,
+        ?string $conferenceFilter = null
+    ): array
     {
         $conferenceGames = DB::table('nfl_player_stats as ps')
             ->join('nfl_box_scores as b', 'ps.game_id', '=', 'b.game_id')
@@ -63,7 +67,15 @@ class NflPlayerStat extends Model
             ->whereRaw('(receiving IS NOT NULL OR rushing IS NOT NULL OR defense IS NOT NULL)')
             ->when($teamFilter, function ($query) use ($teamFilter) {
                 $query->where('ps.team_abv', $teamFilter);
+            })
+            ->when($playerFilter, function ($query) use ($playerFilter) {
+                $query->where('ps.long_name', $playerFilter);
+            })
+            ->when($conferenceFilter, function ($query) use ($conferenceFilter) {
+                $query->where('t2.conference_abv', $conferenceFilter);
             });
+
+        // Perform further operations on $conferenceGames, such as aggregations or groupings.
 
         $result = DB::query()
             ->fromSub($conferenceGames, 'cg')
@@ -73,35 +85,11 @@ class NflPlayerStat extends Model
                 'conference',
                 'division',
                 'location_type',
-                // AFC Stats
                 DB::raw('COUNT(DISTINCT CASE WHEN opponent_conference = "AFC" THEN game_id END) as afc_games'),
                 DB::raw('ROUND(AVG(CASE WHEN opponent_conference = "AFC" THEN receiving_yards END), 1) as afc_receiving_yards'),
-                DB::raw('ROUND(AVG(CASE WHEN opponent_conference = "AFC" THEN rushing_yards END), 1) as afc_rushing_yards'),
-                DB::raw('SUM(CASE WHEN opponent_conference = "AFC" THEN receiving_tds END) as afc_receiving_tds'),
-                DB::raw('SUM(CASE WHEN opponent_conference = "AFC" THEN rushing_tds END) as afc_rushing_tds'),
-                DB::raw('ROUND(AVG(CASE WHEN opponent_conference = "AFC" THEN tackles END), 1) as afc_avg_tackles'),
-                DB::raw('SUM(CASE WHEN opponent_conference = "AFC" THEN sacks END) as afc_sacks'),
-                DB::raw('SUM(CASE WHEN opponent_conference = "AFC" THEN interceptions END) as afc_ints'),
-                // NFC Stats
-                DB::raw('COUNT(DISTINCT CASE WHEN opponent_conference = "NFC" THEN game_id END) as nfc_games'),
                 DB::raw('ROUND(AVG(CASE WHEN opponent_conference = "NFC" THEN receiving_yards END), 1) as nfc_receiving_yards'),
-                DB::raw('ROUND(AVG(CASE WHEN opponent_conference = "NFC" THEN rushing_yards END), 1) as nfc_rushing_yards'),
+                DB::raw('SUM(CASE WHEN opponent_conference = "AFC" THEN receiving_tds END) as afc_receiving_tds'),
                 DB::raw('SUM(CASE WHEN opponent_conference = "NFC" THEN receiving_tds END) as nfc_receiving_tds'),
-                DB::raw('SUM(CASE WHEN opponent_conference = "NFC" THEN rushing_tds END) as nfc_rushing_tds'),
-                DB::raw('ROUND(AVG(CASE WHEN opponent_conference = "NFC" THEN tackles END), 1) as nfc_avg_tackles'),
-                DB::raw('SUM(CASE WHEN opponent_conference = "NFC" THEN sacks END) as nfc_sacks'),
-                DB::raw('SUM(CASE WHEN opponent_conference = "NFC" THEN interceptions END) as nfc_ints'),
-                // Adding total score calculation as a column for proper ordering
-                DB::raw('(
-                    COALESCE(SUM(CASE WHEN opponent_conference = "AFC" THEN receiving_tds END), 0) +
-                    COALESCE(SUM(CASE WHEN opponent_conference = "AFC" THEN rushing_tds END), 0) +
-                    COALESCE(SUM(CASE WHEN opponent_conference = "NFC" THEN receiving_tds END), 0) +
-                    COALESCE(SUM(CASE WHEN opponent_conference = "NFC" THEN rushing_tds END), 0) +
-                    COALESCE(SUM(CASE WHEN opponent_conference = "AFC" THEN sacks END), 0) +
-                    COALESCE(SUM(CASE WHEN opponent_conference = "NFC" THEN sacks END), 0) +
-                    COALESCE(SUM(CASE WHEN opponent_conference = "AFC" THEN interceptions END), 0) +
-                    COALESCE(SUM(CASE WHEN opponent_conference = "NFC" THEN interceptions END), 0)
-                ) as total_score')
             ])
             ->groupBy([
                 'player',
@@ -110,8 +98,7 @@ class NflPlayerStat extends Model
                 'division',
                 'location_type'
             ])
-            ->having(DB::raw('afc_games + nfc_games'), '>=', 2)
-            ->orderByDesc('total_score')
+            ->orderByDesc(DB::raw('afc_receiving_yards + nfc_receiving_yards'))
             ->limit(50);
 
         return [
@@ -123,21 +110,10 @@ class NflPlayerStat extends Model
                 'Division',
                 'Location Type',
                 'AFC Games',
-                'AFC Rec Yards',
-                'AFC Rush Yards',
-                'AFC Rec TDs',
-                'AFC Rush TDs',
-                'AFC Tackles',
-                'AFC Sacks',
-                'AFC INTs',
-                'NFC Games',
-                'NFC Rec Yards',
-                'NFC Rush Yards',
-                'NFC Rec TDs',
-                'NFC Rush TDs',
-                'NFC Tackles',
-                'NFC Sacks',
-                'NFC INTs'
+                'AFC Receiving Yards',
+                'NFC Receiving Yards',
+                'AFC Receiving TDs',
+                'NFC Receiving TDs'
             ]
         ];
     }

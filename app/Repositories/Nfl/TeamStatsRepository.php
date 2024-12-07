@@ -551,7 +551,11 @@ class TeamStatsRepository
      * @param int $gamesBack
      * @return array
      */
-    public function getSituationalPerformance(?string $teamFilter = null): array
+    public function getSituationalPerformance(
+        ?string $teamFilter = null,
+        ?string $locationFilter = null,
+        ?string $againstConference = null
+    ): array
     {
         // Get all team abbreviations if no filter is provided
         if (!$teamFilter) {
@@ -567,10 +571,25 @@ class TeamStatsRepository
 
         foreach ($teams as $team) {
             // Get all games for the team
-            $games = NflTeamSchedule::where('home_team', $team)
-                ->orWhere('away_team', $team)
-                ->orderBy('game_date', 'desc')
-                ->get();
+            $gamesQuery = NflTeamSchedule::where(function ($q) use ($team) {
+                $q->where('home_team', $team)->orWhere('away_team', $team);
+            });
+
+            // Apply location filter
+            if ($locationFilter === 'home') {
+                $gamesQuery->where('home_team', $team);
+            } elseif ($locationFilter === 'away') {
+                $gamesQuery->where('away_team', $team);
+            }
+
+            // Apply conference filter for opponents
+            if ($againstConference) {
+                $gamesQuery->whereHas('opponent', function ($q) use ($againstConference) {
+                    $q->where('conference', $againstConference);
+                });
+            }
+
+            $games = $gamesQuery->orderBy('game_date', 'desc')->get();
 
             // Get all stats for these games
             $gameIds = $games->pluck('game_id');
@@ -598,7 +617,15 @@ class TeamStatsRepository
 
         return [
             'data' => $allTeamStats,
-            'headings' => ['Team', 'Home Games', 'Home Avg Yards', 'Home Rating', 'Away Games', 'Away Avg Yards', 'Away Rating']
+            'headings' => [
+                'Team',
+                'Home Games',
+                'Home Avg Yards',
+                'Home Rating',
+                'Away Games',
+                'Away Avg Yards',
+                'Away Rating'
+            ]
         ];
     }
 
@@ -1295,9 +1322,13 @@ class TeamStatsRepository
      * @param string|null $teamFilter
      * @return array
      */
-    public function getPlayerVsConference(?string $teamFilter = null): array
+    public function getPlayerVsConference(
+        ?string $teamFilter = null,
+        ?string $playerFilter = null,
+        ?string $conferenceFilter = null
+    ): array
     {
-        return NflPlayerStat::getPlayerVsConference($teamFilter);
+        return NflPlayerStat::getPlayerVsConference($teamFilter, $playerFilter, $conferenceFilter);
     }
 
 
@@ -1526,7 +1557,13 @@ class TeamStatsRepository
      * @param string|null $teamFilter
      * @return array
      */
-    public function getTeamMatchupEdge(?string $teamFilter = null): array
+    public function getTeamMatchupEdge(
+        ?string $teamFilter = null,
+        ?string $teamAbv1 = null,
+        ?string $teamAbv2 = null,
+        ?int    $week = null,
+        ?string $locationFilter = null
+    ): array
     {
         // First, get opponent averages
         $opponentStats = DB::table('nfl_team_stats as ts')
@@ -1545,7 +1582,6 @@ class TeamStatsRepository
 
         // Main query
         $query = DB::table('nfl_team_stats as ts')
-            //->distinct() // Add distinct here
             ->join('nfl_box_scores as b', 'ts.game_id', '=', 'b.game_id')
             ->join('nfl_team_schedules as s', 'b.game_id', '=', 's.game_id')
             ->leftJoinSub($opponentStats, 'opp_stats', function ($join) {
@@ -1609,6 +1645,25 @@ class TeamStatsRepository
             ->when($teamFilter, function ($query) use ($teamFilter) {
                 $query->where('ts.team_abv', $teamFilter);
             })
+            ->when($teamAbv1 && $teamAbv2, function ($query) use ($teamAbv1, $teamAbv2) {
+                $query->where(function ($q) use ($teamAbv1, $teamAbv2) {
+                    $q->where('b.home_team', $teamAbv1)
+                        ->where('b.away_team', $teamAbv2)
+                        ->orWhere(function ($q) use ($teamAbv1, $teamAbv2) {
+                            $q->where('b.home_team', $teamAbv2)
+                                ->where('b.away_team', $teamAbv1);
+                        });
+                });
+            })
+            ->when($week, function ($query) use ($week) {
+                $query->where('s.game_week', $week);
+            })
+            ->when($locationFilter === 'home', function ($query) {
+                $query->whereRaw('b.home_team = ts.team_abv');
+            })
+            ->when($locationFilter === 'away', function ($query) {
+                $query->whereRaw('b.away_team = ts.team_abv');
+            })
             ->orderByDesc('s.game_date')
             ->orderByDesc(DB::raw('edge_score'))
             ->limit(5);
@@ -1638,7 +1693,11 @@ class TeamStatsRepository
      * @param string|null $teamFilter
      * @return array
      */
-    public function getFirstHalfTendencies(?string $teamFilter = null): array
+    public function getFirstHalfTendencies(
+        ?string $teamFilter = null,
+        ?string $againstConference = null,
+        ?string $locationFilter = null
+    )
     {
         $firstHalfStats = DB::table('nfl_box_scores as b')
             ->join('nfl_team_schedules as s', 'b.game_id', '=', 's.game_id')

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Repositories\Nfl\NflBettingOddsRepository;
 use App\Repositories\Nfl\NflEloPredictionRepository;
 use App\Repositories\Nfl\NflPlayerDataRepository;
 use App\Repositories\Nfl\TeamStatsRepository;
@@ -15,6 +16,7 @@ class ChatGPTController extends Controller
     protected OpenAIChatService $chatService;
     protected NflEloPredictionRepository $repository;
     protected TeamStatsRepository $teamStatsRepository;
+    protected NflBettingOddsRepository $bettingOddsRepository;
     private NflPlayerDataRepository $playerDataRepository;
 
     public function __construct(OpenAIChatService $chatService, NflEloPredictionRepository $repository)
@@ -23,6 +25,7 @@ class ChatGPTController extends Controller
         $this->repository = $repository;
         $this->teamStatsRepository = new TeamStatsRepository();
         $this->playerDataRepository = new NflPlayerDataRepository();
+        $this->bettingOddsRepository = new NflBettingOddsRepository();
     }
 
     /**
@@ -135,6 +138,7 @@ class ChatGPTController extends Controller
                     $arguments['start_week'] ?? null,
                     $arguments['end_week'] ?? null
                 );
+
             // NFL best rushers
             case 'get_best_rushers':
                 return $this->teamStatsRepository->getBestRushers(
@@ -143,6 +147,7 @@ class ChatGPTController extends Controller
                     $arguments['start_week'] ?? null,
                     $arguments['end_week'] ?? null
                 );
+
             // NFL best tacklers
             case 'get_best_tacklers':
                 return $this->teamStatsRepository->getBestTacklers(
@@ -153,24 +158,82 @@ class ChatGPTController extends Controller
                 );
             case 'get_big_playmakers':
                 return $this->teamStatsRepository->getBigPlaymakers($arguments['teamFilter'] ?? null);
+            // NFL situational performance
+            case 'get_situational_performance':
+                return $this->teamStatsRepository->getSituationalPerformance(
+                    $arguments['teamFilter'] ?? null,
+                    $arguments['locationFilter'] ?? null,
+                    $arguments['againstConference'] ?? null
+                );
+
+            // NFL team matchup edge
             case 'get_team_matchup_edge':
-                return $this->teamStatsRepository->getTeamMatchupEdge($arguments['teamFilter']);
+                return $this->teamStatsRepository->getTeamMatchupEdge(
+                    $arguments['teamFilter'] ?? null,
+                    $arguments['teamAbv1'] ?? null,
+                    $arguments['teamAbv2'] ?? null,
+                    $arguments['week'] ?? null,
+                    $arguments['locationFilter'] ?? null
+                );
+
+            // NFL first half tendencies
             case 'get_first_half_tendencies':
-                return $this->teamStatsRepository->getFirstHalfTendencies($arguments['teamFilter']);
+                return $this->teamStatsRepository->getFirstHalfTendencies(
+                    $arguments['teamFilter'] ?? null,
+                    $arguments['againstConference'] ?? null,
+                    $arguments['locationFilter'] ?? null
+                );
+
+            // NFL player vs conference stats
             case 'get_player_vs_conference_stats':
-                return $this->teamStatsRepository->getPlayerVsConference($arguments['playerFilter']);
+                return $this->teamStatsRepository->getPlayerVsConference(
+                    $arguments['teamFilter'] ?? null,
+                    $arguments['playerFilter'] ?? null,
+                    $arguments['conferenceFilter'] ?? null
+                );
+
+            // NFL player by age range
             case 'find_players_by_age_range':
-                return $this->playerDataRepository->findByAgeRange($arguments['minAge'], $arguments['maxAge']);
+                return $this->playerDataRepository->findByAgeRange(
+                    $arguments['minAge'] ?? null,
+                    $arguments['maxAge'] ?? null,
+                    $arguments['teamFilter'] ?? null
+                );
+                
+            // NFL player by experience
             case 'find_players_by_experience':
                 return $this->playerDataRepository->findByExperience($arguments['years']);
-//            case 'get_team_injuries':
-//                return $this->playerDataRepository->getTeamInjuries($arguments['designation']);
+
+            // NFL player by injury
+            case 'get_team_injuries':
+                return $this->playerDataRepository->getTeamInjuries($arguments['injuryDesignation']);
+
+            // NFL player by position
             case 'find_players_by_position':
                 return $this->playerDataRepository->findByPosition($arguments['position']);
+
+            // NFL player by school
             case 'find_players_by_school':
                 return $this->playerDataRepository->findBySchool($arguments['school']);
-//            case 'find_players_by_team':
-//                return $this->playerDataRepository->findByTeam($arguments['teamId']);
+
+            //NFL players by team
+            case 'find_players_by_team':
+                return $this->playerDataRepository->findPlayersByTeam(
+                    $arguments['teamId'] ?? null,
+                    $arguments['teamFilter'] ?? null
+                );
+
+            case 'get_odds_by_event_ids':
+                return $this->bettingOddsRepository->getOddsByEventIds($arguments['eventIds']);
+            case 'get_odds_by_team':
+                return $this->bettingOddsRepository->getOddsByTeam($arguments['teamFilter']);
+            case 'get_odds_by_week':
+                return $this->bettingOddsRepository->getOddsByWeek($arguments['week']);
+            case 'get_odds_by_date_range':
+                return $this->bettingOddsRepository->getOddsByDateRange($arguments['startDate'], $arguments['endDate']);
+            case 'get_odds_by_moneyline':
+                return $this->bettingOddsRepository->getOddsByMoneyline($arguments['moneyline']);
+
             default:
                 throw new Exception("Unknown function: $functionName");
         }
