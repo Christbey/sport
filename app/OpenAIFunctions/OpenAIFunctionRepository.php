@@ -216,6 +216,34 @@ class OpenAIFunctionRepository
                 ]
             ],
 
+            [
+                'name' => 'get_first_downs_average',
+                'description' => 'Retrieve the average first downs per game for one or more NFL teams.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'teamFilters' => [
+                            'type' => 'array',
+                            'items' => [
+                                'type' => 'string',
+                                'description' => 'The abbreviation of an NFL team (e.g., KC for Kansas City Chiefs).'
+                            ],
+                            'description' => 'An array of team abbreviations to retrieve averages for.',
+                            'minItems' => 1
+                        ],
+                        'week' => [
+                            'type' => 'integer',
+                            'description' => 'Specific week number to filter the results (optional).'
+                        ],
+                        'season' => [
+                            'type' => 'integer',
+                            'description' => 'The season year to filter results (optional). Defaults to the current season.'
+                        ]
+                    ],
+                    'required' => ['teamFilters']
+                ]
+            ],
+
 
             // NFL situational stats by team
             [
@@ -956,7 +984,6 @@ class OpenAIFunctionRepository
                 ]
             ],
 
-
             [
                 'name' => 'compare_teams_stats',
                 'description' => 'Compare specific statistics between multiple NFL teams for a given week.',
@@ -1026,6 +1053,37 @@ class OpenAIFunctionRepository
                 ]
             ],
 
+            [
+                'name' => 'get_team_stat_average',
+                'description' => 'Retrieve the average of a specific team statistic per game for one or more teams.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'teamFilters' => [
+                            'type' => 'array',
+                            'items' => [
+                                'type' => 'string',
+                                'description' => 'The abbreviation of an NFL team (e.g., KC for Kansas City Chiefs).'
+                            ],
+                            'description' => 'An array of team abbreviations to retrieve averages for.',
+                            'minItems' => 1
+                        ],
+                        'statColumn' => [
+                            'type' => 'string',
+                            'description' => 'The statistic to calculate averages for (e.g., first_downs, rushing_yards).'
+                        ],
+                        'week' => [
+                            'type' => 'integer',
+                            'description' => 'Specific week number to filter the results (optional).'
+                        ],
+                        'season' => [
+                            'type' => 'integer',
+                            'description' => 'The season year to filter results (optional). Defaults to the current season.'
+                        ]
+                    ],
+                    'required' => ['teamFilters']
+                ]
+            ]
 
         ];
     }

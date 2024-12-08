@@ -326,5 +326,149 @@ class NflTeamStatRepository
         }
     }
 
+    /**
+     * Retrieve the total first downs for a team in a specific game.
+     *
+     * @param string $teamAbv The abbreviation of the team (e.g., KC for Kansas City Chiefs).
+     * @param int|null $week The week number (optional).
+     * @return array The team first downs statistics.
+     */
+    public function getFirstDownsAverage(array $teamAbvs, ?int $week = null, ?int $season = null): array
+    {
+        try {
+            // Query to calculate average first downs
+            $query = DB::table('nfl_team_stats')
+                ->join('nfl_team_schedules', 'nfl_team_stats.game_id', '=', 'nfl_team_schedules.game_id')
+                ->whereIn('nfl_team_stats.team_abv', array_map('strtoupper', $teamAbvs));
+
+            // Filter by week if provided
+            if ($week) {
+                $query->where('nfl_team_schedules.game_week', $week);
+            }
+
+            // Filter by season if provided
+            if ($season) {
+                $query->where('nfl_team_schedules.season', $season);
+            }
+
+            // Aggregate average first downs for each team
+            $result = $query
+                ->selectRaw('nfl_team_stats.team_abv, AVG(nfl_team_stats.first_downs) as avg_first_downs')
+                ->groupBy('nfl_team_stats.team_abv')
+                ->get();
+
+            if ($result->isEmpty()) {
+                return [
+                    'success' => false,
+                    'message' => 'No data found for the specified teams and filters.'
+                ];
+            }
+
+            // Format the results
+            $averages = $result->map(function ($row) {
+                return [
+                    'team' => $row->team_abv,
+                    'avg_first_downs' => round($row->avg_first_downs, 2)
+                ];
+            });
+
+            return [
+                'success' => true,
+                'data' => $averages->toArray()
+            ];
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'error' => 'Error calculating average first downs: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    public function getTeamStatAverage(array $teamAbvs, string $statColumn, ?int $week = null, ?int $season = null): array
+    {
+        try {
+            // Validate the provided statistic column
+            $validStatColumns = [
+                'points_allowed',
+                'rushing_attempts',
+                'fumbles_lost',
+                'penalties',
+                'total_plays',
+                'possession',
+                'safeties',
+                'pass_completions_and_attempts',
+                'passing_first_downs',
+                'interceptions_thrown',
+                'sacks_and_yards_lost',
+                'third_down_efficiency',
+                'yards_per_play',
+                'red_zone_scored_and_attempted',
+                'defensive_interceptions',
+                'defensive_or_special_teams_tds',
+                'total_drives',
+                'rushing_first_downs',
+                'first_downs',
+                'first_downs_from_penalties',
+                'fourth_down_efficiency',
+                'yards_per_rush',
+                'turnovers',
+                'yards_per_pass',
+            ];
+
+            if (!in_array($statColumn, $validStatColumns)) {
+                return [
+                    'success' => false,
+                    'message' => 'Invalid statistic column provided.',
+                ];
+            }
+
+            // Build the query
+            $query = DB::table('nfl_team_stats')
+                ->join('nfl_team_schedules', 'nfl_team_stats.game_id', '=', 'nfl_team_schedules.game_id')
+                ->whereIn('nfl_team_stats.team_abv', array_map('strtoupper', $teamAbvs));
+
+            // Filter by week if provided
+            if ($week) {
+                $query->where('nfl_team_schedules.game_week', $week);
+            }
+
+            // Filter by season if provided
+            if ($season) {
+                $query->where('nfl_team_schedules.season', $season);
+            }
+
+            // Aggregate average for the provided statistic
+            $result = $query
+                ->selectRaw('nfl_team_stats.team_abv, AVG(nfl_team_stats.' . $statColumn . ') as avg_' . $statColumn)
+                ->groupBy('nfl_team_stats.team_abv')
+                ->get();
+
+            if ($result->isEmpty()) {
+                return [
+                    'success' => false,
+                    'message' => 'No data found for the specified teams and filters.'
+                ];
+            }
+
+            // Format the results
+            $averages = $result->map(function ($row) use ($statColumn) {
+                return [
+                    'team' => $row->team_abv,
+                    'avg_' . $statColumn => round($row->{'avg_' . $statColumn}, 2),
+                ];
+            });
+
+            return [
+                'success' => true,
+                'data' => $averages->toArray()
+            ];
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'error' => 'Error calculating average: ' . $e->getMessage()
+            ];
+        }
+    }
+
 
 }

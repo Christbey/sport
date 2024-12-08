@@ -393,12 +393,29 @@ class ChatGPTController extends Controller
             case 'get_odds_by_moneyline':
                 return $this->bettingOddsRepository->getOddsByMoneyline($arguments['moneyline']);
 
+
             // NFL betting odds by team and week
             case 'get_odds_by_team_and_week':
                 return $this->bettingOddsRepository->getOddsByTeamAndWeek(
                     $arguments['teamFilter'],
                     $arguments['week']
                 );
+
+            case 'get_first_downs_average':
+                return $this->nflTeamStatsRepository->getFirstDownsAverage(
+                    $arguments['teamFilters'],
+                    $arguments['week'] ?? null,
+                    $arguments['season'] ?? null
+                );
+
+            case 'get_team_stat_average':
+                return $this->nflTeamStatsRepository->getTeamStatAverage(
+                    $arguments['teamFilters'], // Array of team abbreviations
+                    $arguments['statColumn'], // Statistic column name
+                    $arguments['week'] ?? null,
+                    $arguments['season'] ?? null
+                );
+
 
             case 'get_half_scoring':
                 return $this->teamStatsRepository->getHalfScoring(
