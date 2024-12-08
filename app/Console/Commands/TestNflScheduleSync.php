@@ -14,8 +14,10 @@ class TestNflScheduleSync extends Command
     /**
      * The name and signature of the console command.
      */
-    protected $signature = 'nfl:test-sync {season} {week} {type}';
-
+    protected $signature = 'nfl:test-sync 
+                        {--season= : The NFL season year (defaults to current config)}
+                        {--week= : The NFL week (defaults to current week)}
+                        {--type=2 : The season type (1: Preseason, 2: Regular, 3: Postseason, defaults to 2)}';
     /**
      * The console command description.
      */
@@ -41,21 +43,40 @@ class TestNflScheduleSync extends Command
     public function handle(): void
     {
         try {
-            $season = $this->argument('season');
-            $week = (int)$this->argument('week');
-            $type = $this->argument('type');
+            // Use provided options or fallback to defaults
+            $season = $this->option('season') ?? config('nfl.seasonYear');
+            $type = $this->option('type') ?? '2'; // Default to regular season
+            $week = $this->option('week') ?? $this->getCurrentWeek();
+
             $seasonType = $this->getSeasonType($type);
 
             $this->info("Starting sync for Season: $season, Week: $week, Type: $type");
 
-            $this->syncSchedule($season, $week, $type);
-            $games = $this->fetchGames($season, $week, $seasonType);
+            $this->syncSchedule($season, (int)$week, $type);
+            $games = $this->fetchGames($season, (int)$week, $seasonType);
             $this->displayResults($games);
 
         } catch (Exception $e) {
             $this->error('Error during sync: ' . $e->getMessage());
             Log::error('Error during sync', ['exception' => $e]);
         }
+    }
+
+    /**
+     * Determine the current NFL week based on today's date.
+     */
+    private function getCurrentWeek(): int
+    {
+        $today = now()->toDateString(); // Current date in 'Y-m-d' format
+        $weeks = config('nfl.weeks'); // Fetch the weeks array
+
+        foreach ($weeks as $week => $dates) {
+            if ($today >= $dates['start'] && $today <= $dates['end']) {
+                return (int)$week;
+            }
+        }
+
+        throw new Exception("Unable to determine the current NFL week for today's date: $today");
     }
 
     /**

@@ -253,16 +253,11 @@ Schedule::command('fetch:nfl-team-roster')
     ))
     ->runInBackground();
 // Get the current NFL season and week from your config
-$seasonYear = config('nfl.config.seasonYear');
-$currentWeek = config('nfl.config.current_week');
+
 
 // Schedule the nfl:test-sync command to run every 30 minutes on the specified days/times
-Schedule::command('nfl:test-sync', [
-    'season' => $seasonYear,
-    'week' => $currentWeek,
-    'type' => '2', // Regular season
-])
-    ->everyThirtyMinutes()
+Schedule::command('nfl:test-sync',
+)->everyThirtyMinutes()
     ->between('18:00', '22:00')
     ->mondays()
     ->thursdays()
