@@ -258,7 +258,7 @@ Schedule::command('fetch:nfl-team-roster')
 // Schedule the nfl:test-sync command to run every 30 minutes on the specified days/times
 Schedule::command('nfl:test-sync',
 )->everyThirtyMinutes()
-    ->between('18:00', '22:00')
+    ->between('13:00', '22:00')
     ->mondays()
     ->thursdays()
     ->sundays()
