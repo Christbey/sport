@@ -3,13 +3,14 @@
 namespace App\Repositories\Nfl;
 
 use App\Models\Nfl\{NflBoxScore, NflPlayerStat, NflTeam, NflTeamSchedule, NflTeamStat};
+use App\Repositories\Nfl\Interfaces\TeamStatsRepositoryInterface;
 use App\Repositories\NflTeamScheduleRepository;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 
-class TeamStatsRepository
+class TeamStatsRepository implements TeamStatsRepositoryInterface
 
 {
     private const SCORE_TYPES = [
@@ -1697,7 +1698,7 @@ class TeamStatsRepository
         ?string $teamFilter = null,
         ?string $againstConference = null,
         ?string $locationFilter = null
-    )
+    ): array
     {
         $firstHalfStats = DB::table('nfl_box_scores as b')
             ->join('nfl_team_schedules as s', 'b.game_id', '=', 's.game_id')

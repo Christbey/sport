@@ -5,8 +5,10 @@ namespace App\Repositories;
 use App\Models\Nfl\NflTeam;
 use App\Models\Nfl\NflTeamSchedule;
 use App\Repositories\Nfl\Interfaces\NflTeamScheduleRepositoryInterface;
+use Exception;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Log;
 
 class NflTeamScheduleRepository implements NflTeamScheduleRepositoryInterface
 {
@@ -275,13 +277,55 @@ class NflTeamScheduleRepository implements NflTeamScheduleRepositoryInterface
      * @param array $range Date range.
      * @return array
      */
-    public function getScheduleByDateRange(string $teamId, array $range): array
+
+    public function getScheduleByDateRange(?string $teamId = null, ?string $query = null): array
     {
-        return NflTeamSchedule::where('team_id', $teamId)
-            ->whereBetween('game_date', $range)
-            ->get()
-            ->toArray();
+        try {
+            $today = Carbon::today();
+            $startDate = null;
+            $endDate = null;
+
+            // Determine date range based on the query
+            switch (strtolower($query)) {
+                case 'this weekend':
+                    $startDate = $today->copy()->next(Carbon::SATURDAY);
+                    $endDate = $startDate->copy()->addDay(1); // Includes Sunday
+                    break;
+
+                case 'yesterday':
+                    $startDate = $today->copy()->subDay();
+                    $endDate = $startDate;
+                    break;
+
+                case 'last week':
+                    $startDate = $today->copy()->subDays($today->dayOfWeek + 7); // Previous Sunday
+                    $endDate = $startDate->copy()->addDays(6); // Following Saturday
+                    break;
+
+                case 'christmas':
+                    $startDate = Carbon::create($today->year, 12, 25);
+                    $endDate = $startDate; // Single day
+                    break;
+
+                default:
+                    throw new Exception('Invalid query provided.');
+            }
+
+            // Build query for the schedule
+            $queryBuilder = NflTeamSchedule::whereBetween('game_date', [$startDate, $endDate]);
+
+            // Optionally filter by team
+            if ($teamId) {
+                $queryBuilder->where('team_id', $teamId);
+            }
+
+            return $queryBuilder->get()->toArray();
+        } catch (Exception $e) {
+            Log::error('Error fetching schedule by date range', ['exception' => $e, 'query' => $query]);
+            return ['error' => $e->getMessage()];
+        }
     }
+
 
     /**
      * Get recent games for a team.
@@ -325,4 +369,75 @@ class NflTeamScheduleRepository implements NflTeamScheduleRepositoryInterface
             ->select(self::DEFAULT_COLUMNS)
             ->get();
     }
+
+    public function getSchedule(
+        ?string $teamId = null,
+        ?string $teamFilter = null,
+        ?string $startDate = null,
+        ?string $endDate = null,
+        ?string $conferenceFilter = null,
+        ?int    $season = 2024,
+        ?int    $week = null
+    ): array
+    {
+        Log::info('Executing getSchedule with parameters:', [
+            'teamId' => $teamId,
+            'teamFilter' => $teamFilter,
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+            'conferenceFilter' => $conferenceFilter,
+            'season' => $season,
+            'week' => $week,
+        ]);
+
+        $query = NflTeamSchedule::query();
+
+        // Filter by season
+        if ($season) {
+            $query->where('season', $season);
+        }
+
+        // Filter by team abbreviation or team ID
+        if ($teamFilter) {
+            $query->where(function ($q) use ($teamFilter) {
+                $q->where('home_team', $teamFilter)
+                    ->orWhere('away_team', $teamFilter);
+            });
+        } elseif ($teamId) {
+            $query->where(function ($q) use ($teamId) {
+                $q->where('home_team_id', $teamId)
+                    ->orWhere('away_team_id', $teamId);
+            });
+        }
+
+        // Filter by specific week using 'game_week' column
+        if ($week) {
+            $query->where('game_week', $week);
+        }
+
+        // Filter by date range
+        if ($startDate) {
+            $query->where('game_date', '>=', Carbon::parse($startDate)->startOfDay());
+        }
+
+        if ($endDate) {
+            $query->where('game_date', '<=', Carbon::parse($endDate)->endOfDay());
+        }
+
+        // Filter by opponent conference
+        if ($conferenceFilter) {
+            $query->where(function ($q) use ($conferenceFilter) {
+                $q->where('home_conference', $conferenceFilter)
+                    ->orWhere('away_conference', $conferenceFilter);
+            });
+        }
+
+        $results = $query->orderBy('game_date')->get()->toArray();
+
+        Log::info('getSchedule query results:', ['results' => $results]);
+
+        return $results;
+    }
+
+
 }

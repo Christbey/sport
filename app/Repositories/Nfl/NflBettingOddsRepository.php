@@ -196,5 +196,36 @@ class NflBettingOddsRepository implements NflBettingOddsRepositoryInterface
             ->get();
     }
 
+    public function getOddsByTeamAndWeek(string $teamFilter, int $week): Collection
+    {
+        // Retrieve the week configuration from the NFL config
+        $weekConfig = config('nfl.weeks.' . $week);
+
+
+        $startDate = $weekConfig['start'];
+        $endDate = $weekConfig['end'];
+
+        return NflBettingOdds::where(function ($query) use ($teamFilter) {
+            $query->where('home_team', $teamFilter)
+                ->orWhere('away_team', $teamFilter);
+        })
+            ->whereBetween('game_date', [$startDate, $endDate])
+            ->select([
+                'event_id',
+                'game_date',
+                'home_team',
+                'away_team',
+                'moneyline_home',
+                'moneyline_away',
+                'spread_home',
+                'spread_away',
+                'total_over',
+                'total_under',
+                'implied_total_home',
+                'implied_total_away',
+            ])
+            ->get();
+    }
+
 
 }

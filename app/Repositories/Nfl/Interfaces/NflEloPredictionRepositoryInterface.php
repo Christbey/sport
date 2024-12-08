@@ -14,7 +14,14 @@ interface NflEloPredictionRepositoryInterface
 
     public function findByGameId(string $gameId): ?object;
 
-    public function findByTeam(string $teamId, ?string $startDate = null, ?string $endDate = null): Collection;
+    public function findByTeam(
+        ?string $teamAbv = null,
+        ?string $startDate = null,
+        ?string $endDate = null,
+        ?string $opponent = null,
+        ?int    $week = null
+    ): Collection;
+
 
     public function findByDateRange(string $startDate, string $endDate): Collection;
 

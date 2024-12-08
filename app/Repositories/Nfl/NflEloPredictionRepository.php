@@ -72,23 +72,48 @@ class NflEloPredictionRepository implements NflEloPredictionRepositoryInterface
             ->first();
     }
 
-    public function findByTeam(string $teamId, ?string $startDate = null, ?string $endDate = null): Collection
+    public function findByTeam(
+        ?string $teamAbv = null,
+        ?string $startDate = null,
+        ?string $endDate = null,
+        ?string $opponent = null,
+        ?int    $week = null
+    ): Collection
     {
-        $query = NflEloPrediction::where(function ($q) use ($teamId) {
-            $q->where('home_team_id', $teamId)
-                ->orWhere('away_team_id', $teamId);
-        });
+        $query = NflEloPrediction::query();
 
-        if ($startDate && $endDate) {
-            $query->whereBetween('game_date', [$startDate, $endDate]);
+        if ($teamAbv) {
+            $query->where('team', $teamAbv);
         }
 
-        return $query->select(self::DEFAULT_COLUMNS)->get();
+        if ($opponent) {
+            $query->where('opponent', $opponent);
+        }
+
+        if ($week) {
+            $query->where('week', $week);
+        }
+
+        if ($startDate && $endDate) {
+            $query->whereBetween('week', [$startDate, $endDate]);
+        }
+
+        return $query->select([
+            'game_id',
+            'team',
+            'opponent',
+            'week',
+            'team_elo',
+            'opponent_elo',
+            'expected_outcome',
+            'predicted_spread'
+        ])->get();
     }
+
 
     public function findByDateRange(string $startDate, string $endDate): Collection
     {
-        return NflEloPrediction::whereBetween('game_date', [$startDate, $endDate])
+        return NflEloPrediction::whereBetween('week', [$startDate, $endDate])
             ->select(self::DEFAULT_COLUMNS)
             ->get();
     }

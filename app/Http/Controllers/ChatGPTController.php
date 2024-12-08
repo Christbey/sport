@@ -2,15 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\OpenAI;
 use App\Repositories\Nfl\NflBettingOddsRepository;
 use App\Repositories\Nfl\NflEloPredictionRepository;
 use App\Repositories\Nfl\NflPlayerDataRepository;
 use App\Repositories\Nfl\TeamStatsRepository;
 use App\Repositories\NflTeamScheduleRepository;
 use App\Services\OpenAIChatService;
+use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\Request;
-use League\CommonMark\CommonMarkConverter;
+use Log;
 
 class ChatGPTController extends Controller
 {
@@ -46,76 +48,156 @@ class ChatGPTController extends Controller
     public function ask(Request $request)
     {
         $userMessage = $request->input('question', 'What are the predictions for week 14?');
-
-        $messages = [
-            ['role' => 'system', 'content' => 'You are a helpful assistant who can dynamically fetch NFL predictions.'],
-            ['role' => 'user', 'content' => $userMessage],
-        ];
+        $today = now()->toFormattedDateString();
+        $currentWeek = OpenAI::getCurrentNFLWeek();
 
         try {
+            // Build initial conversation messages using the helper
+            $messages = OpenAI::buildConversationMessages($currentWeek, $today, $userMessage);
+
+            // Determine the function and arguments using the helper
+            $functionDetails = OpenAI::determineFunctionAndArguments($userMessage, $currentWeek);
+            $functionName = $functionDetails['functionName'];
+            $arguments = $functionDetails['arguments'];
+
+            // Fetch the initial response from OpenAI
             $response = $this->chatService->getChatCompletion($messages);
 
-            // Check if OpenAI made a function call
+            // Handle OpenAI's function call response
             if (!empty($response['choices'][0]['message']['function_call'])) {
                 $functionCall = $response['choices'][0]['message']['function_call'];
                 $functionName = $functionCall['name'];
-                $arguments = json_decode($functionCall['arguments'], true);
+                $arguments = array_merge($arguments, json_decode($functionCall['arguments'], true));
 
-                // Determine the current week. Adjust this logic as needed.
-                $currentWeek = 10;
-
-                // Parse natural language week references
-                if (str_contains($userMessage, 'last week')) {
-                    $arguments['week'] = $currentWeek - 1;
-                }
-
-                if (preg_match('/over the last (\d+) weeks/', $userMessage, $matches)) {
-                    $weeksBack = (int)$matches[1];
-                    $arguments['start_week'] = $currentWeek - $weeksBack;
-                    $arguments['end_week'] = $currentWeek - 1;
-                }
-
-                // Invoke the function with updated arguments
+                // Invoke the appropriate function
                 $functionResult = $this->invokeFunction($functionName, $arguments);
 
+                // Append the function result to the conversation
                 $messages[] = [
                     'role' => 'function',
                     'name' => $functionName,
                     'content' => json_encode($functionResult),
                 ];
 
-                $finalResponse = $this->chatService->getChatCompletion($messages);
-
-                // Convert the final response content (which may contain Markdown) to HTML
-                $converter = new CommonMarkConverter();
-                $htmlResponse = $converter->convert($finalResponse['choices'][0]['message']['content'])->getContent();
-
-                return view('openai.index', ['response' => $htmlResponse]);
+                // Fetch the final response from OpenAI
+                $response = $this->chatService->getChatCompletion($messages);
             }
 
-            // If no function call, convert the normal text response (also possible Markdown) to HTML
-            $converter = new CommonMarkConverter();
-            $htmlResponse = $converter->convert($response['choices'][0]['message']['content'])->getContent();
+            // Validate and convert the response content using the helper
+            $content = OpenAI::convertMarkdownToHtml(
+                OpenAI::validateResponseContent($response)
+            );
 
-            return view('openai.index', ['response' => $htmlResponse]);
+            // Return the styled HTML response to the view
+            return view('openai.index', ['response' => $content]);
+
         } catch (Exception $e) {
-            return view('openai.index', ['response' => 'An error occurred: ' . $e->getMessage()]);
+            // Handle any exceptions using the helper
+            return OpenAI::handleException($e, $response ?? null);
         }
     }
 
     private function invokeFunction(string $functionName, array $arguments)
     {
         switch ($functionName) {
+
             case 'get_predictions_by_week':
                 return $this->repository->getPredictions($arguments['week']);
             case 'find_prediction_by_game_id':
                 return $this->repository->findByGameId($arguments['game_id']);
             case 'get_predictions_by_team':
                 return $this->repository->findByTeam(
-                    $arguments['team_id'],
+                    $arguments['team_abv'] ?? null,
                     $arguments['start_date'] ?? null,
-                    $arguments['end_date'] ?? null
+                    $arguments['end_date'] ?? null,
+                    $arguments['opponent'] ?? null,
+                    $arguments['week'] ?? null
                 );
+
+// ...
+
+            case 'get_schedule':
+                // Set default season to 2024 if not provided
+                $season = $args['season'] ?? config('nfl.seasonYear', 2024);
+
+                // Get current week using the helper function
+                $currentWeek = OpenAI::getCurrentNFLWeek();
+
+                // Initialize the week variable
+                $week = null;
+
+                // Determine the week based on 'timeFrame' if provided
+                if (isset($args['timeFrame'])) {
+                    switch (strtolower($args['timeFrame'])) {
+                        case 'last week':
+                            $week = $currentWeek - 1;
+                            break;
+                        case 'this week':
+                            $week = $currentWeek;
+                            break;
+                        case 'next week':
+                            $week = $currentWeek + 1;
+                            break;
+                        // Add more cases as needed for different time frames
+                        default:
+                            Log::warning('Unknown timeFrame provided:', ['timeFrame' => $args['timeFrame']]);
+                            break;
+                    }
+
+                    // Validate the derived week number
+                    if ($week < 1 || $week > count(config('nfl.weeks'))) {
+                        Log::error('Derived week number is out of valid range.', ['week' => $week]);
+                        $week = null; // Optionally, set to a default value or handle accordingly
+                    }
+                }
+
+                // Log the incoming arguments for debugging purposes
+                Log::info('get_schedule called with arguments:', [
+                    'teamId' => $args['teamId'] ?? null,
+                    'teamFilter' => $args['teamFilter'] ?? null,
+                    'season' => $season,
+                    'week' => $week,
+                    'startDate' => $args['startDate'] ?? null,
+                    'endDate' => $args['endDate'] ?? null,
+                    'conferenceFilter' => $args['conferenceFilter'] ?? null,
+                ]);
+
+                // Call the getSchedule method with the provided and derived arguments
+                $schedule = $this->scheduleRepository->getSchedule(
+                    $args['teamId'] ?? null,
+                    $args['teamFilter'] ?? null,
+                    $args['startDate'] ?? null,
+                    $args['endDate'] ?? null,
+                    $args['conferenceFilter'] ?? null,
+                    $season,
+                    $week
+                );
+
+                // Log the result for debugging purposes
+                Log::info('get_schedule returned:', ['schedule' => $schedule]);
+
+                // Handle empty schedule responses
+                if (empty($schedule)) {
+                    Log::warning('No schedule data found for the provided criteria.', [
+                        'teamFilter' => $args['teamFilter'] ?? null,
+                        'season' => $season,
+                        'week' => $week,
+                        'startDate' => $args['startDate'] ?? null,
+                        'endDate' => $args['endDate'] ?? null,
+                        'conferenceFilter' => $args['conferenceFilter'] ?? null,
+                    ]);
+
+                    return response()->json(['message' => 'No schedule data found for the specified criteria.'], 404);
+                }
+
+                // Format the schedule data into a user-friendly structure
+                $formattedSchedule = $this->formatSchedule($schedule);
+
+                // Log the formatted schedule
+                Log::info('Formatted schedule:', ['formattedSchedule' => $formattedSchedule]);
+
+                return response()->json(['schedule' => $formattedSchedule], 200);
+
             case 'get_recent_games':
                 return $this->teamStatsRepository->getRecentGames();
             case 'get_average_points':
@@ -160,8 +242,10 @@ class ChatGPTController extends Controller
                     $arguments['start_week'] ?? null,
                     $arguments['end_week'] ?? null
                 );
+
             case 'get_big_playmakers':
                 return $this->teamStatsRepository->getBigPlaymakers($arguments['teamFilter'] ?? null);
+
             // NFL situational performance
             case 'get_situational_performance':
                 return $this->teamStatsRepository->getSituationalPerformance(
@@ -238,17 +322,63 @@ class ChatGPTController extends Controller
             case 'get_odds_by_moneyline':
                 return $this->bettingOddsRepository->getOddsByMoneyline($arguments['moneyline']);
 
+            // NFL betting odds by team and week
+            case 'get_odds_by_team_and_week':
+                return $this->bettingOddsRepository->getOddsByTeamAndWeek(
+                    $arguments['teamFilter'],
+                    $arguments['week']
+                );
+
+            case 'get_half_scoring':
+                return $this->teamStatsRepository->getHalfScoring(
+                    $arguments['teamFilter'] ?? null,
+                    $arguments['locationFilter'] ?? null,
+                    $arguments['conferenceFilter'] ?? null,
+                    $arguments['divisionFilter'] ?? null
+                );
+
             // NFL schedule by team
             case 'get_schedule_by_team':
                 $teamId = $arguments['teamId'] ?? null;
                 $teamFilter = $arguments['teamFilter'] ?? null;
-
-
                 return $this->scheduleRepository->getScheduleByTeam($teamId, $teamFilter);
 
 
             default:
                 throw new Exception("Unknown function: $functionName");
         }
+    }
+
+    /**
+     * Format the schedule data into a readable string.
+     *
+     * @param array $schedule
+     * @return string
+     */
+    private function formatSchedule(array $schedule): string
+    {
+        if (empty($schedule)) {
+            return 'No games found for the specified criteria.';
+        }
+
+        $formatted = "Schedule for the specified criteria:\n\n";
+
+        foreach ($schedule as $game) {
+            $date = Carbon::parse($game['game_date'])->toFormattedDateString();
+            $time = $game['time'] ?? 'TBD';
+            $status = $game['status'] ?? 'Scheduled';
+            $result = $game['result'] ?? '';
+
+            $formatted .= "{$game['home_team']} @ {$game['away_team']}\n";
+            $formatted .= "Date: {$date}\n";
+            $formatted .= "Time: {$time}\n";
+            $formatted .= "Status: {$status}\n";
+            if ($result) {
+                $formatted .= "Result: {$result}\n";
+            }
+            $formatted .= "\n";
+        }
+
+        return $formatted;
     }
 }

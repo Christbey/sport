@@ -149,6 +149,5 @@ Route::get('user-roles/{user}/edit', [UserRoleController::class, 'edit'])->name(
 Route::put('user-roles/{user}', [UserRoleController::class, 'update'])->name('user-roles.update');
 
 Route::get('/nfl/trends/compare', [NflTrendsController::class, 'compare'])->name('nfl.trends.compare');
-
 Route::get('/ask-chatgpt', [ChatGPTController::class, 'showChat'])->name('show-chatgpt');
 Route::post('/ask-chatgpt', [ChatGPTController::class, 'ask'])->name('ask-chatgpt');
