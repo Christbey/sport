@@ -7,7 +7,7 @@ use Illuminate\Support\Collection;
 
 interface NflPlayerDataRepositoryInterface
 {
-    public function getTeamInjuries(string $teamId): Collection;
+    public function getTeamInjuries(string $teamFilter): Collection;
 
     public function findByTeam(string $teamId): Collection;
 

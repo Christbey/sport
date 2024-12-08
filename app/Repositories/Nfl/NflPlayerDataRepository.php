@@ -1,6 +1,5 @@
 <?php
 
-
 namespace App\Repositories\Nfl;
 
 use App\Models\Nfl\NflPlayerData;
@@ -25,9 +24,9 @@ class NflPlayerDataRepository implements NflPlayerDataRepositoryInterface
         'longName'
     ];
 
-    public function getTeamInjuries(string $teamId): Collection
+    public function getTeamInjuries(string $teamFilter): Collection
     {
-        return NflPlayerData::where('teamID', $teamId)
+        return NflPlayerData::where('team', $teamFilter)
             ->where(function ($query) {
                 $query->whereNull('injury_return_date')
                     ->orWhere('injury_return_date', '>', Carbon::today());
@@ -35,31 +34,18 @@ class NflPlayerDataRepository implements NflPlayerDataRepositoryInterface
             ->get(self::DEFAULT_COLUMNS);
     }
 
-    public function findPlayersByTeam(?string $teamId = null, ?string $teamFilter = null): Collection
+    public function findPlayersByTeam(?string $teamFilter = null): Collection
     {
-        $query = NflPlayerData::query();
-
-        if ($teamId) {
-            $query->where('team_id', $teamId);
-        }
-
-        if ($teamFilter) {
+        return NflPlayerData::when($teamFilter, function ($query, $teamFilter) {
             $query->where('team', $teamFilter);
-        }
-
-        return $query->limit(5)->get(); // Limit the number of results to 50
-    }
-
-
-    public function findByTeam(string $teamId): Collection
-    {
-        return NflPlayerData::where('teamID', $teamId)
+        })
+            ->limit(50)
             ->get(self::DEFAULT_COLUMNS);
     }
 
-    public function findByPlayerId(string $playerId): ?object
+    public function findByEspnName(string $espnName): ?object
     {
-        return NflPlayerData::where('playerID', $playerId)
+        return NflPlayerData::whereRaw('LOWER(espnName) = ?', [strtolower($espnName)])
             ->first(self::DEFAULT_COLUMNS);
     }
 
@@ -81,31 +67,33 @@ class NflPlayerDataRepository implements NflPlayerDataRepositoryInterface
             ->get(self::DEFAULT_COLUMNS);
     }
 
-    public function findByExperience(int $years): Collection
+
+    public function findByExperience(int $years, ?string $teamFilter = null): Collection
     {
-        return NflPlayerData::where('exp', $years)
-            ->get(self::DEFAULT_COLUMNS);
-    }
+        $query = NflPlayerData::where('exp', $years);
 
-    public function findByAgeRange(?int $minAge = null, ?int $maxAge = null, ?string $teamFilter = null): Collection
-    {
-        $query = NflPlayerData::query();
-
-        if (!is_null($minAge)) {
-            $query->where('age', '>=', $minAge);
-        }
-
-        if (!is_null($maxAge)) {
-            $query->where('age', '<=', $maxAge);
-        }
-
+        // Apply the optional team filter if provided
         if (!is_null($teamFilter)) {
-            $query->where('team_abv', $teamFilter);
+            $query->where('team', $teamFilter);
         }
 
         return $query->get(self::DEFAULT_COLUMNS);
     }
 
+
+    public function findByAgeRange(?int $minAge = null, ?int $maxAge = null, ?string $teamFilter = null): Collection
+    {
+        return NflPlayerData::when($minAge, function ($query, $minAge) {
+            $query->where('age', '>=', $minAge);
+        })
+            ->when($maxAge, function ($query, $maxAge) {
+                $query->where('age', '<=', $maxAge);
+            })
+            ->when($teamFilter, function ($query, $teamFilter) {
+                $query->where('team', $teamFilter);
+            })
+            ->get(self::DEFAULT_COLUMNS);
+    }
 
     public function findBySchool(string $school): Collection
     {
@@ -114,57 +102,52 @@ class NflPlayerDataRepository implements NflPlayerDataRepositoryInterface
     }
 
     public function getPlayerData(
-        ?string $teamId = null,
-        ?string $playerId = null,
+        ?string $teamFilter = null,
+        ?string $espnName = null,
         ?string $designation = null,
         ?string $position = null,
         ?int    $years = null,
         ?string $school = null,
         ?int    $minAge = null,
-        ?int    $maxAge = null,
-        ?string $teamFilter = null
+        ?int    $maxAge = null
     ): Collection
     {
-        $query = NflPlayerData::query();
-
-        if ($teamId) {
-            $query->where('team_id', $teamId);
-        }
-
-        if ($playerId) {
-            $query->where('player_id', $playerId);
-        }
-
-        if ($designation) {
-            $query->where('injury_designation', $designation);
-        }
-
-        if ($position) {
-            $query->where('position', $position);
-        }
-
-        if ($years) {
-            $query->where('years_experience', $years);
-        }
-
-        if ($school) {
-            $query->where('school', $school);
-        }
-
-        if ($minAge) {
-            $query->where('age', '>=', $minAge);
-        }
-
-        if ($maxAge) {
-            $query->where('age', '<=', $maxAge);
-        }
-
-        if ($teamFilter) {
+        return NflPlayerData::when($teamFilter, function ($query, $teamFilter) {
             $query->where('team', $teamFilter);
-        }
-
-        return $query->get();
+        })
+            ->when($espnName, function ($query, $espnName) {
+                $query->whereRaw('LOWER(espnName) = ?', [strtolower($espnName)]);
+            })
+            ->when($designation, function ($query, $designation) {
+                $query->where('injury_designation', $designation);
+            })
+            ->when($position, function ($query, $position) {
+                $query->where('pos', $position);
+            })
+            ->when($years, function ($query, $years) {
+                $query->where('exp', $years);
+            })
+            ->when($school, function ($query, $school) {
+                $query->where('school', $school);
+            })
+            ->when($minAge, function ($query, $minAge) {
+                $query->where('age', '>=', $minAge);
+            })
+            ->when($maxAge, function ($query, $maxAge) {
+                $query->where('age', '<=', $maxAge);
+            })
+            ->get(self::DEFAULT_COLUMNS);
     }
 
+    public function findByTeam(string $teamId): Collection
+    {
+        return NflPlayerData::where('teamID', $teamId)
+            ->get(self::DEFAULT_COLUMNS);
+    }
 
+    public function findByPlayerId(string $playerId): ?object
+    {
+        // TODO: Implement findByPlayerId() method.
+        return null;
+    }
 }

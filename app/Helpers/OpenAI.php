@@ -78,32 +78,35 @@ class OpenAI
 
     public static function determineFunctionAndArguments(string $userMessage, int $currentWeek): array
     {
-        $functionName = 'get_schedule_by_team';
         $arguments = [];
 
-        // Handle specific queries
+        // Handle queries for schedules
         if (str_contains($userMessage, 'this weekend')) {
             $arguments['query'] = 'this weekend';
-            $functionName = 'get_schedule_by_date_range';
         } elseif (str_contains($userMessage, 'yesterday')) {
             $arguments['query'] = 'yesterday';
-            $functionName = 'get_schedule_by_date_range';
         } elseif (str_contains($userMessage, 'last week')) {
             $arguments['query'] = 'last week';
-            $functionName = 'get_schedule_by_date_range';
         } elseif (str_contains($userMessage, 'Christmas')) {
             $arguments['query'] = 'Christmas';
-            $functionName = 'get_schedule_by_date_range';
         } elseif (preg_match('/week (\d+)/', $userMessage, $matches)) {
             $arguments['week'] = (int)$matches[1];
-            $functionName = 'get_predictions_by_week';
         }
 
-        // Default fallback
-        return [
-            'functionName' => $functionName,
-            'arguments' => $arguments,
-        ];
+        // Handle player performance queries with a yard threshold
+        if (preg_match('/has (.+?) had over (\d+) yards/i', $userMessage, $matches)) {
+            $arguments['playerFilter'] = trim($matches[1]); // Extract player name
+            $arguments['yardThreshold'] = (int)$matches[2]; // Extract yard threshold
+        }
+
+        // Handle range of weeks queries
+        if (preg_match('/over the last (\d+) weeks/i', $userMessage, $matches)) {
+            $weeksBack = (int)$matches[1];
+            $arguments['start_week'] = max(1, $currentWeek - $weeksBack); // Ensure not below week 1
+            $arguments['end_week'] = $currentWeek - 1; // Up to the last completed week
+        }
+
+        return $arguments;
     }
 
     public static function validateResponseContent(?array $response): string
@@ -210,4 +213,27 @@ class OpenAI
             return 'An error occurred while processing the response.';
         }
     }
+
+    public static function parsePlayerQuery(string $userMessage): array
+    {
+        $yardThreshold = null;
+        $playerFilter = null;
+
+        // Extract yard threshold (e.g., "over 70 yards")
+        if (preg_match('/over (\d+) yards/i', $userMessage, $matches)) {
+            $yardThreshold = (int)$matches[1];
+        }
+
+        // Extract player name (e.g., "has AJ Brown had")
+        if (preg_match('/has (.+?) had/i', $userMessage, $matches)) {
+            $playerFilter = trim($matches[1]);
+        }
+
+        return [
+            'playerFilter' => $playerFilter,
+            'yardThreshold' => $yardThreshold,
+        ];
+    }
+
+
 }

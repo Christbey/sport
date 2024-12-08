@@ -6,11 +6,13 @@ use App\Helpers\OpenAI;
 use App\Repositories\Nfl\NflBettingOddsRepository;
 use App\Repositories\Nfl\NflEloPredictionRepository;
 use App\Repositories\Nfl\NflPlayerDataRepository;
+use App\Repositories\Nfl\NflTeamStatRepository;
 use App\Repositories\Nfl\TeamStatsRepository;
 use App\Repositories\NflTeamScheduleRepository;
 use App\Services\OpenAIChatService;
 use Carbon\Carbon;
 use Exception;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Log;
 
@@ -23,6 +25,7 @@ class ChatGPTController extends Controller
     private NflPlayerDataRepository $playerDataRepository;
 
     private NflTeamScheduleRepository $scheduleRepository;
+    private NflTeamStatRepository $nflTeamStatsRepository;
 
     public function __construct(OpenAIChatService $chatService, NflEloPredictionRepository $repository)
     {
@@ -32,6 +35,7 @@ class ChatGPTController extends Controller
         $this->playerDataRepository = new NflPlayerDataRepository();
         $this->bettingOddsRepository = new NflBettingOddsRepository();
         $this->scheduleRepository = new NflTeamScheduleRepository();
+        $this->nflTeamStatsRepository = new NflTeamStatRepository();
     }
 
     /**
@@ -48,52 +52,39 @@ class ChatGPTController extends Controller
     public function ask(Request $request)
     {
         $userMessage = $request->input('question', 'What are the predictions for week 14?');
-        $today = now()->toFormattedDateString();
         $currentWeek = OpenAI::getCurrentNFLWeek();
 
         try {
-            // Build initial conversation messages using the helper
-            $messages = OpenAI::buildConversationMessages($currentWeek, $today, $userMessage);
+            $messages = OpenAI::buildConversationMessages($currentWeek, now()->toFormattedDateString(), $userMessage);
+            $arguments = OpenAI::determineFunctionAndArguments($userMessage, $currentWeek);
 
-            // Determine the function and arguments using the helper
-            $functionDetails = OpenAI::determineFunctionAndArguments($userMessage, $currentWeek);
-            $functionName = $functionDetails['functionName'];
-            $arguments = $functionDetails['arguments'];
+            $response = $this->chatService->getChatCompletion($messages, [
+                'function_call' => 'auto', // Let OpenAI decide the function
+            ]);
 
-            // Fetch the initial response from OpenAI
-            $response = $this->chatService->getChatCompletion($messages);
-
-            // Handle OpenAI's function call response
             if (!empty($response['choices'][0]['message']['function_call'])) {
                 $functionCall = $response['choices'][0]['message']['function_call'];
                 $functionName = $functionCall['name'];
                 $arguments = array_merge($arguments, json_decode($functionCall['arguments'], true));
 
-                // Invoke the appropriate function
                 $functionResult = $this->invokeFunction($functionName, $arguments);
 
-                // Append the function result to the conversation
                 $messages[] = [
                     'role' => 'function',
                     'name' => $functionName,
                     'content' => json_encode($functionResult),
                 ];
 
-                // Fetch the final response from OpenAI
-                $response = $this->chatService->getChatCompletion($messages);
+                $response = $this->chatService->getChatCompletion($messages, [
+                    'function_call' => 'auto',
+                ]);
             }
 
-            // Validate and convert the response content using the helper
-            $content = OpenAI::convertMarkdownToHtml(
-                OpenAI::validateResponseContent($response)
-            );
+            $content = OpenAI::convertMarkdownToHtml(OpenAI::validateResponseContent($response));
 
-            // Return the styled HTML response to the view
             return view('openai.index', ['response' => $content]);
-
         } catch (Exception $e) {
-            // Handle any exceptions using the helper
-            return OpenAI::handleException($e, $response ?? null);
+            return OpenAI::handleException($e);
         }
     }
 
@@ -113,8 +104,6 @@ class ChatGPTController extends Controller
                     $arguments['opponent'] ?? null,
                     $arguments['week'] ?? null
                 );
-
-// ...
 
             case 'get_schedule':
                 // Set default season to 2024 if not provided
@@ -207,6 +196,19 @@ class ChatGPTController extends Controller
                     $arguments['conferenceFilter'] ?? null,
                     $arguments['divisionFilter'] ?? null
                 );
+
+            case 'get_nfl_team_stats':
+                return $this->handleGetNflTeamStats($arguments);
+
+            case 'compare_teams_stats':
+                return $this->handleCompareTeamsStats($arguments);
+
+            case 'get_top_teams_by_stat':
+                return $this->handleGetTopTeamsByStat($arguments);
+
+            case 'get_league_averages':
+                return $this->handleGetLeagueAverages($arguments);
+
             case 'calculate_team_scores':
                 return $this->teamStatsRepository->calculateTeamScores(
                     $arguments['gameIds'] ?? [],                  // Array of game IDs (optional)
@@ -218,30 +220,70 @@ class ChatGPTController extends Controller
 
             // NFL best receivers
             case 'get_best_receivers':
+                $playerFilter = $arguments['playerFilter'] ?? null;
+                $teamFilter = $arguments['teamFilter'] ?? null;
+                $week = $arguments['week'] ?? null;
+                $startWeek = $arguments['start_week'] ?? null;
+                $endWeek = $arguments['end_week'] ?? null;
+                $yardThreshold = $arguments['yardThreshold'] ?? 50; // Default to 50 if null
+
+                Log::info('get_best_receivers called with arguments:', [
+                    'playerFilter' => $playerFilter,
+                    'teamFilter' => $teamFilter,
+                    'week' => $week,
+                    'startWeek' => $startWeek,
+                    'endWeek' => $endWeek,
+                    'yardThreshold' => $yardThreshold,
+                ]);
+
                 return $this->teamStatsRepository->getBestReceivers(
-                    $arguments['teamFilter'] ?? null,
-                    $arguments['week'] ?? null,
-                    $arguments['start_week'] ?? null,
-                    $arguments['end_week'] ?? null
+                    teamFilter: $teamFilter,
+                    week: $week,
+                    startWeek: $startWeek,
+                    endWeek: $endWeek,
+                    playerFilter: $playerFilter,
+                    yardThreshold: $yardThreshold,
+                    season: $arguments['season'] ?? 2024
                 );
 
             // NFL best rushers
             case 'get_best_rushers':
+                $playerFilter = $arguments['playerFilter'] ?? null;
+                $teamFilter = $arguments['teamFilter'] ?? null;
+                $week = $arguments['week'] ?? null;
+                $startWeek = $arguments['start_week'] ?? null;
+                $endWeek = $arguments['end_week'] ?? null;
+                $yardThreshold = $arguments['yardThreshold'] ?? 50; // Default to 50 if null
+                Log::info('get_best_receivers called with arguments:', [
+                    'playerFilter' => $playerFilter,
+                    'teamFilter' => $teamFilter,
+                    'week' => $week,
+                    'startWeek' => $startWeek,
+                    'endWeek' => $endWeek,
+                    'yardThreshold' => $yardThreshold,
+                ]);
                 return $this->teamStatsRepository->getBestRushers(
-                    $arguments['teamFilter'] ?? null,
-                    $arguments['week'] ?? null,
-                    $arguments['start_week'] ?? null,
-                    $arguments['end_week'] ?? null
+                    teamFilter: $teamFilter,
+                    week: $week,
+                    startWeek: $startWeek,
+                    endWeek: $endWeek,
+                    playerFilter: $playerFilter,
+                    yardThreshold: $yardThreshold,
+                    season: $arguments['season'] ?? 2024
                 );
 
             // NFL best tacklers
             case 'get_best_tacklers':
                 return $this->teamStatsRepository->getBestTacklers(
-                    $arguments['teamFilter'] ?? null,
-                    $arguments['week'] ?? null,
-                    $arguments['start_week'] ?? null,
-                    $arguments['end_week'] ?? null
+                    teamFilter: $arguments['teamFilter'] ?? null,
+                    week: $arguments['week'] ?? null,
+                    startWeek: $arguments['start_week'] ?? null,
+                    endWeek: $arguments['end_week'] ?? null,
+                    playerFilter: $arguments['playerFilter'] ?? null,
+                    tackleThreshold: $arguments['tackleThreshold'] ?? null,
+                    season: $arguments['season'] ?? 2024
                 );
+
 
             case 'get_big_playmakers':
                 return $this->teamStatsRepository->getBigPlaymakers($arguments['teamFilter'] ?? null);
@@ -290,26 +332,55 @@ class ChatGPTController extends Controller
 
             // NFL player by experience
             case 'find_players_by_experience':
-                return $this->playerDataRepository->findByExperience($arguments['years']);
+                $years = $arguments['years'] ?? null;
+                $teamFilter = $arguments['teamFilter'] ?? null;
 
-            // NFL player by injury
+                if (is_null($years)) {
+                    return response()->json(['error' => 'Years parameter is required.'], 400);
+                }
+
+                return $this->playerDataRepository->findByExperience($years, $teamFilter);
+
+
+// NFL players by injury
             case 'get_team_injuries':
-                return $this->playerDataRepository->getTeamInjuries($arguments['injuryDesignation']);
+                if (isset($arguments['teamFilter'])) {
+                    return $this->playerDataRepository->getTeamInjuries($arguments['teamFilter']);
+                }
+                return response()->json(['error' => 'Missing required parameter: teamFilter'], 400);
 
-            // NFL player by position
+// NFL player by position
             case 'find_players_by_position':
-                return $this->playerDataRepository->findByPosition($arguments['position']);
+                if (isset($arguments['position'])) {
+                    return $this->playerDataRepository->findByPosition($arguments['position']);
+                }
+                return response()->json(['error' => 'Missing required parameter: position'], 400);
 
-            // NFL player by school
+// NFL player by school
             case 'find_players_by_school':
-                return $this->playerDataRepository->findBySchool($arguments['school']);
+                if (isset($arguments['school'])) {
+                    return $this->playerDataRepository->findBySchool($arguments['school']);
+                }
+                return response()->json(['error' => 'Missing required parameter: school'], 400);
 
-            //NFL players by team
+// NFL players by team
             case 'find_players_by_team':
-                return $this->playerDataRepository->findPlayersByTeam(
-                    $arguments['teamId'] ?? null,
-                    $arguments['teamFilter'] ?? null
-                );
+                if (isset($arguments['teamFilter'])) {
+                    return $this->playerDataRepository->findPlayersByTeam($arguments['teamFilter']);
+                }
+                return response()->json(['error' => 'Missing required parameter: teamFilter'], 400);
+
+// NFL player by espnName
+            case 'find_player_by_espn_name':
+                if (isset($arguments['espnName'])) {
+                    $player = $this->playerDataRepository->findByEspnName($arguments['espnName']);
+                    return $player ? $player : response()->json(['error' => 'Player not found'], 404);
+                }
+                return response()->json(['error' => 'Missing required parameter: espnName'], 400);
+
+// NFL free agents
+            case 'get_free_agents':
+                return $this->playerDataRepository->getFreeAgents();
 
             case 'get_odds_by_event_ids':
                 return $this->bettingOddsRepository->getOddsByEventIds($arguments['eventIds']);
@@ -381,4 +452,121 @@ class ChatGPTController extends Controller
 
         return $formatted;
     }
+
+    private function handleGetNflTeamStats(array $arguments)
+    {
+        $teamAbv = $arguments['team_abv'] ?? null;
+        $week = $arguments['week'] ?? null;
+
+        if (!$teamAbv || !$week) {
+            return response()->json(['message' => 'Missing required parameters: team_abv and week.'], 400);
+        }
+
+        $result = $this->teamStatsRepository->getNflTeamStats($teamAbv, $week);
+
+        if (!$result['success']) {
+            return response()->json(['message' => $result['message']], 404);
+        }
+
+        return response()->json(['team_stats' => $result['data']], 200);
+    }
+
+    /**
+     * Handle the compare_teams_stats function call.
+     *
+     * @param array $arguments
+     * @return JsonResponse
+     */
+    private function handleCompareTeamsStats(array $arguments)
+    {
+        $teamAbvs = $arguments['team_abvs'] ?? [];
+        $statColumn = $arguments['stat_column'] ?? null;
+        $week = $arguments['week'] ?? null;
+
+        if (empty($teamAbvs) || !$statColumn || !$week) {
+            return response()->json(['message' => 'Missing required parameters: team_abvs, stat_column, and week.'], 400);
+        }
+
+        $result = $this->nflTeamStatsRepository->compareTeamsStats($teamAbvs, $statColumn, $week);
+
+        if (!$result['success']) {
+            return response()->json(['message' => $result['message']], 404);
+        }
+
+        return response()->json(['comparison' => $result['data']], 200);
+    }
+
+    /**
+     * Handle the get_top_teams_by_stat function call.
+     *
+     * @param array $arguments
+     * @return JsonResponse
+     */
+    private function handleGetTopTeamsByStat(array $arguments)
+    {
+        $statColumn = $arguments['stat_column'] ?? null;
+        $week = $arguments['week'] ?? null;
+        $limit = $arguments['limit'] ?? 5;
+
+        if (!$statColumn) {
+            return response()->json(['message' => 'Missing required parameter: stat_column.'], 400);
+        }
+
+        $result = $this->nflTeamStatsRepository->getTopTeamsByStat($statColumn, $week, $limit);
+
+        if (!$result['success']) {
+            return response()->json(['message' => $result['message']], 404);
+        }
+
+        return response()->json(['top_teams' => $result['data']], 200);
+    }
+
+    /**
+     * Handle the get_league_averages function call.
+     *
+     * @param array $arguments
+     * @return JsonResponse
+     */
+
+    /**
+     * Handle the get_league_averages function call.
+     *
+     * @param array $arguments
+     * @return JsonResponse
+     */
+    private function handleGetLeagueAverages(array $arguments)
+    {
+        $week = $arguments['week'] ?? null;
+
+        if (!$week) {
+            return response()->json(['message' => 'Missing required parameter: week.'], 400);
+        }
+
+        $result = $this->nflTeamStatsRepository->getLeagueAverages($week);
+
+        if (!$result['success']) {
+            return response()->json(['message' => $result['message']], 404);
+        }
+
+        // Format the league averages into a readable string
+        $averages = $result['data'];
+        $formattedContent = "League-Wide Average Statistics for Week {$week}:\n";
+        foreach ($averages as $key => $value) {
+            // Convert snake_case to Title Case
+            $formattedKey = ucwords(str_replace('_', ' ', $key));
+            // Format values appropriately
+            if (is_float($value)) {
+                $formattedValue = number_format($value, 2);
+            } elseif (is_string($value)) {
+                $formattedValue = $value;
+            } else {
+                $formattedValue = $value;
+            }
+            $formattedContent .= "{$formattedKey}: {$formattedValue}\n";
+        }
+
+        return response()->json(['content' => $formattedContent], 200);
+    }
+
+
 }

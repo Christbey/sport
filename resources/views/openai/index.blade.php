@@ -20,17 +20,21 @@
                     <form @submit="loading = true" id="chat-form" method="POST" action="{{ route('ask-chatgpt') }}"
                           class="space-y-4">
                         @csrf
-                        <div class="space-y-2">
-                            <label for="question" class="block text-sm font-medium text-gray-700">
-                                Ask a question:
-                            </label>
-                            <div class="relative">
-                                <input type="text" name="question" id="question" required autofocus
-                                       class="block w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                                              placeholder-gray-400 transition duration-150 ease-in-out"
-                                       placeholder="What are the predictions for week 14?">
-                            </div>
+                        <div>
+                            <label for="question" class="block text-sm font-medium text-gray-700 mb-2">Ask a
+                                question:</label>
+                            <input
+                                    type="text"
+                                    name="question"
+                                    id="question"
+                                    value="{{ old('question', request()->input('question', $question ?? '')) }}"
+                                    {{-- Retain the user's last query --}}
+                                    class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300"
+                                    placeholder="What are the predictions for week 14?"
+                                    required
+                                    autofocus>
                         </div>
+
 
                         <button type="submit"
                                 class="w-full flex items-center justify-center px-4 py-3 border border-transparent

@@ -8,6 +8,7 @@ use App\Repositories\NflTeamScheduleRepository;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Log;
 
 
 class TeamStatsRepository implements TeamStatsRepositoryInterface
@@ -724,50 +725,68 @@ class TeamStatsRepository implements TeamStatsRepositoryInterface
 
     }
 
-    public function getBestReceivers(?string $teamFilter = null, ?int $week = null, ?int $startWeek = null, ?int $endWeek = null): array
+    public function getBestReceivers(
+        ?string $teamFilter = null,
+        ?int    $week = null,
+        ?int    $startWeek = null,
+        ?int    $endWeek = null,
+        ?string $playerFilter = null,
+        ?int    $yardThreshold = null,
+        ?int    $season = null // Allow season to be defined by user
+    ): array
     {
+        $season = $season ?? config('nfl.seasonYear', 2024); // Default to 2024 season if not provided
+
         $query = DB::table('nfl_player_stats')
             ->join('nfl_box_scores', 'nfl_player_stats.game_id', '=', 'nfl_box_scores.game_id')
             ->join('nfl_team_schedules', 'nfl_box_scores.game_id', '=', 'nfl_team_schedules.game_id')
             ->where('nfl_team_schedules.season_type', 'Regular Season')
+            ->where('nfl_team_schedules.season', $season) // Add season filter
             ->whereNotNull('receiving')
             ->select(
                 'nfl_player_stats.long_name',
                 'nfl_player_stats.team_abv',
+                DB::raw('COUNT(DISTINCT nfl_box_scores.game_id) AS total_games'),
+                DB::raw('SUM(CASE WHEN CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.recYds")) AS SIGNED) > ? THEN 1 ELSE 0 END) AS games_with_over_threshold'),
                 DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.recYds")) AS SIGNED)) AS total_receiving_yards'),
-                DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.receptions")) AS UNSIGNED)) AS total_receptions'),
-                DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.recTD")) AS UNSIGNED)) AS total_recTDs'),
-                DB::raw('COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.recYds")) AS SIGNED)) / NULLIF(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.receptions")) AS UNSIGNED)), 0), 0) AS average_yards_per_reception'),
-                DB::raw('COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.recYds")) AS SIGNED)) / NULLIF(COUNT(DISTINCT nfl_box_scores.game_id), 0), 0) AS avg_yards_per_game')
+                DB::raw('COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.recYds")) AS SIGNED)) / NULLIF(COUNT(DISTINCT nfl_box_scores.game_id), 0), 0) AS avg_yards_per_game'),
+                DB::raw('COALESCE(SUM(CASE WHEN CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.recYds")) AS SIGNED) > ? THEN 1 ELSE 0 END) / NULLIF(COUNT(DISTINCT nfl_box_scores.game_id), 0), 0) * 100 AS percentage_over_threshold')
             )
             ->when($teamFilter, function ($q) use ($teamFilter) {
                 $q->where('nfl_player_stats.team_abv', $teamFilter);
             })
-            // If a specific week is provided, filter by that week.
-            ->when($week !== null, function ($q) use ($week) {
-                $q->where('nfl_team_schedules.game_week', $week);
-            })
-            // If a start and end week are provided (and no single week is given), filter by the range.
-            ->when($week === null && $startWeek !== null && $endWeek !== null, function ($q) use ($startWeek, $endWeek) {
-                $q->whereBetween('nfl_team_schedules.game_week', [$startWeek, $endWeek]);
+            ->when($playerFilter, function ($q) use ($playerFilter) {
+                $q->whereRaw('LOWER(nfl_player_stats.long_name) = ?', [strtolower($playerFilter)]);
             })
             ->groupBy('nfl_player_stats.long_name', 'nfl_player_stats.team_abv')
-            ->orderBy('total_receiving_yards', 'desc')
-            ->paginate(10);
+            ->orderBy('games_with_over_threshold', 'desc')
+            ->setBindings([$yardThreshold, $yardThreshold], 'select'); // Bind thresholds
 
+
+        // Log the query before execution
+        Log::info('Executing getBestReceivers query', [
+            'sql' => $query->toSql(),
+            'bindings' => $query->getBindings(),
+        ]);
+
+        // Execute the query
+        $results = $query->get();
+
+        // Format the results
         return [
-            'data' => $query->items(),
+            'data' => $results,
             'headings' => [
                 'Player',
                 'Team',
+                'Total Games',
+                'Games With Over Threshold',
                 'Total Receiving Yards',
-                'Total Receptions',
-                'Receiving TDs',
-                'Average Yards Per Reception',
-                'Average Yards Per Game'
-            ]
+                'Average Yards Per Game',
+                'Percentage Over Threshold (%)',
+            ],
         ];
     }
+
 
     /**
      * Get best rushers statistics
@@ -776,39 +795,51 @@ class TeamStatsRepository implements TeamStatsRepositoryInterface
      * @return array
      */
     public
-    function getBestRushers(?string $teamFilter = null, ?int $week = null, ?int $startWeek = null, ?int $endWeek = null): array
+    function getBestRushers(
+        ?string $teamFilter = null,
+        ?int    $week = null,
+        ?int    $startWeek = null,
+        ?int    $endWeek = null,
+        ?string $playerFilter = null,
+        ?int    $yardThreshold = null,
+        ?int    $season = null
+    ): array
     {
         $query = DB::table('nfl_player_stats')
             ->join('nfl_box_scores', 'nfl_player_stats.game_id', '=', 'nfl_box_scores.game_id')
             ->join('nfl_team_schedules', 'nfl_box_scores.game_id', '=', 'nfl_team_schedules.game_id')
             ->where('nfl_team_schedules.season_type', 'Regular Season')
             ->whereNotNull('rushing')
+            ->when($season, function ($q) use ($season) {
+                $q->where('nfl_team_schedules.season', $season);
+            })
             ->select(
                 'nfl_player_stats.long_name',
                 'nfl_player_stats.team_abv',
+                DB::raw('COUNT(DISTINCT nfl_box_scores.game_id) AS total_games'),
                 DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, "$.rushYds")) AS SIGNED)) AS total_rushing_yards'),
                 DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, "$.carries")) AS UNSIGNED)) AS total_attempts'),
                 DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, "$.rushTD")) AS UNSIGNED)) AS total_rushing_TDs'),
-                DB::raw('COUNT(DISTINCT nfl_box_scores.game_id) AS games_played'),
                 DB::raw('COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, "$.rushYds")) AS SIGNED)) / NULLIF(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, "$.carries")) AS UNSIGNED)), 0), 0) AS average_yards_per_attempt'),
-                DB::raw('COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, "$.rushYds")) AS SIGNED)) / NULLIF(COUNT(DISTINCT nfl_box_scores.game_id), 0), 0) AS avg_yards_per_game')
+                DB::raw('COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, "$.rushYds")) AS SIGNED)) / NULLIF(COUNT(DISTINCT nfl_box_scores.game_id), 0), 0) AS avg_yards_per_game'),
+                DB::raw('SUM(CASE WHEN CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, "$.rushYds")) AS SIGNED) > ? THEN 1 ELSE 0 END) AS games_with_over_threshold'),
+                DB::raw('COALESCE(SUM(CASE WHEN CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, "$.rushYds")) AS SIGNED) > ? THEN 1 ELSE 0 END) / NULLIF(COUNT(DISTINCT nfl_box_scores.game_id), 0), 0) * 100 AS percentage_over_threshold')
             )
+            ->setBindings([$yardThreshold, $yardThreshold])
             ->when($teamFilter, function ($q) use ($teamFilter) {
                 $q->where('nfl_player_stats.team_abv', $teamFilter);
             })
-            // If a specific week is provided, filter by that week.
             ->when($week !== null, function ($q) use ($week) {
                 $q->where('nfl_team_schedules.game_week', $week);
             })
-            // If a start and end week are provided (and no single week is given), filter by the range.
             ->when($week === null && $startWeek !== null && $endWeek !== null, function ($q) use ($startWeek, $endWeek) {
                 $q->whereBetween('nfl_team_schedules.game_week', [$startWeek, $endWeek]);
             })
-            ->when($teamFilter, function ($q) use ($teamFilter) {
-                $q->where('nfl_player_stats.team_abv', $teamFilter);
+            ->when($playerFilter, function ($q) use ($playerFilter) {
+                $q->whereRaw('LOWER(nfl_player_stats.long_name) = ?', [strtolower($playerFilter)]);
             })
             ->groupBy('nfl_player_stats.long_name', 'nfl_player_stats.team_abv')
-            ->orderBy('total_rushing_yards', 'desc')
+            ->orderBy('games_with_over_threshold', 'desc')
             ->paginate(10);
 
         return [
@@ -816,13 +847,15 @@ class TeamStatsRepository implements TeamStatsRepositoryInterface
             'headings' => [
                 'Player',
                 'Team',
+                'Total Games',
                 'Total Rushing Yards',
                 'Total Attempts',
                 'Rushing TDs',
-                'Games Played',
                 'Average Yards Per Attempt',
-                'Average Yards Per Game'
-            ]
+                'Average Yards Per Game',
+                'Games With Over Threshold',
+                'Percentage Over Threshold'
+            ],
         ];
     }
 
@@ -832,8 +865,16 @@ class TeamStatsRepository implements TeamStatsRepositoryInterface
      * @param string|null $teamFilter
      * @return array
      */
-    public
-    function getBestTacklers(?string $teamFilter = null, ?int $week = null, ?int $startWeek = null, ?int $endWeek = null): array
+
+    public function getBestTacklers(
+        ?string $teamFilter = null,
+        ?int    $week = null,
+        ?int    $startWeek = null,
+        ?int    $endWeek = null,
+        ?string $playerFilter = null,
+        ?int    $tackleThreshold = null,
+        ?int    $season = null
+    ): array
     {
         $query = DB::table('nfl_player_stats')
             ->join('nfl_box_scores', 'nfl_player_stats.game_id', '=', 'nfl_box_scores.game_id')
@@ -845,23 +886,28 @@ class TeamStatsRepository implements TeamStatsRepositoryInterface
                 'nfl_player_stats.team_abv',
                 DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(defense, "$.totalTackles")) AS UNSIGNED)) AS total_tackles'),
                 DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(defense, "$.sacks")) AS UNSIGNED)) AS total_sacks'),
+                DB::raw('COUNT(DISTINCT nfl_box_scores.game_id) AS total_games'),
+                DB::raw('SUM(CASE WHEN CAST(JSON_UNQUOTE(JSON_EXTRACT(defense, "$.totalTackles")) AS UNSIGNED) > ? THEN 1 ELSE 0 END) AS games_with_over_threshold'),
                 DB::raw('COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(defense, "$.totalTackles")) AS UNSIGNED)) / NULLIF(COUNT(DISTINCT nfl_box_scores.game_id), 0), 0) AS avg_tackles_per_game'),
-                DB::raw('COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(defense, "$.sacks")) AS UNSIGNED)) / NULLIF(COUNT(DISTINCT nfl_box_scores.game_id), 0), 0) AS avg_sacks_per_game')
+                DB::raw('COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(defense, "$.sacks")) AS UNSIGNED)) / NULLIF(COUNT(DISTINCT nfl_box_scores.game_id), 0), 0) AS avg_sacks_per_game'),
+                DB::raw('COALESCE(SUM(CASE WHEN CAST(JSON_UNQUOTE(JSON_EXTRACT(defense, "$.totalTackles")) AS UNSIGNED) > ? THEN 1 ELSE 0 END) / NULLIF(COUNT(DISTINCT nfl_box_scores.game_id), 0), 0) * 100 AS percentage_over_threshold')
             )
             ->when($teamFilter, function ($q) use ($teamFilter) {
                 $q->where('nfl_player_stats.team_abv', $teamFilter);
             })
-            // If a specific week is provided, filter by that week.
+            ->when($playerFilter, function ($q) use ($playerFilter) {
+                $q->whereRaw('LOWER(nfl_player_stats.long_name) = ?', [strtolower($playerFilter)]);
+            })
+            ->when($season, function ($q) use ($season) {
+                $q->where('nfl_team_schedules.season', $season);
+            })
             ->when($week !== null, function ($q) use ($week) {
                 $q->where('nfl_team_schedules.game_week', $week);
             })
-            // If a start and end week are provided (and no single week is given), filter by the range.
             ->when($week === null && $startWeek !== null && $endWeek !== null, function ($q) use ($startWeek, $endWeek) {
                 $q->whereBetween('nfl_team_schedules.game_week', [$startWeek, $endWeek]);
             })
-            ->when($teamFilter, function ($q) use ($teamFilter) {
-                $q->where('nfl_player_stats.team_abv', $teamFilter);
-            })
+            ->having('games_with_over_threshold', '>', $tackleThreshold ?? 0)
             ->groupBy('nfl_player_stats.long_name', 'nfl_player_stats.team_abv')
             ->orderBy('total_tackles', 'desc')
             ->paginate(10);
@@ -873,9 +919,12 @@ class TeamStatsRepository implements TeamStatsRepositoryInterface
                 'Team',
                 'Total Tackles',
                 'Total Sacks',
-                'Avg Tackles',
-                'Avg Sacks'
-            ]
+                'Total Games',
+                'Games With Over Threshold',
+                'Avg Tackles Per Game',
+                'Avg Sacks Per Game',
+                'Percentage Over Threshold',
+            ],
         ];
     }
 
