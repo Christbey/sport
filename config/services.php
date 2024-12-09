@@ -64,5 +64,17 @@ return [
         'temperature' => env('OPENAI_TEMPERATURE', 0.7),
     ],
 
+    'stripe' => [
+        'model' => App\Models\User::class,
+        'api' => [
+            'key' => env('STRIPE_API_KEY'),
+            'secret' => env('STRIPE_API_SECRET'),
+        ],
+        'webhook' => [
+            'secret' => env('STRIPE_WEBHOOK_SECRET'),
+            'tolerance' => env('STRIPE_WEBHOOK_TOLERANCE', 300),
+        ],
+    ],
+
 
 ];

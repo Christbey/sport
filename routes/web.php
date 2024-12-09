@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\Espn\EspnQbrController;
 use App\Http\Controllers\Api\TeamRankingController;
 use App\Http\Controllers\Api\TeamStatsController;
 use App\Http\Controllers\ChatGPTController;
+use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\ForgeApiController;
 use App\Http\Controllers\Nfl\NflEloRatingController;
 use App\Http\Controllers\Nfl\NflSheetController;
@@ -18,6 +19,8 @@ use App\Http\Controllers\NflTrendsController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\PickemController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\StripeWebhookController;
+use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\UserRoleController;
 use Illuminate\Support\Facades\Route;
 
@@ -25,6 +28,10 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 });
+Route::get('/home', function () {
+    return view('welcome');
+})->name('home');
+
 
 Route::get('/test/form', function () {
     return view('curbbliss');
@@ -151,3 +158,14 @@ Route::put('user-roles/{user}', [UserRoleController::class, 'update'])->name('us
 Route::get('/nfl/trends/compare', [NflTrendsController::class, 'compare'])->name('nfl.trends.compare');
 Route::get('/ask-chatgpt', [ChatGPTController::class, 'showChat'])->name('show-chatgpt');
 Route::post('/ask-chatgpt', [ChatGPTController::class, 'ask'])->name('ask-chatgpt');
+
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/subscriptions', [SubscriptionController::class, 'index'])->name('subscription.index');
+    Route::post('/subscriptions/checkout', [SubscriptionController::class, 'checkout'])->name('subscription.checkout');
+    Route::get('/subscriptions/success', function () {
+        return 'Subscription successful!';
+    })->name('subscription.success');
+});
+
+Route::post('/stripe/webhook', [StripeWebhookController::class, 'handleWebhook'])->name('stripe.webhook');

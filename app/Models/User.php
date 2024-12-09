@@ -7,6 +7,7 @@ use App\Models\CollegeFootball\CollegeFootballNote;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Cashier\Billable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Jetstream\HasProfilePhoto;
 use Laravel\Jetstream\HasTeams;
@@ -23,6 +24,7 @@ class User extends Authenticatable
     use TwoFactorAuthenticatable;
     use Notifiable;
     use HasRoles;
+    use billable;
 
     /**
      * The attributes that are mass assignable.
@@ -42,9 +44,14 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
-        'two_factor_recovery_codes',
-        'two_factor_secret',
+        'stripe_id',
+        'pm_type',
+        'pm_last_four',
+        'card_brand',
+        'card_last_four',
+        'trial_ends_at',
     ];
+
     /**
      * The accessors to append to the model's array form.
      *
@@ -67,6 +74,19 @@ class User extends Authenticatable
     public function notes()
     {
         return $this->hasMany(CollegeFootballNote::class);
+    }
+
+    public function stripeName()
+    {
+        return $this->name;
+    }
+
+    /**
+     * Get the customer email that should be synced to Stripe.
+     */
+    public function stripeEmail()
+    {
+        return $this->email;
     }
 
     /**

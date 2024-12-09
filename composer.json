@@ -7,6 +7,7 @@
     "require": {
         "php": "^8.2",
         "laravel-notification-channels/discord": "^1.6",
+        "laravel/cashier": "^15.5",
         "laravel/framework": "^11.9",
         "laravel/jetstream": "^5.1",
         "laravel/sanctum": "^4.0",
@@ -15,6 +16,7 @@
         "league/csv": "^9.18",
         "livewire/livewire": "^3.0",
         "spatie/laravel-permission": "^6.10",
+        "stripe/stripe-php": "^16.3",
         "symfony/css-selector": "^7.1",
         "symfony/dom-crawler": "^7.1"
     },
