@@ -1,66 +1,96 @@
 <?php
-
+// app/Http/Controllers/WebhookController.php
 namespace App\Http\Controllers;
 
-class StripeWebhookController extends Controller
+use Carbon\Carbon;
+use Laravel\Cashier\Http\Controllers\WebhookController as CashierController;
+use Stripe\Subscription;
+use Symfony\Component\HttpFoundation\Response;
+
+class StripeWebhookController extends CashierController
 {
-//    public function handleWebhook(Request $request)
-//    {
-//        $stripeSecretKey = config('services.stripe.api.secret');
-//        $endpointSecret = config('services.stripe.webhook.secret');
-//
-//        if (!$stripeSecretKey || !$endpointSecret) {
-//            Log::error('Stripe keys are not configured.');
-//            return response('Stripe keys are not configured', 500);
-//        }
-//
-//        Stripe::setApiKey($stripeSecretKey);
-//
-//        $payload = $request->getContent();
-//        $sigHeader = $request->header('Stripe-Signature');
-//        $event = null;
-//
-//        try {
-//            $event = Webhook::constructEvent($payload, $sigHeader, $endpointSecret);
-//        } catch (UnexpectedValueException $e) {
-//            Log::error('Invalid payload:', ['error' => $e->getMessage()]);
-//            return response('Invalid payload', 400);
-//        } catch (SignatureVerificationException $e) {
-//            Log::error('Invalid signature:', [
-//                'error' => $e->getMessage(),
-//                'payload' => $payload,
-//                'sigHeader' => $sigHeader,
-//            ]);
-//            return response('Invalid signature', 400);
-//        }
-//
-//        Log::info('Webhook event received:', ['type' => $event->type, 'id' => $event->id]);
-//
-//        switch ($event->type) {
-//            case 'payment_intent.succeeded':
-//                $this->handlePaymentIntentSucceeded($event->data->object);
-//                break;
-//
-//            case 'checkout.session.completed':
-//                $this->handleCheckoutSessionCompleted($event->data->object);
-//                break;
-//
-//            default:
-//                Log::warning('Unhandled event type: ' . $event->type);
-//        }
-//
-//        return response('Webhook handled', 200);
-//    }
-//
-//    protected function handlePaymentIntentSucceeded($paymentIntent)
-//    {
-//        Log::info('PaymentIntent succeeded:', ['payment_intent' => $paymentIntent]);
-//        // Your business logic here
-//    }
-//
-//    protected function handleCheckoutSessionCompleted($session)
-//    {
-//        Log::info('Checkout session completed:', ['session' => $session]);
-//        // Your business logic here
-//    }
+    /**
+     * Handle customer subscription updated.
+     *
+     * @param array $payload
+     * @return Response
+     */
+    protected function handleCustomerSubscriptionUpdated(array $payload)
+    {
+        if ($user = $this->getUserByStripeId($payload['data']['object']['customer'])) {
+            $data = $payload['data']['object'];
+
+            $subscription = $user->subscriptions()->firstOrNew(['stripe_id' => $data['id']]);
+
+            // Handle subscription updates
+            if (isset($data['status']) && $data['status'] === Subscription::STATUS_INCOMPLETE_EXPIRED) {
+                $subscription->items()->delete();
+                $subscription->delete();
+                return $this->successMethod();
+            }
+
+            // Update subscription details
+            $subscription->stripe_status = $data['status'];
+            $subscription->quantity = $data['items']['data'][0]['quantity'] ?? null;
+            $subscription->stripe_price = $data['items']['data'][0]['price']['id'] ?? null;
+
+            // Handle trial periods
+            if (isset($data['trial_end'])) {
+                $subscription->trial_ends_at = $data['trial_end'] ?
+                    Carbon::createFromTimestamp($data['trial_end']) : null;
+            }
+
+            // Handle cancellation
+            if (isset($data['cancel_at_period_end'])) {
+                if ($data['cancel_at_period_end']) {
+                    $subscription->ends_at = Carbon::createFromTimestamp($data['current_period_end']);
+                } else {
+                    $subscription->ends_at = null;
+                }
+            }
+
+            $subscription->save();
+        }
+
+        return $this->successMethod();
+    }
+
+    /**
+     * Handle customer subscription deleted.
+     *
+     * @param array $payload
+     * @return Response
+     */
+    protected function handleCustomerSubscriptionDeleted(array $payload)
+    {
+        if ($user = $this->getUserByStripeId($payload['data']['object']['customer'])) {
+            $user->subscriptions->filter(function ($subscription) use ($payload) {
+                return $subscription->stripe_id === $payload['data']['object']['id'];
+            })->each(function ($subscription) {
+                $subscription->markAsCanceled();
+            });
+        }
+
+        return $this->successMethod();
+    }
+
+    /**
+     * Handle payment action required.
+     *
+     * @param array $payload
+     * @return Response
+     */
+    protected function handleInvoicePaymentActionRequired(array $payload)
+    {
+        if ($user = $this->getUserByStripeId($payload['data']['object']['customer'])) {
+            $subscription = $user->subscription('default');
+
+            if ($subscription) {
+                $subscription->stripe_status = Subscription::STATUS_INCOMPLETE;
+                $subscription->save();
+            }
+        }
+
+        return $this->successMethod();
+    }
 }

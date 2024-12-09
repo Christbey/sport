@@ -161,11 +161,14 @@ Route::post('/ask-chatgpt', [ChatGPTController::class, 'ask'])->name('ask-chatgp
 
 
 Route::middleware(['auth'])->group(function () {
-    Route::get('/subscriptions', [SubscriptionController::class, 'index'])->name('subscription.index');
-    Route::post('/subscriptions/checkout', [SubscriptionController::class, 'checkout'])->name('subscription.checkout');
-    Route::get('/subscriptions/success', function () {
-        return 'Subscription successful!';
-    })->name('subscription.success');
+    Route::get('/subscription', [SubscriptionController::class, 'index'])->name('subscription.index');
+    Route::post('/subscription/checkout', [SubscriptionController::class, 'checkout'])->name('subscription.checkout');
+    Route::get('/subscription/success', [SubscriptionController::class, 'success'])->name('subscription.success');
+    Route::post('/subscription/cancel', [SubscriptionController::class, 'cancel'])->name('subscription.cancel');
 });
 
-Route::post('/stripe/webhook', [StripeWebhookController::class, 'handleWebhook'])->name('stripe.webhook');
+// Webhook routes (outside auth middleware)
+Route::post(
+    '/stripe/webhook',
+    [StripeWebhookController::class, 'handleWebhook']
+)->name('cashier.webhook');
