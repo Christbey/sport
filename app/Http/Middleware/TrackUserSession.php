@@ -20,17 +20,19 @@ class TrackUserSession
      */
     public function handle(Request $request, Closure $next)
     {
-        // Attempt to get unique_id from cookie
-        $uniqueId = $request->cookie('unique_id');
+        // Skip session tracking for Stripe webhooks
+        if ($request->is('stripe/*') || $request->is('*/webhook')) {
+            return $next($request);
+        }
 
-        // If using localStorage on the frontend, you might pass it as a header or param:
-        // $uniqueId = $request->header('X-Unique-Id') ?: $uniqueId;
-        // or
-        // $uniqueId = $request->input('unique_id') ?: $uniqueId;
+        // Rest of your existing code...
+        $uniqueId = $request->cookie('unique_id');
 
         if (!$uniqueId) {
             $uniqueId = Str::random(13);
         }
+        // ... etc
+    
 
         // Determine IP (v4 / v6)
         $ip = $request->ip();

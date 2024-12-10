@@ -162,12 +162,10 @@ Route::get('/ask-chatgpt', [ChatGPTController::class, 'showChat'])->name('show-c
 Route::post('/ask-chatgpt', [ChatGPTController::class, 'ask'])->name('ask-chatgpt');
 
 
-// routes/web.php
-// routes/web.php
-// routes/web.php
 Route::post('/stripe/webhook', [StripeWebhookController::class, 'handleWebhook'])
     ->name('cashier.webhook')
-    ->withoutMiddleware([VerifyCsrfToken::class]); // Use Cashier's middleware
+    ->middleware('stripe.webhooks')
+    ->withoutMiddleware([VerifyCsrfToken::class]);
 
 // routes/web.php
 

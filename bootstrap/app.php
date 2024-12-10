@@ -11,6 +11,7 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Laravel\Cashier\Http\Middleware\VerifyWebhookSignature;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
 use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
@@ -23,7 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        // Define the web group explicitly:
+        // Define the web group explicitly
         $middleware->group('web', [
             EncryptCookies::class,
             AddQueuedCookiesToResponse::class,
@@ -31,15 +32,23 @@ return Application::configure(basePath: dirname(__DIR__))
             ShareErrorsFromSession::class,
             VerifyCsrfToken::class,
             SubstituteBindings::class,
-            TrackUserSession::class, // Add your custom middleware here
+            TrackUserSession::class,
+        ]);
+
+        // Add Stripe webhook middleware group
+        $middleware->group('stripe.webhooks', [
+            EncryptCookies::class,
+            AddQueuedCookiesToResponse::class,
+            StartSession::class,
+            VerifyWebhookSignature::class,
         ]);
 
         $middleware->alias([
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
-            'subscribed' => Subscribed::class,  // Add this line
-
+            'subscribed' => Subscribed::class,
+            'stripe.webhook' => VerifyWebhookSignature::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
