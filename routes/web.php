@@ -23,8 +23,10 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\UserRoleController;
+use App\Http\Middleware\TrackUserSession;
 use App\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Support\Facades\Route;
+use Laravel\Cashier\Http\Middleware\VerifyWebhookSignature;
 
 // Basic Routes
 Route::get('/', function () {
@@ -162,10 +164,13 @@ Route::get('/ask-chatgpt', [ChatGPTController::class, 'showChat'])->name('show-c
 Route::post('/ask-chatgpt', [ChatGPTController::class, 'ask'])->name('ask-chatgpt');
 
 
-Route::post('/stripe/webhook', [StripeWebhookController::class, 'handleWebhook'])
+// Stripe webhook route
+Route::post('stripe/webhook', [StripeWebhookController::class, 'handleWebhook'])
     ->name('cashier.webhook')
-    ->middleware('stripe.webhooks')
-    ->withoutMiddleware([VerifyCsrfToken::class]);
+    ->middleware(VerifyWebhookSignature::class)
+    ->withoutMiddleware([
+        TrackUserSession::class
+    ]);
 
 // routes/web.php
 
