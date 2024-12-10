@@ -20,11 +20,11 @@ use App\Http\Controllers\NflTrendsController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\PickemController;
 use App\Http\Controllers\RoleController;
-use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\UserRoleController;
 use App\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Support\Facades\Route;
+use Laravel\Cashier\Http\Controllers\WebhookController;
 
 // Basic Routes
 Route::get('/', function () {
@@ -163,9 +163,10 @@ Route::post('/ask-chatgpt', [ChatGPTController::class, 'ask'])->name('ask-chatgp
 
 
 // routes/web.php
-Route::post('/stripe/webhook', [StripeWebhookController::class, 'handleWebhook'])
+// routes/web.php
+Route::post('/stripe/webhook', [WebhookController::class, 'handleWebhook'])
     ->name('cashier.webhook')
-    ->withoutMiddleware([VerifyCsrfToken::class]); // Explicitly disable CSRF
+    ->withoutMiddleware([VerifyCsrfToken::class]);
 
 // routes/web.php
 
