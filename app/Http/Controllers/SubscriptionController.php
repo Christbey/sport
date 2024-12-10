@@ -42,7 +42,8 @@ class SubscriptionController extends Controller
 
     public function success(Request $request)
     {
-        return view('subscriptions.success');
+        $subscription = auth()->user()->subscriptions()->latest()->first();
+        return view('subscriptions.success', compact('subscription'));
     }
 
 
