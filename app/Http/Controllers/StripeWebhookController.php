@@ -131,4 +131,23 @@ class StripeWebhookController extends CashierWebhookController
 
         return $response;
     }
+
+    protected function handleInvoicePaymentSucceeded(array $payload)
+    {
+        Log::info('Invoice payment succeeded', [
+            'invoice_id' => $payload['data']['object']['id'],
+            'customer' => $payload['data']['object']['customer'],
+            'amount' => $payload['data']['object']['amount_paid'],
+            'subscription' => $payload['data']['object']['subscription']
+        ]);
+
+        if ($user = $this->getUserByStripeId($payload['data']['object']['customer'])) {
+            Log::info('Found user for payment', ['user_id' => $user->id]);
+
+            // You can add any additional logic here
+            // For example, updating user's payment status, sending confirmation emails, etc.
+        }
+
+        return $this->successMethod();
+    }
 }
