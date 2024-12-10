@@ -23,8 +23,8 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\UserRoleController;
+use App\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Support\Facades\Route;
-use Laravel\Cashier\Http\Middleware\VerifyWebhookSignature;
 
 // Basic Routes
 Route::get('/', function () {
@@ -165,9 +165,9 @@ Route::post('/ask-chatgpt', [ChatGPTController::class, 'ask'])->name('ask-chatgp
 // routes/web.php
 // routes/web.php
 // routes/web.php
-Route::post('stripe/webhook', [StripeWebhookController::class, 'handleWebhook'])
+Route::post('/stripe/webhook', [StripeWebhookController::class, 'handleWebhook'])
     ->name('cashier.webhook')
-    ->middleware([VerifyWebhookSignature::class]);  // Use Cashier's middleware
+    ->withoutMiddleware([VerifyCsrfToken::class]); // Use Cashier's middleware
 
 // routes/web.php
 
