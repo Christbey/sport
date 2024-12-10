@@ -23,6 +23,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\UserRoleController;
+use App\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Support\Facades\Route;
 
 // Basic Routes
@@ -161,8 +162,10 @@ Route::get('/ask-chatgpt', [ChatGPTController::class, 'showChat'])->name('show-c
 Route::post('/ask-chatgpt', [ChatGPTController::class, 'ask'])->name('ask-chatgpt');
 
 
+// routes/web.php
 Route::post('/stripe/webhook', [StripeWebhookController::class, 'handleWebhook'])
-    ->name('cashier.webhook');
+    ->name('cashier.webhook')
+    ->withoutMiddleware([VerifyCsrfToken::class]); // Explicitly disable CSRF
 
 // routes/web.php
 

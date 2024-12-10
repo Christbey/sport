@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 #use App\Mail\PaymentFailed;
 #use App\Mail\SubscriptionCancelled;
 #use App\Mail\SubscriptionCreated;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Laravel\Cashier\Http\Controllers\WebhookController as CashierWebhookController;
 use Symfony\Component\HttpFoundation\Response;
@@ -17,6 +18,17 @@ class StripeWebhookController extends CashierWebhookController
      * @param array $payload
      * @return Response
      */
+
+    public function handleWebhook(Request $request)
+    {
+        Log::info('Webhook received', [
+            'payload' => $request->all(),
+            'headers' => $request->headers->all()
+        ]);
+
+        return parent::handleWebhook($request);
+    }
+
     protected function handleCustomerSubscriptionCreated(array $payload)
     {
         // Call the parent handler first
