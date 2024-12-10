@@ -171,7 +171,7 @@ Route::post('/stripe/webhook', [StripeWebhookController::class, 'handleWebhook']
 
 // routes/web.php
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['web', 'auth'])->group(function () {
     // Keep all routes consistent with 'subscriptions' plural
     Route::get('/subscriptions', [SubscriptionController::class, 'index'])
         ->name('subscription.index');
