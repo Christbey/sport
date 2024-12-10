@@ -6,9 +6,10 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken as Middleware;
 
 class VerifyCsrfToken extends Middleware
 {
+    // app/Http/Middleware/VerifyCsrfToken.php
     protected $except = [
         'stripe/*',
-        'subscriptions/webhook',
-        'webhooks/*'
+        'stripe/webhook',
+        '/stripe/webhook'  // Add multiple variations to be safe
     ];
 }
