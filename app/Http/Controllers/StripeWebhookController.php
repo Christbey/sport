@@ -1,96 +1,122 @@
 <?php
-// app/Http/Controllers/WebhookController.php
+
 namespace App\Http\Controllers;
 
-use Carbon\Carbon;
-use Laravel\Cashier\Http\Controllers\WebhookController as CashierController;
-use Stripe\Subscription;
+#use App\Mail\PaymentFailed;
+#use App\Mail\SubscriptionCancelled;
+#use App\Mail\SubscriptionCreated;
+use Illuminate\Support\Facades\Log;
+use Laravel\Cashier\Http\Controllers\WebhookController as CashierWebhookController;
 use Symfony\Component\HttpFoundation\Response;
 
-class StripeWebhookController extends CashierController
+class StripeWebhookController extends CashierWebhookController
 {
     /**
-     * Handle customer subscription updated.
+     * Handle subscription created.
      *
      * @param array $payload
      * @return Response
      */
-    protected function handleCustomerSubscriptionUpdated(array $payload)
+    protected function handleCustomerSubscriptionCreated(array $payload)
     {
+        // Call the parent handler first
+        $response = parent::handleCustomerSubscriptionCreated($payload);
+
+        // Get the user
         if ($user = $this->getUserByStripeId($payload['data']['object']['customer'])) {
-            $data = $payload['data']['object'];
+            // Log the event
+            Log::info('Subscription created for user: ' . $user->id);
 
-            $subscription = $user->subscriptions()->firstOrNew(['stripe_id' => $data['id']]);
+            // Send welcome email
+            #Mail::to($user)->send(new SubscriptionCreated($user));
 
-            // Handle subscription updates
-            if (isset($data['status']) && $data['status'] === Subscription::STATUS_INCOMPLETE_EXPIRED) {
-                $subscription->items()->delete();
-                $subscription->delete();
-                return $this->successMethod();
-            }
-
-            // Update subscription details
-            $subscription->stripe_status = $data['status'];
-            $subscription->quantity = $data['items']['data'][0]['quantity'] ?? null;
-            $subscription->stripe_price = $data['items']['data'][0]['price']['id'] ?? null;
-
-            // Handle trial periods
-            if (isset($data['trial_end'])) {
-                $subscription->trial_ends_at = $data['trial_end'] ?
-                    Carbon::createFromTimestamp($data['trial_end']) : null;
-            }
-
-            // Handle cancellation
-            if (isset($data['cancel_at_period_end'])) {
-                if ($data['cancel_at_period_end']) {
-                    $subscription->ends_at = Carbon::createFromTimestamp($data['current_period_end']);
-                } else {
-                    $subscription->ends_at = null;
-                }
-            }
-
-            $subscription->save();
+            // Additional business logic (e.g., grant access to features)
+            // $user->grantSubscriptionAccess();
         }
 
-        return $this->successMethod();
+        return $response;
     }
 
     /**
-     * Handle customer subscription deleted.
+     * Handle subscription cancelled.
      *
      * @param array $payload
      * @return Response
      */
     protected function handleCustomerSubscriptionDeleted(array $payload)
     {
+        // Call the parent handler first
+        $response = parent::handleCustomerSubscriptionDeleted($payload);
+
         if ($user = $this->getUserByStripeId($payload['data']['object']['customer'])) {
-            $user->subscriptions->filter(function ($subscription) use ($payload) {
-                return $subscription->stripe_id === $payload['data']['object']['id'];
-            })->each(function ($subscription) {
-                $subscription->markAsCanceled();
-            });
+            // Log the cancellation
+            Log::info('Subscription cancelled for user: ' . $user->id);
+
+            // Send cancellation email
+            #Mail::to($user)->send(new SubscriptionCancelled($user));
+
+            // Additional business logic (e.g., revoke access)
+            // $user->revokeSubscriptionAccess();
+        }
+
+        return $response;
+    }
+
+    /**
+     * Handle payment failed.
+     *
+     * @param array $payload
+     * @return Response
+     */
+    protected function handleInvoicePaymentFailed(array $payload)
+    {
+        if ($user = $this->getUserByStripeId($payload['data']['object']['customer'])) {
+            // Log the failed payment
+            Log::error('Payment failed for user: ' . $user->id);
+
+            // Send payment failed notification
+            #Mail::to($user)->send(new PaymentFailed($user));
+
+            // Additional business logic (e.g., restrict access)
+            // $user->restrictAccess();
         }
 
         return $this->successMethod();
     }
 
     /**
-     * Handle payment action required.
+     * Handle subscription updated.
      *
      * @param array $payload
      * @return Response
      */
-    protected function handleInvoicePaymentActionRequired(array $payload)
+    protected function handleCustomerSubscriptionUpdated(array $payload)
     {
-        if ($user = $this->getUserByStripeId($payload['data']['object']['customer'])) {
-            $subscription = $user->subscription('default');
+        // Call the parent handler first
+        $response = parent::handleCustomerSubscriptionUpdated($payload);
 
-            if ($subscription) {
-                $subscription->stripe_status = Subscription::STATUS_INCOMPLETE;
-                $subscription->save();
+        if ($user = $this->getUserByStripeId($payload['data']['object']['customer'])) {
+            // Log the update
+            Log::info('Subscription updated for user: ' . $user->id, [
+                'status' => $payload['data']['object']['status'],
+                'plan' => $payload['data']['object']['items']['data'][0]['price']['id']
+            ]);
+
+            // Handle status changes
+            $status = $payload['data']['object']['status'];
+            switch ($status) {
+                case 'past_due':
+                    // Handle past due status
+                    break;
+                case 'incomplete':
+                    // Handle incomplete status
+                    break;
+                case 'active':
+                    // Handle reactivation
+                    break;
             }
         }
 
-        return $this->successMethod();
+        return $response;
     }
 }

@@ -26,6 +26,9 @@
                 </svg>
                 Leaderboard
             </a>
+            <a href="{{ route('billing.portal') }}" class="text-gray-600 hover:text-gray-900">
+                Manage Subscription
+            </a>
         </div>
     </div>
 </section>

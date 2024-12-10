@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\CoversController;
 use App\Http\Controllers\Api\Espn\EspnQbrController;
 use App\Http\Controllers\Api\TeamRankingController;
 use App\Http\Controllers\Api\TeamStatsController;
+use App\Http\Controllers\BillingPortalController;
 use App\Http\Controllers\ChatGPTController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\ForgeApiController;
@@ -160,15 +161,43 @@ Route::get('/ask-chatgpt', [ChatGPTController::class, 'showChat'])->name('show-c
 Route::post('/ask-chatgpt', [ChatGPTController::class, 'ask'])->name('ask-chatgpt');
 
 
-Route::middleware(['auth'])->group(function () {
-    Route::get('/subscription', [SubscriptionController::class, 'index'])->name('subscription.index');
-    Route::post('/subscription/checkout', [SubscriptionController::class, 'checkout'])->name('subscription.checkout');
-    Route::get('/subscription/success', [SubscriptionController::class, 'success'])->name('subscription.success');
-    Route::post('/subscription/cancel', [SubscriptionController::class, 'cancel'])->name('subscription.cancel');
+Route::post('/stripe/webhook', [StripeWebhookController::class, 'handleWebhook'])
+    ->name('cashier.webhook');
+
+// routes/web.php
+
+// routes/web.php
+
+
+// routes/web.php
+
+Route::middleware('auth')->group(function () {
+    // Keep all routes consistent with 'subscriptions' plural
+    Route::get('/subscriptions', [SubscriptionController::class, 'index'])
+        ->name('subscription.index');
+
+    Route::post('/subscriptions/checkout', [SubscriptionController::class, 'checkout'])
+        ->name('subscription.checkout');
+
+    Route::get('/subscriptions/success', [SubscriptionController::class, 'success'])
+        ->name('subscription.success');
+
+    // Change this to match plural 'subscriptions'
+    Route::get('/subscriptions/cancel', [SubscriptionController::class, 'cancel'])
+        ->name('subscription.cancel');
 });
 
-// Webhook routes (outside auth middleware)
-Route::post(
-    '/stripe/webhook',
-    [StripeWebhookController::class, 'handleWebhook']
-)->name('cashier.webhook');
+//// Protected routes that require subscription
+//Route::middleware(['auth', 'subscribed'])->group(function () {
+//    Route::get('/dashboard', function () {
+//        return view('dashboard');
+//    })->name('dashboard');
+//
+//    // Add other protected routes here
+//});
+
+// Billing portal route
+Route::middleware(['auth'])->group(function () {
+    Route::get('/billing-portal', [BillingPortalController::class, 'redirectToPortal'])
+        ->name('billing.portal');
+});
