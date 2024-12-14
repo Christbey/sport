@@ -156,11 +156,18 @@ class NflEloPredictionRepository implements NflEloPredictionRepositoryInterface
                     'win_probability' => round($winProbability * 100, 1),
                     'predicted_score' => [
                         $teamAbv => round($predictedScores['team'], 1),
-                        $prediction->opponent => round($predictedScores['opponent'], 1)
+                        $prediction->opponent => round($predictedScores['opponent'], 1),
                     ],
                     'point_differential' => abs($prediction->predicted_spread),
-                    'confidence_level' => $this->determineConfidenceLevel($winProbability)
-                ]
+                    'confidence_level' => $this->determineConfidenceLevel($winProbability),
+                ],
+                'summary' => $this->generatePredictionSummary(
+                    teamAbv: $teamAbv,
+                    opponent: $prediction->opponent,
+                    isPredictedWinner: $prediction->predicted_spread > 0,
+                    winProbability: $winProbability * 100,
+                    pointDifferential: abs($prediction->predicted_spread)
+                ),
             ];
 
             // Add summary

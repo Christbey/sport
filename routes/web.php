@@ -162,8 +162,8 @@ Route::put('user-roles/{user}', [UserRoleController::class, 'update'])->name('us
 Route::get('/nfl/trends/compare', [NflTrendsController::class, 'compare'])->name('nfl.trends.compare');
 Route::get('/ask-chatgpt', [ChatGPTController::class, 'showChat'])->name('show-chatgpt');
 Route::post('/ask-chatgpt', [ChatGPTController::class, 'ask'])->name('ask-chatgpt');
-
-
+Route::get('/stream-conversations', [ChatGPTController::class, 'loadConversations'])->name('stream-conversations');
+Route::get('/stream-conversations-sse', [ChatGPTController::class, 'streamConversations'])->name('stream-conversations-sse');
 // Stripe webhook route
 Route::post('stripe/webhook', [StripeWebhookController::class, 'handleWebhook'])
     ->name('cashier.webhook')

@@ -22,12 +22,12 @@ use Log;
 
 class ChatGPTController extends Controller
 {
+    public $conversations = [];
     protected OpenAIChatService $chatService;
     protected NflEloPredictionRepository $repository;
     protected TeamStatsRepository $teamStatsRepository;
     protected NflBettingOddsRepository $bettingOddsRepository;
     private NflPlayerDataRepository $playerDataRepository;
-
     private NflBoxScoreRepository $boxScoreRepository;
     private NflPlayerStatRepository $playerStatRepository;
     private NflTeamScheduleRepository $scheduleRepository;
@@ -79,7 +79,8 @@ class ChatGPTController extends Controller
             ProcessChatMessage::dispatch($userId, $userMessage);
 
             // Return a quick response indicating the request is being processed
-            return response()->json(['status' => 'processing', 'input' => $userMessage]);
+            return response()->json(['status' => 'processing', 'input' => $userMessage, 'timestamp' => now()->toDateTimeString(),
+            ]);
         } catch (Exception $e) {
             Log::error('Error dispatching ProcessChatMessage job:', ['error' => $e->getMessage()]);
             return response()->json(['error' => 'An error occurred while processing your request.'], 500);
@@ -470,13 +471,38 @@ class ChatGPTController extends Controller
                 return $this->scheduleRepository->getScheduleByTeam($teamId, $teamFilter);
 
             case 'check_team_prediction':
-                return $this->handleTeamPredictions([
-                    'team_abv' => $arguments['team_abv'],
-                    'week' => $arguments['week'] ?? OpenAI::getCurrentNFLWeek(),
-                    'include_stats' => $arguments['include_stats'] ?? false,
-                    'include_factors' => $arguments['include_factors'] ?? false
-                ]);
+                $teamAbv = $arguments['team_abv'] ?? null;
+                $week = $arguments['week'] ?? OpenAI::getCurrentNFLWeek();
+                $includeStats = $arguments['include_stats'] ?? false;
+                $includeFactors = $arguments['include_factors'] ?? false;
 
+                if (!$teamAbv) {
+                    return [
+                        'success' => false,
+                        'message' => 'Team abbreviation is required for predictions.',
+                    ];
+                }
+
+                $response = $this->repository->getTeamPrediction(
+                    teamAbv: $teamAbv,
+                    week: $week,
+                    includeStats: $includeStats,
+                    includeFactors: $includeFactors
+                );
+
+                if (!$response['found']) {
+                    Log::info('Prediction not found', ['team' => $teamAbv, 'week' => $week]);
+                    return [
+                        'success' => false,
+                        'message' => $response['message'] ?? 'Prediction not available.',
+                    ];
+                }
+
+                Log::info('Prediction response', ['response' => $response]);
+                return [
+                    'success' => true,
+                    'data' => $response,
+                ];
             default:
                 throw new Exception("Unknown function: $functionName");
         }
@@ -642,6 +668,43 @@ class ChatGPTController extends Controller
         }
 
         return response()->json(['content' => $formattedContent], 200);
+    }
+
+    public function loadConversations()
+    {
+        $userId = auth()->id();
+
+        $conversations = Conversation::where('user_id', $userId)
+            ->orderBy('created_at', 'asc') // Ensure chronological order
+            ->get(['input', 'output', 'created_at']); // Explicitly include `output`
+
+        return response()->json(['conversations' => $conversations]);
+    }
+
+    public function streamConversations()
+    {
+        $userId = auth()->id();
+
+        // Keep the connection open for SSE
+        return response()->stream(function () use ($userId) {
+            while (true) {
+                // Fetch updated conversations
+                $conversations = Conversation::where('user_id', $userId)
+                    ->orderBy('created_at', 'asc')
+                    ->get(['input', 'output', 'created_at']);
+
+                echo 'data: ' . json_encode($conversations) . "\n\n";
+                ob_flush();
+                flush();
+
+                // Sleep for 5 seconds before sending the next update
+                sleep(5);
+            }
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'Connection' => 'keep-alive',
+        ]);
     }
 
     private function handleTeamPredictions(array $arguments): array

@@ -17,6 +17,7 @@
         @endforeach
     </div>
 
+
     <div class="border-t border-gray-200 dark:border-gray-600 p-3 bg-white dark:bg-gray-700">
         <form id="chat-form" method="POST" class="space-y-0">
             @csrf
@@ -45,29 +46,104 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            const chatForm = document.getElementById('chat-form');
-            const questionInput = document.getElementById('question');
             const chatMessages = document.getElementById('chat-messages');
 
+            const eventSource = new EventSource('{{ route('stream-conversations-sse') }}');
+
+            eventSource.onmessage = function (event) {
+                const conversations = JSON.parse(event.data);
+
+                // Clear the chat messages
+                chatMessages.innerHTML = '';
+
+                conversations.forEach(conversation => {
+                    const messageHtml = `
+                <div class="flex flex-col ${conversation.user_id === {{ auth()->id() }} ? 'items-end' : 'items-start'}">
+                    <div class="self-end bg-blue-100 dark:bg-blue-900 rounded-xl p-3 max-w-[80%]">
+                        ${conversation.input}
+                        <span class="block text-xs text-gray-500 mt-1 text-right">
+                            ${new Date(conversation.created_at).toLocaleString()}
+                        </span>
+                    </div>
+                    <div class="self-start bg-gray-100 dark:bg-gray-800 rounded-xl p-3 max-w-[80%]">
+                        ${conversation.output ?? 'Waiting for response...'}
+                    </div>
+                </div>`;
+                    chatMessages.insertAdjacentHTML('beforeend', messageHtml);
+                });
+
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            };
+
+            eventSource.onerror = function (error) {
+                console.error('SSE error:', error);
+                eventSource.close();
+            };
+        });
+        document.addEventListener('DOMContentLoaded', function () {
+            const chatMessages = document.getElementById('chat-messages');
+            const chatForm = document.getElementById('chat-form');
+            const questionInput = document.getElementById('question');
+
+            // Function to fetch conversations
+            async function fetchConversations() {
+                try {
+                    const response = await fetch('{{ route('stream-conversations') }}');
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        // Clear existing messages
+                        chatMessages.innerHTML = '';
+
+                        // Append each conversation
+                        data.conversations.forEach(conversation => {
+                            const messageHtml = `
+                                <div class="flex flex-col ${conversation.user_id === {{ auth()->id() }} ? 'items-end' : 'items-start'}">
+                                    <div class="self-end bg-blue-100 dark:bg-blue-900 rounded-xl p-3 max-w-[80%]">
+                                        ${conversation.input}
+                                        <span class="block text-xs text-gray-500 mt-1 text-right">
+                                            ${new Date(conversation.created_at).toLocaleString()}
+                                        </span>
+                                    </div>
+                                    <div class="self-start bg-gray-100 dark:bg-gray-800 rounded-xl p-3 max-w-[80%]">
+                                        ${conversation.output ?? 'Waiting for response...'}
+                                    </div>
+                                </div>`;
+                            chatMessages.insertAdjacentHTML('beforeend', messageHtml);
+                        });
+
+                        // Scroll to the bottom of the chat
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    } else {
+                        console.error('Failed to fetch conversations:', data.message);
+                    }
+                } catch (error) {
+                    console.error('Error fetching conversations:', error);
+                }
+            }
+
+            // Long Polling to fetch conversations every 5 seconds
+            setInterval(fetchConversations, 5000);
+
+            // Handle form submission
             chatForm.addEventListener('submit', async function (e) {
                 e.preventDefault();
 
                 const question = questionInput.value.trim();
                 if (!question) return;
 
-                questionInput.value = ''; // Clear the input
+                questionInput.value = ''; // Clear input
 
-                // Show loading indicator as a placeholder message
-                const loadingPlaceholder = document.createElement('div');
-                loadingPlaceholder.classList.add('flex', 'flex-col', 'space-y-2');
-                loadingPlaceholder.innerHTML = `
-                    <div class="self-end bg-blue-100 dark:bg-blue-900 rounded-xl p-3 max-w-[80%]">
-                        ${question}
-                        <span class="block text-xs text-gray-500 mt-1 text-right">Processing...</span>
-                    </div>
-                `;
-                chatMessages.appendChild(loadingPlaceholder);
-                chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to bottom
+                // Show a temporary "loading" message
+                const loadingHtml = `
+                    <div class="flex flex-col items-end">
+                        <div class="self-end bg-blue-100 dark:bg-blue-900 rounded-xl p-3 max-w-[80%]">
+                            ${question}
+                            <span class="block text-xs text-gray-500 mt-1 text-right">Processing...</span>
+                        </div>
+                    </div>`;
+                chatMessages.insertAdjacentHTML('beforeend', loadingHtml);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
 
                 try {
                     const response = await fetch('{{ route('ask-chatgpt') }}', {
@@ -82,32 +158,18 @@
                     const data = await response.json();
 
                     if (response.ok) {
-                        // Remove loading placeholder
-                        chatMessages.removeChild(loadingPlaceholder);
-
-                        // Append user message and AI response
-                        const newMessage = document.createElement('div');
-                        newMessage.classList.add('flex', 'flex-col', 'space-y-2');
-                        newMessage.innerHTML = `
-                            <div class="self-end bg-blue-100 dark:bg-blue-900 rounded-xl p-3 max-w-[80%]">
-                                ${data.input}
-                                <span class="block text-xs text-gray-500 mt-1 text-right">${data.timestamp}</span>
-                            </div>
-                            <div class="self-start bg-gray-100 dark:bg-gray-800 rounded-xl p-3 max-w-[80%]">
-                                ${data.output}
-                            </div>
-                        `;
-                        chatMessages.appendChild(newMessage);
-                        chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to bottom
+                        fetchConversations(); // Fetch latest conversations
                     } else {
-                        console.error('Error:', data.message);
-                        alert('Something went wrong.');
+                        console.error('Error submitting question:', data.message);
+                        alert('An error occurred while submitting your message.');
                     }
                 } catch (error) {
-                    console.error('Error:', error);
-                    alert('Failed to send the message.');
+                    console.error('Error submitting question:', error);
                 }
             });
+
+            // Initial fetch of conversations
+            fetchConversations();
         });
     </script>
 </x-app-layout>
