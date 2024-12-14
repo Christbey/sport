@@ -42,11 +42,35 @@ class OpenAIChatService
         // Load parameters from config or options
         $model = $options['model'] ?? config('services.openai.model', 'gpt-4');
         $functionCall = $options['function_call'] ?? 'auto';
-        $temperature = $options['temperature'] ?? config('services.openai.temperature', 0.7);
-        $maxTokens = $options['max_tokens'] ?? 2048;
-        $store = $options['store'] ?? true; // Enable storing user interactions by default
+
+        // Ensure temperature is a float
+        $temperature = isset($options['temperature'])
+            ? (float)$options['temperature']
+            : (float)config('services.openai.temperature', 0.7);
+
+        // Validate temperature range
+        if ($temperature < 0 || $temperature > 2) {
+            throw new Exception('Temperature must be between 0 and 2');
+        }
+
+        $maxTokens = (int)($options['max_tokens'] ?? 2048);
+        $store = $options['store'] ?? true;
 
         try {
+            $payload = [
+                'model' => $model,
+                'messages' => $messages,
+                'function_call' => $functionCall,
+                'temperature' => $temperature,
+                'max_tokens' => $maxTokens,
+                'store' => $store,
+            ];
+
+            // Only add functions if they exist in options or repository
+            if (isset($options['functions']) || OpenAIFunctionRepository::getFunctions()) {
+                $payload['functions'] = $options['functions'] ?? OpenAIFunctionRepository::getFunctions();
+            }
+
             $response = $this->client->post('/v1/chat/completions', [
                 'headers' => [
                     'Content-Type' => 'application/json',
@@ -54,15 +78,7 @@ class OpenAIChatService
                     'OpenAI-Project' => 'proj_7fYt17BipO9v8sDYLe4wnYt9',
                     'OpenAI-Organization' => 'org-O2K4sDaQtL5qT9in4CWQMGLn',
                 ],
-                'json' => [
-                    'model' => $model,
-                    'messages' => $messages,
-                    'functions' => $options['functions'] ?? OpenAIFunctionRepository::getFunctions(),
-                    'function_call' => $functionCall,
-                    'temperature' => $temperature,
-                    'max_tokens' => $maxTokens,
-                    'store' => $store, // Include store flag for dataset generation
-                ],
+                'json' => $payload,
             ]);
 
             return json_decode((string)$response->getBody(), true);
@@ -71,16 +87,10 @@ class OpenAIChatService
                 'error' => $e->getMessage(),
                 'model' => $model,
                 'messages' => $messages,
-            ]);
-            Log::error('Error processing chat request', [
-                'exception' => $e->getMessage(),
-                'response' => isset($response) ? json_encode($response) : 'No response received',
+                'temperature' => $temperature, // Add temperature to error log
             ]);
 
-
-            throw new Exception('OpenAI Chat Completion request failed', 0, $e);
+            throw new Exception('OpenAI Chat Completion request failed: ' . $e->getMessage(), 0, $e);
         }
     }
-
-
 }

@@ -209,3 +209,5 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/billing-portal', [BillingPortalController::class, 'redirectToPortal'])
         ->name('billing.portal');
 });
+
+Route::post('/clear-conversations', [ChatGPTController::class, 'clearConversations'])->name('clear-conversations');

@@ -13,25 +13,6 @@ class OpenAIFunctionRepository
     {
         return [
 
-//            [
-//                'name' => 'get_recent_games',
-//                'description' => 'Get recent NFL games for a specific NFL team.',
-//                'parameters' => [
-//                    'type' => 'object',
-//                    'properties' => [
-//                        'teamId' => [
-//                            'type' => 'integer',
-//                            'description' => 'The ID of the NFL team to get recent games for.'
-//                        ],
-//                        'gamesBack' => [
-//                            'type' => 'integer',
-//                            'description' => 'The number of recent games to retrieve (default is 3).',
-//                            'default' => 3
-//                        ]
-//                    ],
-//                    'required' => ['teamId']
-//                ]
-//            ],
 
             [
                 'name' => 'get_average_points',
@@ -137,6 +118,7 @@ class OpenAIFunctionRepository
 
             ],
 
+
             [
                 'name' => 'get_best_tacklers',
                 'description' => 'Retrieves the best tacklers based on defensive statistics, filtered by team, player, week(s), or other criteria.',
@@ -173,6 +155,82 @@ class OpenAIFunctionRepository
                         ]
                     ],
                     'required' => [] // All fields are optional to allow flexible queries
+                ]
+            ],
+
+            [
+                'name' => 'analyze_team_quarterly_performance',
+                'description' => 'Advanced analysis of team performance by quarter with comprehensive filtering and statistical breakdown.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'teamAbv' => [
+                            'type' => 'string',
+                            'description' => 'Team abbreviation to analyze (optional).'
+                        ],
+                        'season' => [
+                            'type' => 'integer',
+                            'description' => 'Specific NFL season year to filter results (optional).'
+                        ],
+                        'locationFilter' => [
+                            'type' => 'string',
+                            'description' => "Location filter for scores ('home', 'away', or null for both).",
+                            'enum' => ['home', 'away', null]
+                        ],
+                        'performanceMetrics' => [
+                            'type' => 'array',
+                            'description' => 'Specify which performance metrics to calculate.',
+                            'items' => [
+                                'type' => 'string',
+                                'enum' => ['points', 'yards', 'turnovers', 'scoring_drives']
+                            ]
+                        ],
+                        'aggregationType' => [
+                            'type' => 'string',
+                            'description' => 'Type of statistical aggregation to perform.',
+                            'enum' => ['average', 'total', 'detailed']
+                        ]
+                    ],
+                    'required' => [], // No mandatory parameters
+                    'additionalProperties' => false
+                ]
+            ],
+
+            [
+                'name' => 'get_quarterly_points_analysis',
+                'description' => 'Analyze quarterly points performance for NFL teams with comprehensive filtering and comparison options.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'teams' => [
+                            'type' => 'array',
+                            'description' => 'Array of team abbreviations to analyze (required, max 2 for direct comparison or 1 for single-team analysis).',
+                            'items' => [
+                                'type' => 'string',
+                                'description' => 'Team abbreviation (e.g., KC, SF)'
+                            ]
+                        ],
+                        'season' => [
+                            'type' => 'integer',
+                            'description' => 'Specific NFL season year to filter results (optional)'
+                        ],
+                        'conferenceFilter' => [
+                            'type' => 'string',
+                            'description' => 'Filter results by conference abbreviation (optional)'
+                        ],
+                        'divisionFilter' => [
+                            'type' => 'string',
+                            'description' => 'Filter results by division (optional)'
+                        ],
+                        'returnType' => [
+                            'type' => 'string',
+                            'description' => 'Specify the type of return data. Defaults to "both" for team stats and comparisons.',
+                            'enum' => ['team_stats', 'comparison', 'both'],
+                            'default' => 'both'
+                        ]
+                    ],
+                    'required' => ['teams'], // Require teams to ensure proper query construction
+                    'additionalProperties' => false
                 ]
             ],
 
@@ -803,21 +861,82 @@ class OpenAIFunctionRepository
 
             [
                 'name' => 'get_odds_by_team_and_week',
-                'description' => 'Retrieve betting odds for a specific team in a specific week.',
+                'description' => 'Retrieve betting odds for a specific team in a specific week. Returns moneyline, spread, and totals data for matching games.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'teamFilter' => [
                             'type' => 'string',
-                            'description' => 'Team abbreviation.'
+                            'description' => 'Team abbreviation to filter odds (matches either home or away team).',
+                            'minLength' => 2,
+                            'maxLength' => 3
                         ],
                         'week' => [
                             'type' => 'integer',
-                            'description' => 'The week number.'
+                            'description' => 'NFL week number to retrieve odds for.',
+                            'minimum' => 1,
+                            'maximum' => 18
                         ]
                     ],
                     'required' => ['teamFilter', 'week'],
                     'additionalProperties' => false
+                ],
+                'returns' => [
+                    'type' => 'array',
+                    'items' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'event_id' => [
+                                'type' => 'string',
+                                'description' => 'Unique identifier for the game event'
+                            ],
+                            'game_date' => [
+                                'type' => 'string',
+                                'format' => 'date-time',
+                                'description' => 'Game date and time'
+                            ],
+                            'home_team' => [
+                                'type' => 'string',
+                                'description' => 'Home team abbreviation'
+                            ],
+                            'away_team' => [
+                                'type' => 'string',
+                                'description' => 'Away team abbreviation'
+                            ],
+                            'moneyline_home' => [
+                                'type' => 'number',
+                                'description' => 'Home team moneyline odds'
+                            ],
+                            'moneyline_away' => [
+                                'type' => 'number',
+                                'description' => 'Away team moneyline odds'
+                            ],
+                            'spread_home' => [
+                                'type' => 'number',
+                                'description' => 'Home team point spread'
+                            ],
+                            'spread_away' => [
+                                'type' => 'number',
+                                'description' => 'Away team point spread'
+                            ],
+                            'total_over' => [
+                                'type' => 'number',
+                                'description' => 'Over/under total points line - over'
+                            ],
+                            'total_under' => [
+                                'type' => 'number',
+                                'description' => 'Over/under total points line - under'
+                            ],
+                            'implied_total_home' => [
+                                'type' => 'number',
+                                'description' => 'Implied total points for home team'
+                            ],
+                            'implied_total_away' => [
+                                'type' => 'number',
+                                'description' => 'Implied total points for away team'
+                            ]
+                        ]
+                    ]
                 ]
             ],
 
@@ -1083,7 +1202,197 @@ class OpenAIFunctionRepository
                     ],
                     'required' => ['teamFilters']
                 ]
+            ],
+
+            [
+                'name' => 'check_team_prediction',
+                'description' => 'Check if a specific NFL team is predicted to win their game this week.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'team_abv' => [
+                            'type' => 'string',
+                            'description' => 'The abbreviation of the team to check (e.g., KC for Kansas City Chiefs).'
+                        ],
+                        'week' => [
+                            'type' => 'integer',
+                            'description' => 'The week number to check predictions for. If not provided, defaults to current week.'
+                        ],
+                        'include_stats' => [
+                            'type' => 'boolean',
+                            'description' => 'Whether to include detailed team statistics in the prediction response.',
+                            'default' => false
+                        ],
+                        'include_factors' => [
+                            'type' => 'boolean',
+                            'description' => 'Whether to include key factors affecting the prediction.',
+                            'default' => false
+                        ]
+                    ],
+                    'required' => ['team_abv'],
+                    'additionalProperties' => false
+                ]
+            ],
+
+
+            [
+                'name' => 'get_receiving_stats',
+                'description' => 'Get receiving statistics for NFL players',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'long_name' => [
+                            'type' => 'string',
+                            'description' => 'Player full name (e.g., "A.J. Brown")'
+                        ],
+                        'team_abv' => [
+                            'type' => 'string',
+                            'description' => 'Team abbreviation'
+                        ]
+                    ],
+                    'required' => ['long_name']
+                ]
+            ],
+
+
+            [
+                'name' => 'get_rushing_stats',
+                'description' => 'Get rushing statistics for NFL players',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'long_name' => [
+                            'type' => 'string',
+                            'description' => 'Player full name (e.g., "Josh Allen")',
+                        ],
+                        'team_abv' => [
+                            'type' => 'string',
+                            'description' => 'Team abbreviation (e.g., "BUF")',
+                        ],
+                    ],
+                    'required' => ['long_name'], // Make long_name required
+                ],
+            ],
+
+            [
+                'name' => 'get_defense_stats',
+                'description' => 'Fetch defensive statistics for NFL players including tackles, sacks, and interceptions.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'long_name' => [
+                            'type' => 'string',
+                            'description' => 'Player full name (e.g., "Aaron Donald"). Required for player-specific stats.',
+                        ],
+                        'team_abv' => [
+                            'type' => 'string',
+                            'description' => 'Optional team abbreviation to filter stats for a specific team (e.g., "LAR").',
+                        ],
+                    ],
+                    'required' => ['long_name'], // Only `long_name` is required
+                    'additionalProperties' => false, // Ensure no extra parameters are accepted
+                ],
+            ],
+            [
+                'name' => 'get_kicking_stats',
+                'description' => 'Get kicking statistics for NFL players including field goals, extra points, and touchbacks.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'long_name' => [
+                            'type' => 'string',
+                            'description' => 'Player full name (e.g., "Harrison Butker"). Required for player-specific stats.',
+                        ],
+                        'team_abv' => [
+                            'type' => 'string',
+                            'description' => 'Optional team abbreviation to filter stats for a specific team.'
+                        ]
+                    ],
+                    'required' => ['long_name'], // Only `long_name` is required
+                    'additionalProperties' => false
+                ],
+            ],
+
+
+            [
+                'name' => 'get_punting_stats',
+                'description' => 'Get punting statistics for NFL players including yards, attempts, and blocked punts.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'long_name' => [
+                            'type' => 'string',
+                            'description' => 'Player full name (e.g., "Matthew Wright"). Required for player-specific stats.',
+                        ],
+                        'team_abv' => [
+                            'type' => 'string',
+                            'description' => 'Optional team abbreviation to filter stats for a specific team.'
+                        ]
+                    ],
+                    'required' => ['long_name'], // Only `long_name` is required
+                    'additionalProperties' => false
+                ],
+
+            ],
+
+            [
+                'name' => 'get_player_vs_conference',
+                'description' => 'Get player statistics split by opponent conference (AFC vs NFC).',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'teamFilter' => [
+                            'type' => 'string',
+                            'description' => 'Optional team abbreviation to filter stats.'
+                        ],
+                        'playerFilter' => [
+                            'type' => 'string',
+                            'description' => 'Optional player name to filter stats.'
+                        ]
+                    ],
+
+                    'additionalProperties' => false
+                ],
+                'returns' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'data' => [
+                            'type' => 'array',
+                            'items' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'player' => ['type' => 'string'],
+                                    'team_abv' => ['type' => 'string'],
+                                    'conference' => ['type' => 'string'],
+                                    'division' => ['type' => 'string'],
+                                    'location_type' => ['type' => 'string'],
+                                    'afc_games' => ['type' => 'integer'],
+                                    'afc_receiving_yards' => ['type' => 'number'],
+                                    'afc_rushing_yards' => ['type' => 'number'],
+                                    'afc_receiving_tds' => ['type' => 'integer'],
+                                    'afc_rushing_tds' => ['type' => 'integer'],
+                                    'afc_avg_tackles' => ['type' => 'number'],
+                                    'afc_sacks' => ['type' => 'integer'],
+                                    'afc_ints' => ['type' => 'integer'],
+                                    'nfc_games' => ['type' => 'integer'],
+                                    'nfc_receiving_yards' => ['type' => 'number'],
+                                    'nfc_rushing_yards' => ['type' => 'number'],
+                                    'nfc_receiving_tds' => ['type' => 'integer'],
+                                    'nfc_rushing_tds' => ['type' => 'integer'],
+                                    'nfc_avg_tackles' => ['type' => 'number'],
+                                    'nfc_sacks' => ['type' => 'integer'],
+                                    'nfc_ints' => ['type' => 'integer']
+                                ]
+                            ]
+                        ],
+                        'headings' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string']
+                        ]
+                    ]
+                ]
             ]
+
 
         ];
     }

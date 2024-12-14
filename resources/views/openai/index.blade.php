@@ -1,99 +1,113 @@
-<x-app-layout>
-    <!-- Main container with gradient background -->
-    <div class="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 py-8">
-        <div class="container mx-auto px-4">
-            <!-- Chat interface card -->
-            <div class="max-w-2xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
-                <!-- Header -->
-                <div class="bg-blue-600 p-6">
-                    <h1 class="text-2xl font-bold text-white text-center flex items-center justify-center gap-2">
-                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                  d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
-                        </svg>
-                        Chat with GPT
-                    </h1>
+<x-app-layout class="overflow-hidden">
+    <div class="flex-1 overflow-y-auto p-4 space-y-3" id="chat-messages">
+        @foreach($conversations as $conversation)
+            <div class="flex flex-col space-y-2">
+                <div class="self-end bg-blue-100 dark:bg-blue-900 rounded-xl p-3 max-w-[80%]">
+                    {{ $conversation->input }}
+                    <span class="block text-xs text-gray-500 mt-1 text-right">
+                        {{ $conversation->created_at->diffForHumans() }}
+                    </span>
                 </div>
-
-                <!-- Chat form -->
-                <div class="p-6" x-data="{ loading: false }">
-                    <form @submit="loading = true" id="chat-form" method="POST" action="{{ route('ask-chatgpt') }}"
-                          class="space-y-4">
-                        @csrf
-                        <div>
-                            <label for="question" class="block text-sm font-medium text-gray-700 mb-2">Ask a
-                                question:</label>
-                            <input
-                                    type="text"
-                                    name="question"
-                                    id="question"
-                                    value="{{ old('question', request()->input('question', $question ?? '')) }}"
-                                    {{-- Retain the user's last query --}}
-                                    class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300"
-                                    placeholder="What are the predictions for week 14?"
-                                    required
-                                    autofocus>
-                        </div>
-
-
-                        <button type="submit"
-                                class="w-full flex items-center justify-center px-4 py-3 border border-transparent
-                                       text-base font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700
-                                       focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
-                                       transition duration-150 ease-in-out disabled:opacity-50"
-                                :disabled="loading">
-                            <span x-show="!loading">Send Message</span>
-                            <div x-show="loading" class="flex items-center">
-                                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
-                                            stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor"
-                                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                                    </path>
-                                </svg>
-                                Processing...
-                            </div>
-                        </button>
-                    </form>
-                </div>
-
-                <!-- Response section -->
-                @if (isset($error))
-                    <div class="border-t border-gray-200">
-                        <div class="p-6 space-y-4">
-                            <div class="flex items-center gap-2 text-red-600">
-                                <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor"
-                                     viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                          d="M18.364 5.636l-6.364 6.364m0 0l-6.364-6.364m6.364 6.364v12"></path>
-                                </svg>
-                                <h4 class="text-lg font-semibold">Error:</h4>
-                            </div>
-                            <div class="prose prose-red max-w-none bg-red-50 rounded-lg p-4 shadow-inner">
-                                {!! $error !!}
-                            </div>
-                        </div>
-                    </div>
-                @elseif (isset($response))
-                    <div class="border-t border-gray-200">
-                        <div class="p-6 space-y-4">
-                            <div class="flex items-center gap-2 text-gray-800">
-                                <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor"
-                                     viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                                </svg>
-                                <h4 class="text-lg font-semibold">Response:</h4>
-                            </div>
-                            <div class="prose prose-blue max-w-none bg-gray-50 rounded-lg p-4 shadow-inner">
-                                {!! $response !!}
-                            </div>
-                        </div>
+                @if($conversation->output)
+                    <div class="self-start bg-gray-100 dark:bg-gray-800 rounded-xl p-3 max-w-[80%]">
+                        {!! $conversation->output !!}
                     </div>
                 @endif
             </div>
-        </div>
+        @endforeach
     </div>
 
-    <!-- Flowbite JS -->
+    <div class="border-t border-gray-200 dark:border-gray-600 p-3 bg-white dark:bg-gray-700">
+        <form id="chat-form" method="POST" class="space-y-0">
+            @csrf
+            <div class="relative">
+                <input
+                        type="text"
+                        name="question"
+                        id="question"
+                        placeholder="Type your message..."
+                        class="w-full p-3 pr-12 text-sm border-2 border-blue-200 dark:border-blue-800 dark:bg-gray-600 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300"
+                        required
+                        autofocus
+                >
+                <button
+                        type="submit"
+                        class="absolute right-1 top-1/2 -translate-y-1/2 bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 dark:bg-blue-800 dark:hover:bg-blue-700 transition"
+                >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M13 5l7 7-7 7M5 5l7 7-7 7"/>
+                    </svg>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const chatForm = document.getElementById('chat-form');
+            const questionInput = document.getElementById('question');
+            const chatMessages = document.getElementById('chat-messages');
+
+            chatForm.addEventListener('submit', async function (e) {
+                e.preventDefault();
+
+                const question = questionInput.value.trim();
+                if (!question) return;
+
+                questionInput.value = ''; // Clear the input
+
+                // Show loading indicator as a placeholder message
+                const loadingPlaceholder = document.createElement('div');
+                loadingPlaceholder.classList.add('flex', 'flex-col', 'space-y-2');
+                loadingPlaceholder.innerHTML = `
+                    <div class="self-end bg-blue-100 dark:bg-blue-900 rounded-xl p-3 max-w-[80%]">
+                        ${question}
+                        <span class="block text-xs text-gray-500 mt-1 text-right">Processing...</span>
+                    </div>
+                `;
+                chatMessages.appendChild(loadingPlaceholder);
+                chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to bottom
+
+                try {
+                    const response = await fetch('{{ route('ask-chatgpt') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        },
+                        body: JSON.stringify({question}),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        // Remove loading placeholder
+                        chatMessages.removeChild(loadingPlaceholder);
+
+                        // Append user message and AI response
+                        const newMessage = document.createElement('div');
+                        newMessage.classList.add('flex', 'flex-col', 'space-y-2');
+                        newMessage.innerHTML = `
+                            <div class="self-end bg-blue-100 dark:bg-blue-900 rounded-xl p-3 max-w-[80%]">
+                                ${data.input}
+                                <span class="block text-xs text-gray-500 mt-1 text-right">${data.timestamp}</span>
+                            </div>
+                            <div class="self-start bg-gray-100 dark:bg-gray-800 rounded-xl p-3 max-w-[80%]">
+                                ${data.output}
+                            </div>
+                        `;
+                        chatMessages.appendChild(newMessage);
+                        chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to bottom
+                    } else {
+                        console.error('Error:', data.message);
+                        alert('Something went wrong.');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Failed to send the message.');
+                }
+            });
+        });
+    </script>
 </x-app-layout>

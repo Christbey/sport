@@ -3,9 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\OpenAI;
+use App\Jobs\ProcessChatMessage;
+use App\Models\Conversation;
 use App\Repositories\Nfl\NflBettingOddsRepository;
+use App\Repositories\Nfl\NflBoxScoreRepository;
 use App\Repositories\Nfl\NflEloPredictionRepository;
 use App\Repositories\Nfl\NflPlayerDataRepository;
+use App\Repositories\Nfl\NflPlayerStatRepository;
 use App\Repositories\Nfl\NflTeamStatRepository;
 use App\Repositories\Nfl\TeamStatsRepository;
 use App\Repositories\NflTeamScheduleRepository;
@@ -24,10 +28,13 @@ class ChatGPTController extends Controller
     protected NflBettingOddsRepository $bettingOddsRepository;
     private NflPlayerDataRepository $playerDataRepository;
 
+    private NflBoxScoreRepository $boxScoreRepository;
+    private NflPlayerStatRepository $playerStatRepository;
     private NflTeamScheduleRepository $scheduleRepository;
     private NflTeamStatRepository $nflTeamStatsRepository;
 
-    public function __construct(OpenAIChatService $chatService, NflEloPredictionRepository $repository)
+    public function __construct(OpenAIChatService $chatService, NflEloPredictionRepository $repository, NflBoxScoreRepository $boxScoreRepository
+    )
     {
         $this->chatService = $chatService;
         $this->repository = $repository;
@@ -36,6 +43,10 @@ class ChatGPTController extends Controller
         $this->bettingOddsRepository = new NflBettingOddsRepository();
         $this->scheduleRepository = new NflTeamScheduleRepository();
         $this->nflTeamStatsRepository = new NflTeamStatRepository();
+        $this->playerStatRepository = new NflPlayerStatRepository();
+        $this->boxScoreRepository = $boxScoreRepository;
+
+
     }
 
     /**
@@ -43,52 +54,49 @@ class ChatGPTController extends Controller
      */
     public function showChat()
     {
-        return view('openai.index');
+        $userId = auth()->id();
+        $conversations = Conversation::where('user_id', $userId)
+            ->orderBy('created_at', 'asc') // Ensure messages are in chronological order
+            ->get();
+
+        return view('openai.index', compact('conversations'));
     }
 
     /**
      * Handle chat messages and OpenAI function calling.
      */
+
     public function ask(Request $request)
     {
-        $userMessage = $request->input('question', 'What are the predictions for week 14?');
-        $currentWeek = OpenAI::getCurrentNFLWeek();
+        // Validate input
+        $request->validate(['question' => 'required|string|max:500']);
+
+        $userMessage = $request->input('question');
+        $userId = $request->user()->id;
 
         try {
-            $messages = OpenAI::buildConversationMessages($currentWeek, now()->toFormattedDateString(), $userMessage);
-            $arguments = OpenAI::determineFunctionAndArguments($userMessage, $currentWeek);
+            // Dispatch the job to process the chat message
+            ProcessChatMessage::dispatch($userId, $userMessage);
 
-            $response = $this->chatService->getChatCompletion($messages, [
-                'function_call' => 'auto', // Let OpenAI decide the function
-            ]);
-
-            if (!empty($response['choices'][0]['message']['function_call'])) {
-                $functionCall = $response['choices'][0]['message']['function_call'];
-                $functionName = $functionCall['name'];
-                $arguments = array_merge($arguments, json_decode($functionCall['arguments'], true));
-
-                $functionResult = $this->invokeFunction($functionName, $arguments);
-
-                $messages[] = [
-                    'role' => 'function',
-                    'name' => $functionName,
-                    'content' => json_encode($functionResult),
-                ];
-
-                $response = $this->chatService->getChatCompletion($messages, [
-                    'function_call' => 'auto',
-                ]);
-            }
-
-            $content = OpenAI::convertMarkdownToHtml(OpenAI::validateResponseContent($response));
-
-            return view('openai.index', ['response' => $content]);
+            // Return a quick response indicating the request is being processed
+            return response()->json(['status' => 'processing', 'input' => $userMessage]);
         } catch (Exception $e) {
-            return OpenAI::handleException($e);
+            Log::error('Error dispatching ProcessChatMessage job:', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'An error occurred while processing your request.'], 500);
         }
     }
 
-    private function invokeFunction(string $functionName, array $arguments)
+    public function clearConversations()
+    {
+        session()->forget('conversations');
+        return response()->json(['status' => 'success']);
+    }
+
+    /**
+     * Handle OpenAI response processing, including recursive function calls.
+     */
+
+    public function invokeFunction(string $functionName, array $arguments)
     {
         switch ($functionName) {
 
@@ -105,87 +113,80 @@ class ChatGPTController extends Controller
                     $arguments['week'] ?? null
                 );
 
-            case 'get_schedule':
-                // Set default season to 2024 if not provided
-                $season = $args['season'] ?? config('nfl.seasonYear', 2024);
+            case 'get_quarterly_points_analysis':
+                $teams = $arguments['teams'] ?? null;
+                $season = $arguments['season'] ?? now()->year; // Default to current year if season is missing
+                $conferenceFilter = $arguments['conferenceFilter'] ?? null;
+                $divisionFilter = $arguments['divisionFilter'] ?? null;
+                $returnType = $arguments['returnType'] ?? 'both';
 
-                // Get current week using the helper function
-                $currentWeek = OpenAI::getCurrentNFLWeek();
-
-                // Initialize the week variable
-                $week = null;
-
-                // Determine the week based on 'timeFrame' if provided
-                if (isset($args['timeFrame'])) {
-                    switch (strtolower($args['timeFrame'])) {
-                        case 'last week':
-                            $week = $currentWeek - 1;
-                            break;
-                        case 'this week':
-                            $week = $currentWeek;
-                            break;
-                        case 'next week':
-                            $week = $currentWeek + 1;
-                            break;
-                        // Add more cases as needed for different time frames
-                        default:
-                            Log::warning('Unknown timeFrame provided:', ['timeFrame' => $args['timeFrame']]);
-                            break;
-                    }
-
-                    // Validate the derived week number
-                    if ($week < 1 || $week > count(config('nfl.weeks'))) {
-                        Log::error('Derived week number is out of valid range.', ['week' => $week]);
-                        $week = null; // Optionally, set to a default value or handle accordingly
-                    }
+                if (empty($teams)) {
+                    throw new Exception('Teams parameter is required for quarterly points analysis.');
                 }
 
-                // Log the incoming arguments for debugging purposes
-                Log::info('get_schedule called with arguments:', [
-                    'teamId' => $args['teamId'] ?? null,
-                    'teamFilter' => $args['teamFilter'] ?? null,
-                    'season' => $season,
-                    'week' => $week,
-                    'startDate' => $args['startDate'] ?? null,
-                    'endDate' => $args['endDate'] ?? null,
-                    'conferenceFilter' => $args['conferenceFilter'] ?? null,
-                ]);
+                $result = $this->boxScoreRepository->getQuarterlyPointsAnalysis($teams, $season);
 
-                // Call the getSchedule method with the provided and derived arguments
-                $schedule = $this->scheduleRepository->getSchedule(
-                    $args['teamId'] ?? null,
-                    $args['teamFilter'] ?? null,
-                    $args['startDate'] ?? null,
-                    $args['endDate'] ?? null,
-                    $args['conferenceFilter'] ?? null,
-                    $season,
-                    $week
+                // Log the result for debugging
+                Log::info('Response from getQuarterlyPointsAnalysis:', ['result' => $result]);
+
+                // Post-process the result based on `returnType`
+                switch ($returnType) {
+                    case 'team_stats':
+                        return [
+                            'team_quarterly_stats' => $result['team_quarterly_stats']
+                        ];
+                    case 'comparison':
+                        return [
+                            'team_comparison' => $result['team_comparison']
+                        ];
+                    case 'both':
+                    default:
+                        return $result;
+                }
+
+            case 'analyze_team_quarterly_performance':
+                $response = $this->boxScoreRepository->analyzeTeamQuarterlyPerformance(
+                    $arguments['teamAbv'] ?? null,
+                    $arguments['season'] ?? now()->year,
+                    $arguments['locationFilter'] ?? null,
+                    $arguments['performanceMetrics'] ?? ['points'],
+                    $arguments['aggregationType'] ?? 'detailed'
                 );
 
-                // Log the result for debugging purposes
-                Log::info('get_schedule returned:', ['schedule' => $schedule]);
-
-                // Handle empty schedule responses
-                if (empty($schedule)) {
-                    Log::warning('No schedule data found for the provided criteria.', [
-                        'teamFilter' => $args['teamFilter'] ?? null,
-                        'season' => $season,
-                        'week' => $week,
-                        'startDate' => $args['startDate'] ?? null,
-                        'endDate' => $args['endDate'] ?? null,
-                        'conferenceFilter' => $args['conferenceFilter'] ?? null,
-                    ]);
-
-                    return response()->json(['message' => 'No schedule data found for the specified criteria.'], 404);
+                if (isset($response['error'])) {
+                    Log::warning('Error in analyzeTeamQuarterlyPerformance:', ['error' => $response['error']]);
+                    return ['message' => $response['error']];
                 }
 
-                // Format the schedule data into a user-friendly structure
-                $formattedSchedule = $this->formatSchedule($schedule);
+                Log::info('Valid response from analyzeTeamQuarterlyPerformance:', ['response' => $response]);
 
-                // Log the formatted schedule
-                Log::info('Formatted schedule:', ['formattedSchedule' => $formattedSchedule]);
+                return $response;
 
-                return response()->json(['schedule' => $formattedSchedule], 200);
+
+            case 'get_schedule':
+                $scheduleResult = $this->scheduleRepository->getSchedule(
+                    $arguments['teamId'] ?? null,
+                    $arguments['teamFilter'] ?? null,
+                    $arguments['startDate'] ?? null,
+                    $arguments['endDate'] ?? null,
+                    $arguments['conferenceFilter'] ?? null,
+                    $arguments['season'] ?? 2024,
+                    $arguments['week'] ?? null
+                );
+
+                if (empty($scheduleResult)) {
+                    return [
+                        'success' => false,
+                        'message' => 'No schedule data found for the specified criteria.'
+                    ];
+                }
+
+                $formattedSchedule = $this->formatSchedule($scheduleResult);
+
+                return [
+                    'success' => true,
+                    'schedule' => $formattedSchedule
+                ];
 
             case 'get_recent_games':
                 return $this->teamStatsRepository->getRecentGames();
@@ -196,6 +197,7 @@ class ChatGPTController extends Controller
                     $arguments['conferenceFilter'] ?? null,
                     $arguments['divisionFilter'] ?? null
                 );
+
 
             case 'get_nfl_team_stats':
                 return $this->handleGetNflTeamStats($arguments);
@@ -396,9 +398,45 @@ class ChatGPTController extends Controller
 
             // NFL betting odds by team and week
             case 'get_odds_by_team_and_week':
-                return $this->bettingOddsRepository->getOddsByTeamAndWeek(
+                $odds = $this->bettingOddsRepository->getOddsByTeamAndWeek(
                     $arguments['teamFilter'],
                     $arguments['week']
+                );
+
+                return response()->json([
+                    'odds' => $odds->toArray()
+                ]);
+
+            // Add these cases inside your switch statement in invokeFunction method
+
+            case 'get_receiving_stats':
+                return $this->playerStatRepository->getReceivingStats(
+                    $arguments['long_name'] ?? null,
+                    $arguments['team_abv'] ?? null
+                );
+
+            case 'get_rushing_stats':
+                return $this->playerStatRepository->getRushingStats(
+                    $arguments['long_name'] ?? null,
+                    $arguments['team_abv'] ?? null
+                );
+
+            case 'get_defense_stats':
+                return $this->playerStatRepository->getDefenseStats(
+                    $arguments['player_id'] ?? null,
+                    $arguments['team_abv'] ?? null
+                );
+
+            case 'get_kicking_stats':
+                return $this->playerStatRepository->getKickingStats(
+                    $arguments['player_id'] ?? null,
+                    $arguments['team_abv'] ?? null
+                );
+
+            case 'get_punting_stats':
+                return $this->playerStatRepository->getPuntingStats(
+                    $arguments['player_id'] ?? null,
+                    $arguments['team_abv'] ?? null
                 );
 
             case 'get_first_downs_average':
@@ -431,6 +469,13 @@ class ChatGPTController extends Controller
                 $teamFilter = $arguments['teamFilter'] ?? null;
                 return $this->scheduleRepository->getScheduleByTeam($teamId, $teamFilter);
 
+            case 'check_team_prediction':
+                return $this->handleTeamPredictions([
+                    'team_abv' => $arguments['team_abv'],
+                    'week' => $arguments['week'] ?? OpenAI::getCurrentNFLWeek(),
+                    'include_stats' => $arguments['include_stats'] ?? false,
+                    'include_factors' => $arguments['include_factors'] ?? false
+                ]);
 
             default:
                 throw new Exception("Unknown function: $functionName");
@@ -476,16 +521,30 @@ class ChatGPTController extends Controller
         $week = $arguments['week'] ?? null;
 
         if (!$teamAbv || !$week) {
-            return response()->json(['message' => 'Missing required parameters: team_abv and week.'], 400);
+            return [
+                'success' => false,
+                'message' => 'Missing required parameters: team_abv and week.'
+            ];
         }
 
-        $result = $this->teamStatsRepository->getNflTeamStats($teamAbv, $week);
+        try {
+            $result = $this->teamStatsRepository->getNflTeamStats($teamAbv, $week);
 
-        if (!$result['success']) {
-            return response()->json(['message' => $result['message']], 404);
+            // If the repository method doesn't return an array with 'success', wrap the result
+            if (!isset($result['success'])) {
+                return [
+                    'success' => true,
+                    'data' => $result
+                ];
+            }
+
+            return $result;
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'message' => $e->getMessage()
+            ];
         }
-
-        return response()->json(['team_stats' => $result['data']], 200);
     }
 
     /**
@@ -514,6 +573,13 @@ class ChatGPTController extends Controller
     }
 
     /**
+     * Handle the get_league_averages function call.
+     *
+     * @param array $arguments
+     * @return JsonResponse
+     */
+
+    /**
      * Handle the get_top_teams_by_stat function call.
      *
      * @param array $arguments
@@ -537,13 +603,6 @@ class ChatGPTController extends Controller
 
         return response()->json(['top_teams' => $result['data']], 200);
     }
-
-    /**
-     * Handle the get_league_averages function call.
-     *
-     * @param array $arguments
-     * @return JsonResponse
-     */
 
     /**
      * Handle the get_league_averages function call.
@@ -585,5 +644,32 @@ class ChatGPTController extends Controller
         return response()->json(['content' => $formattedContent], 200);
     }
 
+    private function handleTeamPredictions(array $arguments): array
+    {
+        return $this->repository->getTeamPrediction(
+            teamAbv: $arguments['team_abv'],
+            week: $arguments['week'] ?? null,
+            includeStats: $arguments['include_stats'] ?? false,
+            includeFactors: $arguments['include_factors'] ?? false
+        );
+    }
 
+    private function resolveTimeFrameWeek(?string $timeFrame, int $currentWeek): ?int
+    {
+        if (!$timeFrame) {
+            return null; // No time frame provided
+        }
+
+        switch (strtolower($timeFrame)) {
+            case 'last week':
+                return max($currentWeek - 1, 1); // Ensure week does not go below 1
+            case 'this week':
+                return $currentWeek;
+            case 'next week':
+                return min($currentWeek + 1, 18); // Assuming 18 weeks in the NFL season
+            default:
+                Log::warning('Unknown timeFrame provided:', ['timeFrame' => $timeFrame]);
+                return null;
+        }
+    }
 }

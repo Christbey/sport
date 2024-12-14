@@ -17,7 +17,7 @@ class TestNflScheduleSync extends Command
     protected $signature = 'nfl:test-sync 
                         {--season= : The NFL season year (defaults to current config)}
                         {--week= : The NFL week (defaults to current week)}
-                        {--type=2 : The season type (1: Preseason, 2: Regular, 3: Postseason, defaults to 2)}';
+                        {--type= : The season type (1: Preseason, 2: Regular, 3: Postseason, defaults to Regular)}';
     /**
      * The console command description.
      */
@@ -55,7 +55,6 @@ class TestNflScheduleSync extends Command
             $this->syncSchedule($season, (int)$week, $type);
             $games = $this->fetchGames($season, (int)$week, $seasonType);
             $this->displayResults($games);
-
         } catch (Exception $e) {
             $this->error('Error during sync: ' . $e->getMessage());
             Log::error('Error during sync', ['exception' => $e]);

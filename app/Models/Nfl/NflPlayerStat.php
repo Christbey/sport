@@ -34,11 +34,7 @@ class NflPlayerStat extends Model
         'defense' => 'array',
     ];
 
-    public static function getPlayerVsConference(
-        ?string $teamFilter = null,
-        ?string $playerFilter = null,
-        ?string $conferenceFilter = null
-    ): array
+    public static function getPlayerVsConference(?string $teamFilter = null, ?string $playerFilter = null): array
     {
         $conferenceGames = DB::table('nfl_player_stats as ps')
             ->join('nfl_box_scores as b', 'ps.game_id', '=', 'b.game_id')
@@ -70,12 +66,8 @@ class NflPlayerStat extends Model
             })
             ->when($playerFilter, function ($query) use ($playerFilter) {
                 $query->where('ps.long_name', $playerFilter);
-            })
-            ->when($conferenceFilter, function ($query) use ($conferenceFilter) {
-                $query->where('t2.conference_abv', $conferenceFilter);
             });
 
-        // Perform further operations on $conferenceGames, such as aggregations or groupings.
 
         $result = DB::query()
             ->fromSub($conferenceGames, 'cg')
@@ -85,11 +77,35 @@ class NflPlayerStat extends Model
                 'conference',
                 'division',
                 'location_type',
+                // AFC Stats
                 DB::raw('COUNT(DISTINCT CASE WHEN opponent_conference = "AFC" THEN game_id END) as afc_games'),
                 DB::raw('ROUND(AVG(CASE WHEN opponent_conference = "AFC" THEN receiving_yards END), 1) as afc_receiving_yards'),
-                DB::raw('ROUND(AVG(CASE WHEN opponent_conference = "NFC" THEN receiving_yards END), 1) as nfc_receiving_yards'),
+                DB::raw('ROUND(AVG(CASE WHEN opponent_conference = "AFC" THEN rushing_yards END), 1) as afc_rushing_yards'),
                 DB::raw('SUM(CASE WHEN opponent_conference = "AFC" THEN receiving_tds END) as afc_receiving_tds'),
+                DB::raw('SUM(CASE WHEN opponent_conference = "AFC" THEN rushing_tds END) as afc_rushing_tds'),
+                DB::raw('ROUND(AVG(CASE WHEN opponent_conference = "AFC" THEN tackles END), 1) as afc_avg_tackles'),
+                DB::raw('SUM(CASE WHEN opponent_conference = "AFC" THEN sacks END) as afc_sacks'),
+                DB::raw('SUM(CASE WHEN opponent_conference = "AFC" THEN interceptions END) as afc_ints'),
+                // NFC Stats
+                DB::raw('COUNT(DISTINCT CASE WHEN opponent_conference = "NFC" THEN game_id END) as nfc_games'),
+                DB::raw('ROUND(AVG(CASE WHEN opponent_conference = "NFC" THEN receiving_yards END), 1) as nfc_receiving_yards'),
+                DB::raw('ROUND(AVG(CASE WHEN opponent_conference = "NFC" THEN rushing_yards END), 1) as nfc_rushing_yards'),
                 DB::raw('SUM(CASE WHEN opponent_conference = "NFC" THEN receiving_tds END) as nfc_receiving_tds'),
+                DB::raw('SUM(CASE WHEN opponent_conference = "NFC" THEN rushing_tds END) as nfc_rushing_tds'),
+                DB::raw('ROUND(AVG(CASE WHEN opponent_conference = "NFC" THEN tackles END), 1) as nfc_avg_tackles'),
+                DB::raw('SUM(CASE WHEN opponent_conference = "NFC" THEN sacks END) as nfc_sacks'),
+                DB::raw('SUM(CASE WHEN opponent_conference = "NFC" THEN interceptions END) as nfc_ints'),
+                // Adding total score calculation as a column for proper ordering
+                DB::raw('(
+                    COALESCE(SUM(CASE WHEN opponent_conference = "AFC" THEN receiving_tds END), 0) +
+                    COALESCE(SUM(CASE WHEN opponent_conference = "AFC" THEN rushing_tds END), 0) +
+                    COALESCE(SUM(CASE WHEN opponent_conference = "NFC" THEN receiving_tds END), 0) +
+                    COALESCE(SUM(CASE WHEN opponent_conference = "NFC" THEN rushing_tds END), 0) +
+                    COALESCE(SUM(CASE WHEN opponent_conference = "AFC" THEN sacks END), 0) +
+                    COALESCE(SUM(CASE WHEN opponent_conference = "NFC" THEN sacks END), 0) +
+                    COALESCE(SUM(CASE WHEN opponent_conference = "AFC" THEN interceptions END), 0) +
+                    COALESCE(SUM(CASE WHEN opponent_conference = "NFC" THEN interceptions END), 0)
+                ) as total_score')
             ])
             ->groupBy([
                 'player',
@@ -98,7 +114,8 @@ class NflPlayerStat extends Model
                 'division',
                 'location_type'
             ])
-            ->orderByDesc(DB::raw('afc_receiving_yards + nfc_receiving_yards'))
+            ->having(DB::raw('afc_games + nfc_games'), '>=', 2)
+            ->orderByDesc('total_score')
             ->limit(50);
 
         return [
@@ -110,10 +127,21 @@ class NflPlayerStat extends Model
                 'Division',
                 'Location Type',
                 'AFC Games',
-                'AFC Receiving Yards',
-                'NFC Receiving Yards',
-                'AFC Receiving TDs',
-                'NFC Receiving TDs'
+                'AFC Rec Yards',
+                'AFC Rush Yards',
+                'AFC Rec TDs',
+                'AFC Rush TDs',
+                'AFC Tackles',
+                'AFC Sacks',
+                'AFC INTs',
+                'NFC Games',
+                'NFC Rec Yards',
+                'NFC Rush Yards',
+                'NFC Rec TDs',
+                'NFC Rush TDs',
+                'NFC Tackles',
+                'NFC Sacks',
+                'NFC INTs'
             ]
         ];
     }
@@ -128,8 +156,95 @@ class NflPlayerStat extends Model
         return $this->belongsTo(NflTeam::class, 'team_abv', 'team_abv');
     }
 
+    // Additional relationships
+
     public function opponentTeam()
     {
         return $this->belongsTo(NflTeam::class, 'opponent_id', 'team_id');
+    }
+
+    // Statistical Methods
+
+    public function player()
+    {
+        return $this->belongsTo(NflPlayerData::class, 'player_id', 'player_id');
+    }
+
+    public function getReceivingStats()
+    {
+        return DB::table($this->table)
+            ->select([
+                DB::raw('AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.recYds")) AS UNSIGNED)) as avg_yards'),
+                DB::raw('MAX(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.recYds")) AS UNSIGNED)) as max_yards'),
+                DB::raw('MIN(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.recYds")) AS UNSIGNED)) as min_yards'),
+                DB::raw('AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.recTD")) AS UNSIGNED)) as avg_touchdowns'),
+                DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.recTD")) AS UNSIGNED)) as total_touchdowns'),
+                DB::raw('AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.rec")) AS UNSIGNED)) as avg_receptions'),
+                DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.rec")) AS UNSIGNED)) as total_receptions')
+            ])
+            ->whereNotNull('receiving')
+            ->first();
+    }
+
+    public function getRushingStats()
+    {
+        return DB::table($this->table)
+            ->select([
+                DB::raw('AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, "$.rushYds")) AS UNSIGNED)) as avg_yards'),
+                DB::raw('MAX(CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, "$.rushYds")) AS UNSIGNED)) as max_yards'),
+                DB::raw('MIN(CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, "$.rushYds")) AS UNSIGNED)) as min_yards'),
+                DB::raw('AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, "$.rushTD")) AS UNSIGNED)) as avg_touchdowns'),
+                DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, "$.rushTD")) AS UNSIGNED)) as total_touchdowns'),
+                DB::raw('AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, "$.rush")) AS UNSIGNED)) as avg_rushes'),
+                DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, "$.rush")) AS UNSIGNED)) as total_rushes')
+            ])
+            ->whereNotNull('rushing')
+            ->first();
+    }
+
+    public function getDefenseStats()
+    {
+        return DB::table($this->table)
+            ->select([
+                DB::raw('AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(defense, "$.totalTackles")) AS UNSIGNED)) as avg_tackles'),
+                DB::raw('MAX(CAST(JSON_UNQUOTE(JSON_EXTRACT(defense, "$.totalTackles")) AS UNSIGNED)) as max_tackles'),
+                DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(defense, "$.totalTackles")) AS UNSIGNED)) as total_tackles'),
+                DB::raw('AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(defense, "$.sacks")) AS UNSIGNED)) as avg_sacks'),
+                DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(defense, "$.sacks")) AS UNSIGNED)) as total_sacks'),
+                DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(defense, "$.defensiveInterceptions")) AS UNSIGNED)) as total_interceptions'),
+                DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(defense, "$.fumblesForced")) AS UNSIGNED)) as total_forced_fumbles')
+            ])
+            ->whereNotNull('defense')
+            ->first();
+    }
+
+    public function getKickingStats()
+    {
+        return DB::table($this->table)
+            ->select([
+                DB::raw('AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(kicking, "$.fgMade")) AS UNSIGNED)) as avg_field_goals_made'),
+                DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(kicking, "$.fgMade")) AS UNSIGNED)) as total_field_goals_made'),
+                DB::raw('AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(kicking, "$.fgAtt")) AS UNSIGNED)) as avg_field_goals_attempted'),
+                DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(kicking, "$.xpMade")) AS UNSIGNED)) as total_extra_points_made'),
+                DB::raw('AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(kicking, "$.xpAtt")) AS UNSIGNED)) as avg_extra_points_attempted')
+            ])
+            ->whereNotNull('kicking')
+            ->first();
+    }
+
+    // Existing getPlayerVsConference method remains the same
+
+    public function getPuntingStats()
+    {
+        return DB::table($this->table)
+            ->select([
+                DB::raw('AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(punting, "$.puntYds")) AS UNSIGNED)) as avg_yards'),
+                DB::raw('MAX(CAST(JSON_UNQUOTE(JSON_EXTRACT(punting, "$.puntLng")) AS UNSIGNED)) as longest_punt'),
+                DB::raw('AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(punting, "$.punts")) AS UNSIGNED)) as avg_punts'),
+                DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(punting, "$.punts")) AS UNSIGNED)) as total_punts'),
+                DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(punting, "$.puntBlk")) AS UNSIGNED)) as total_blocked')
+            ])
+            ->whereNotNull('punting')
+            ->first();
     }
 }
