@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 
+use App\OpenAIFunctions\OpenAIFunctionHandler;
 use App\Repositories\Nfl\Interfaces\NflBettingOddsRepositoryInterface;
 use App\Repositories\Nfl\Interfaces\NflEloPredictionRepositoryInterface;
 use App\Repositories\Nfl\Interfaces\NflPlayerDataRepositoryInterface;
@@ -54,13 +55,9 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(NflTeamScheduleRepositoryInterface::class, NflTeamScheduleRepository::class);
 
         // Bind OpenAIChatService as a singleton
-        $this->app->singleton(OpenAIChatService::class, function ($app) {
+        $this->app->bind(OpenAIChatService::class, function ($app) {
             return new OpenAIChatService(
-                $app->make(NflBettingOddsRepositoryInterface::class),
-                $app->make(NflEloPredictionRepositoryInterface::class),
-                $app->make(TeamStatsRepositoryInterface::class),
-                $app->make(NflPlayerDataRepositoryInterface::class),
-                $app->make(NflTeamScheduleRepositoryInterface::class)
+                $app->make(OpenAIFunctionHandler::class)
             );
         });
     }

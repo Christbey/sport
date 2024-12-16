@@ -303,7 +303,6 @@ class OpenAIFunctionRepository
             ],
 
 
-            // NFL situational stats by team
             [
                 'name' => 'get_situational_performance',
                 'description' => 'Fetches and calculates situational performance metrics for NFL teams, filtered by team abbreviation, location, and the conference they are playing against.',
@@ -323,10 +322,11 @@ class OpenAIFunctionRepository
                             'description' => 'Optional filter for the opposing conference (e.g., AFC, NFC) that the team is playing against.'
                         ]
                     ],
-                    'required' => ['teamFilter'], // Only teamFilter is required; others are optional
+                    'required' => [], // No required fields; all are optional
                     'additionalProperties' => false
                 ]
             ],
+
 
             // NFL big playmakers
             [

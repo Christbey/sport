@@ -2,95 +2,170 @@
 
 namespace App\Services;
 
+use App\OpenAIFunctions\OpenAIFunctionHandler;
 use App\OpenAIFunctions\OpenAIFunctionRepository;
 use Exception;
 use GuzzleHttp\Client;
-use Log;
+use Illuminate\Support\Facades\Log;
+use stdClass;
 
 class OpenAIChatService
 {
     protected Client $client;
+    protected OpenAIFunctionHandler $functionHandler;
 
-    /**
-     * Constructor with dependency injection for the Guzzle client.
-     */
-    public function __construct()
+    public function __construct(OpenAIFunctionHandler $functionHandler)
     {
-        $this->client = new Client([
-            'base_uri' => 'https://api.openai.com',
-        ]);
+        $this->client = new Client(['base_uri' => 'https://api.openai.com']);
+        $this->functionHandler = $functionHandler;
     }
 
     /**
-     * Get a chat completion from OpenAI, including support for function calling and evals.
-     *
-     * @param array $messages The conversation messages.
-     *     Each message should have 'role' (system|user|assistant) and 'content'.
-     * @param array $options Optional parameters:
-     *     'model' => string - The OpenAI model to use (default: from config)
-     *     'function_call' => string - 'auto', 'none', or a function name (default: 'auto')
-     *     'temperature' => float - The sampling temperature (default: from config)
-     *     'store' => bool - Whether to enable storing the request (default: true)
-     *     Additional parameters can be added as needed.
-     *
-     * @return array The OpenAI response as an associative array.
-     *
-     * @throws Exception if the request fails for any reason.
+     * Fetch chat completions from OpenAI API with optional functions (tools).
      */
     public function getChatCompletion(array $messages, array $options = []): array
     {
-        // Load parameters from config or options
-        $model = $options['model'] ?? config('services.openai.model', 'gpt-4');
-        $functionCall = $options['function_call'] ?? 'auto';
-
-        // Ensure temperature is a float
+        $model = $options['model'] ?? config('services.openai.model', 'gpt-3.5-turbo');
         $temperature = isset($options['temperature'])
             ? (float)$options['temperature']
             : (float)config('services.openai.temperature', 0.7);
 
-        // Validate temperature range
-        if ($temperature < 0 || $temperature > 2) {
-            throw new Exception('Temperature must be between 0 and 2');
-        }
+        // Desired maximum completion tokens
+        $desiredOutputTokens = $options['max_completion_tokens'] ?? 3500; // Set your desired default
 
-        $maxTokens = (int)($options['max_tokens'] ?? 2048);
+        // Calculate max_completion_tokens
+        $maxCompletionTokens = (int)$desiredOutputTokens;
+
+        // Ensure maxCompletionTokens does not exceed the model's limit
+        // Adjust based on the model's max token limit
+        // For example, if using gpt-4, the limit might be 8192 or higher
+        $modelMaxTokens = $this->getModelMaxTokens($model);
+        $maxCompletionTokens = min($maxCompletionTokens, $modelMaxTokens - 3000); // Reserve tokens for input and response
+
         $store = $options['store'] ?? true;
+        $userParam = auth()->check() ? 'user-' . auth()->id() : 'guest-user';
+
+        $rawFunctions = $options['functions'] ?? OpenAIFunctionRepository::getFunctions();
+
+        // Transform each function definition for the request
+        $tools = array_map(function ($fn) {
+            return [
+                'type' => 'function',
+                'function' => [
+                    'name' => $fn['name'],
+                    'description' => $fn['description'] ?? '',
+                    'parameters' => $fn['parameters'] ?? new stdClass(),
+                ]
+            ];
+        }, $rawFunctions);
+
+        $toolChoice = $options['tool_choice'] ?? null;
+        $parallelToolCalls = $options['parallel_tool_calls'] ?? null;
 
         try {
             $payload = [
                 'model' => $model,
                 'messages' => $messages,
-                'function_call' => $functionCall,
                 'temperature' => $temperature,
-                'max_tokens' => $maxTokens,
+                'max_completion_tokens' => $maxCompletionTokens,
+                'user' => $userParam,
                 'store' => $store,
             ];
 
-            // Only add functions if they exist in options or repository
-            if (isset($options['functions']) || OpenAIFunctionRepository::getFunctions()) {
-                $payload['functions'] = $options['functions'] ?? OpenAIFunctionRepository::getFunctions();
+            if (!empty($tools)) {
+                $payload['tools'] = $tools;
+
+                if (!is_null($toolChoice)) {
+                    $payload['tool_choice'] = $toolChoice;
+                }
+
+                if (!is_null($parallelToolCalls)) {
+                    $payload['parallel_tool_calls'] = (bool)$parallelToolCalls;
+                }
             }
 
             $response = $this->client->post('/v1/chat/completions', [
                 'headers' => [
                     'Content-Type' => 'application/json',
                     'Authorization' => 'Bearer ' . config('services.openai.key'),
-                    'OpenAI-Project' => 'proj_7fYt17BipO9v8sDYLe4wnYt9',
-                    'OpenAI-Organization' => 'org-O2K4sDaQtL5qT9in4CWQMGLn',
                 ],
                 'json' => $payload,
             ]);
 
-            return json_decode((string)$response->getBody(), true);
-        } catch (Exception $e) {
-            Log::error('OpenAI request error', [
-                'error' => $e->getMessage(),
-                'model' => $model,
-                'messages' => $messages,
-                'temperature' => $temperature, // Add temperature to error log
-            ]);
+            $result = json_decode($response->getBody()->getContents(), true);
 
-            throw new Exception('OpenAI Chat Completion request failed: ' . $e->getMessage(), 0, $e);
+            Log::info('OpenAI response:', $result);
+
+            // Check if we have tool calls
+            $toolCalls = $result['choices'][0]['message']['tool_calls'] ?? [];
+            if (!empty($toolCalls)) {
+                // Assume a single tool call for simplicity
+                $toolCall = $toolCalls[0];
+                $functionName = $toolCall['function']['name'] ?? null;
+                $functionArgs = isset($toolCall['function']['arguments'])
+                    ? json_decode($toolCall['function']['arguments'], true)
+                    : [];
+
+                if ($functionName) {
+                    // Invoke the local function
+                    try {
+                        $functionResult = $this->functionHandler->invokeFunction($functionName, $functionArgs);
+                    } catch (Exception $e) {
+                        Log::error("Function invocation error for {$functionName}", ['error' => $e->getMessage()]);
+                        $functionResult = ['error' => 'Function call failed: ' . $e->getMessage()];
+                    }
+
+                    // Add the function result to the messages
+                    $messages[] = [
+                        'role' => 'function',
+                        'name' => $functionName,
+                        'content' => json_encode($functionResult),
+                    ];
+
+                    // Call getChatCompletion again to let the model use the function's result
+                    return $this->getChatCompletion($messages, $options);
+                }
+            }
+
+            // If we reach here, there's no function call or we have final answer
+            return $result;
+        } catch (Exception $e) {
+            Log::error('Error from OpenAI API', ['error' => $e->getMessage()]);
+            throw new Exception('Unable to fetch response from OpenAI.');
         }
+    }
+
+    /**
+     * Get the maximum tokens allowed for a given model.
+     * Adjust these values based on OpenAI's documentation and the specific models you use.
+     */
+    protected function getModelMaxTokens(string $model): int
+    {
+        $modelLimits = [
+            'gpt-3.5-turbo' => 4096,
+            'gpt-4' => 8192,
+            // Add other models and their max tokens here
+        ];
+
+        return $modelLimits[$model] ?? 4096; // Default to 4096 if model not specified
+    }
+
+    /**
+     * Estimate the number of tokens in the input messages.
+     * This is a basic estimator. For precise counts, consider integrating with OpenAI's tokenizer.
+     */
+    protected function estimateInputTokens(array $messages): int
+    {
+        $tokenCount = 0;
+
+        foreach ($messages as $message) {
+            if (isset($message['content'])) {
+                // Simple word count as a rough estimate
+                // For better accuracy, integrate with a tokenizer
+                $tokenCount += str_word_count($message['content']);
+            }
+        }
+
+        return $tokenCount;
     }
 }

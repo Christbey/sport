@@ -5,9 +5,11 @@ namespace App\Repositories\Nfl;
 use App\Models\Nfl\{NflBoxScore, NflPlayerStat, NflTeam, NflTeamSchedule, NflTeamStat};
 use App\Repositories\Nfl\Interfaces\TeamStatsRepositoryInterface;
 use App\Repositories\NflTeamScheduleRepository;
+use Exception;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 use Log;
 
 
@@ -553,124 +555,180 @@ class TeamStatsRepository implements TeamStatsRepositoryInterface
      * @param int $gamesBack
      * @return array
      */
+
+
     public function getSituationalPerformance(
         ?string $teamFilter = null,
         ?string $locationFilter = null,
         ?string $againstConference = null
     ): array
     {
-        // Get all team abbreviations if no filter is provided
-        if (!$teamFilter) {
-            $teams = NflTeamSchedule::select('home_team')
-                ->distinct()
-                ->pluck('home_team')
-                ->filter();
-        } else {
-            $teams = collect([$teamFilter]);
-        }
+        try {
+            // Input Validation
+            $validLocations = ['home', 'away', 'combined'];
+            if ($locationFilter && !in_array(strtolower($locationFilter), $validLocations)) {
+                throw new InvalidArgumentException('Invalid locationFilter provided.');
+            }
 
-        $allTeamStats = [];
+            $validConferences = ['AFC', 'NFC'];
+            if ($againstConference && !in_array(strtoupper($againstConference), $validConferences)) {
+                throw new InvalidArgumentException('Invalid againstConference provided.');
+            }
 
-        foreach ($teams as $team) {
-            // Get all games for the team
-            $gamesQuery = NflTeamSchedule::where(function ($q) use ($team) {
-                $q->where('home_team', $team)->orWhere('away_team', $team);
+            // Cache Key Generation
+            $cacheKey = 'situational_performance_' . md5(json_encode(func_get_args()));
+            $cacheDuration = 30; // minutes
+
+            return Cache::remember($cacheKey, $cacheDuration, function () use ($teamFilter, $locationFilter, $againstConference) {
+                // Get all team abbreviations if no filter is provided
+                if (!$teamFilter) {
+                    $teams = Cache::remember('all_teams', 60, function () {
+                        return NflTeamSchedule::select('home_team')
+                            ->distinct()
+                            ->pluck('home_team')
+                            ->filter();
+                    });
+                } else {
+                    $teams = collect([$teamFilter]);
+                }
+
+                $allTeamStats = [];
+
+                // Fetch all relevant games with eager loading
+                $schedulesQuery = NflTeamSchedule::with(['homeTeam', 'awayTeam'])
+                    ->where(function ($query) use ($teams) {
+                        $query->whereIn('home_team', $teams)
+                            ->orWhereIn('away_team', $teams);
+                    });
+
+                // Apply location filter
+                if ($locationFilter === 'home') {
+                    $schedulesQuery->whereIn('home_team', $teams);
+                } elseif ($locationFilter === 'away') {
+                    $schedulesQuery->whereIn('away_team', $teams);
+                }
+
+                // Apply conference filter for opponents
+                if ($againstConference) {
+                    $schedulesQuery->where(function ($query) use ($againstConference) {
+                        $query->whereHas('homeTeam', function ($q) use ($againstConference) {
+                            $q->where('conference', $againstConference);
+                        })
+                            ->orWhereHas('awayTeam', function ($q) use ($againstConference) {
+                                $q->where('conference', $againstConference);
+                            });
+                    });
+                }
+
+                $games = $schedulesQuery->orderBy('game_date', 'desc')->get();
+
+                if ($games->isEmpty()) {
+                    return [
+                        'data' => [],
+                        'headings' => [
+                            'Team',
+                            'Home Games',
+                            'Home Avg Yards',
+                            'Home Rating',
+                            'Away Games',
+                            'Away Avg Yards',
+                            'Away Rating'
+                        ]
+                    ];
+                }
+
+                $gameIds = $games->pluck('game_id');
+
+                // Fetch all relevant stats in bulk
+                $stats = NflTeamStat::whereIn('game_id', $gameIds)
+                    ->whereIn('team_abv', $teams)
+                    ->get();
+
+                foreach ($teams as $team) {
+                    // Filter games for the current team
+                    $teamGames = $games->filter(function ($game) use ($team, $locationFilter) {
+                        if ($locationFilter === 'home') {
+                            return $game->home_team === $team;
+                        } elseif ($locationFilter === 'away') {
+                            return $game->away_team === $team;
+                        }
+                        return $game->home_team === $team || $game->away_team === $team;
+                    });
+
+                    $teamGameIds = $teamGames->pluck('game_id');
+
+                    // Filter stats for the current team
+                    $teamStats = $stats->where('team_abv', $team)
+                        ->whereIn('game_id', $teamGameIds);
+
+                    // Separate home and away stats
+                    $homeStats = $teamStats->whereIn('game_id', $teamGames->where('home_team', $team)->pluck('game_id'));
+                    $awayStats = $teamStats->whereIn('game_id', $teamGames->where('away_team', $team)->pluck('game_id'));
+
+                    // Calculate metrics
+                    $homeMetrics = $this->calculateSituationalMetrics($homeStats->toArray());
+                    $awayMetrics = $this->calculateSituationalMetrics($awayStats->toArray());
+
+                    $allTeamStats[] = [
+                        'Team' => $team,
+                        'Home Games' => $homeStats->count(),
+                        'Home Avg Yards' => $homeMetrics['average_yards'],
+                        'Home Rating' => $homeMetrics['performance_rating'],
+                        'Away Games' => $awayStats->count(),
+                        'Away Avg Yards' => $awayMetrics['average_yards'],
+                        'Away Rating' => $awayMetrics['performance_rating']
+                    ];
+                }
+
+                return [
+                    'data' => $allTeamStats,
+                    'headings' => [
+                        'Team',
+                        'Home Games',
+                        'Home Avg Yards',
+                        'Home Rating',
+                        'Away Games',
+                        'Away Avg Yards',
+                        'Away Rating'
+                    ]
+                ];
             });
-
-            // Apply location filter
-            if ($locationFilter === 'home') {
-                $gamesQuery->where('home_team', $team);
-            } elseif ($locationFilter === 'away') {
-                $gamesQuery->where('away_team', $team);
-            }
-
-            // Apply conference filter for opponents
-            if ($againstConference) {
-                $gamesQuery->whereHas('opponent', function ($q) use ($againstConference) {
-                    $q->where('conference', $againstConference);
-                });
-            }
-
-            $games = $gamesQuery->orderBy('game_date', 'desc')->get();
-
-            // Get all stats for these games
-            $gameIds = $games->pluck('game_id');
-            $stats = NflTeamStat::whereIn('game_id', $gameIds)
-                ->where('team_abv', $team)
-                ->get();
-
-            // Separate home and away games
-            $homeGames = $games->where('home_team', $team)->pluck('game_id');
-            $awayGames = $games->where('away_team', $team)->pluck('game_id');
-
-            $homeStats = $stats->whereIn('game_id', $homeGames);
-            $awayStats = $stats->whereIn('game_id', $awayGames);
-
-            $allTeamStats[] = [
-                'Team' => $team,
-                'Home Games' => $homeStats->count(),
-                'Home Avg Yards' => $this->calculateSituationalMetrics($homeStats->toArray())['average_yards'],
-                'Home Rating' => $this->calculateSituationalMetrics($homeStats->toArray())['performance_rating'],
-                'Away Games' => $awayStats->count(),
-                'Away Avg Yards' => $this->calculateSituationalMetrics($awayStats->toArray())['average_yards'],
-                'Away Rating' => $this->calculateSituationalMetrics($awayStats->toArray())['performance_rating']
-            ];
+        } catch (Exception $e) {
+            Log::error($e->getMessage());
+            return [];
         }
-
-        return [
-            'data' => $allTeamStats,
-            'headings' => [
-                'Team',
-                'Home Games',
-                'Home Avg Yards',
-                'Home Rating',
-                'Away Games',
-                'Away Avg Yards',
-                'Away Rating'
-            ]
-        ];
     }
 
+
+    /**
+     * Calculate situational metrics from stats.
+     */
     protected function calculateSituationalMetrics(array $stats): array
     {
         if (empty($stats)) {
             return [
                 'average_yards' => 0,
-                'yards_consistency' => 0,
-                'performance_rating' => 'insufficient_data'
+                'performance_rating' => 0
             ];
         }
 
-        $yardValues = collect($stats)->pluck('total_yards')->all();
-        $average = collect($yardValues)->average();
-        $consistency = $this->calculateConsistencyScore($yardValues);
+        $totalYards = array_reduce($stats, function ($carry, $item) {
+            return $carry + ($item['yards'] ?? 0);
+        }, 0);
+
+        $averageYards = round($totalYards / count($stats), 2);
+
+        // Example performance rating calculation
+        // Adjust the formula based on actual performance metrics
+        $performanceRating = round($averageYards / 10, 2); // Example: average yards divided by 10
 
         return [
-            'average_yards' => round($average, 1),
-            'yards_consistency' => round($consistency, 2),
-            'performance_rating' => $this->getRatingFromStats($average, $consistency)
+            'average_yards' => $averageYards,
+            'performance_rating' => $performanceRating
         ];
     }
 
-    protected function calculateConsistencyScore(array $values): float
-    {
-        $mean = collect($values)->average();
-        $variance = collect($values)
-            ->map(fn($value) => pow($value - $mean, 2))
-            ->average();
-
-        return sqrt($variance) / $mean * 100;
-    }
-
-    protected function getRatingFromStats(float $average, float $consistency): string
-    {
-        if ($average >= 350 && $consistency <= 15) return 'Elite Consistent';
-        if ($average >= 350) return 'Elite Variable';
-        if ($average >= 300 && $consistency <= 20) return 'Strong Consistent';
-        if ($average >= 300) return 'Strong Variable';
-        if ($average >= 250) return 'Above Average';
-        return 'Average';
-    }
+    // ... Rest of your service methods (getChatCompletion, getModelMaxTokens, etc.)
 
     /**
      * Get score margins statistics
@@ -686,12 +744,6 @@ class TeamStatsRepository implements TeamStatsRepositoryInterface
             ['teamsList' => $teamsList]
         );
     }
-    /**
-     * Get half scoring statistics
-     *
-     * @param string|null $teamFilter
-     * @return array
-     */
 
     /**
      * Get quarter comebacks statistics
@@ -724,6 +776,13 @@ class TeamStatsRepository implements TeamStatsRepositoryInterface
         );
 
     }
+
+    /**
+     * Get half scoring statistics
+     *
+     * @param string|null $teamFilter
+     * @return array
+     */
 
     public function getBestReceivers(
         ?string $teamFilter = null,
@@ -787,15 +846,13 @@ class TeamStatsRepository implements TeamStatsRepositoryInterface
         ];
     }
 
-
     /**
      * Get best rushers statistics
      *
      * @param string|null $teamFilter
      * @return array
      */
-    public
-    function getBestRushers(
+    public function getBestRushers(
         ?string $teamFilter = null,
         ?int    $week = null,
         ?int    $startWeek = null,
@@ -805,10 +862,13 @@ class TeamStatsRepository implements TeamStatsRepositoryInterface
         ?int    $season = null
     ): array
     {
-        $query = DB::table('nfl_player_stats')
+        $season = $season ?? config('nfl.seasonYear', 2024);
+        $seasonType = 'Regular Season';
+
+        $queryBuilder = DB::table('nfl_player_stats')
             ->join('nfl_box_scores', 'nfl_player_stats.game_id', '=', 'nfl_box_scores.game_id')
             ->join('nfl_team_schedules', 'nfl_box_scores.game_id', '=', 'nfl_team_schedules.game_id')
-            ->where('nfl_team_schedules.season_type', 'Regular Season')
+            ->where('nfl_team_schedules.season_type', $seasonType)
             ->whereNotNull('rushing')
             ->when($season, function ($q) use ($season) {
                 $q->where('nfl_team_schedules.season', $season);
@@ -825,7 +885,6 @@ class TeamStatsRepository implements TeamStatsRepositoryInterface
                 DB::raw('SUM(CASE WHEN CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, "$.rushYds")) AS SIGNED) > ? THEN 1 ELSE 0 END) AS games_with_over_threshold'),
                 DB::raw('COALESCE(SUM(CASE WHEN CAST(JSON_UNQUOTE(JSON_EXTRACT(rushing, "$.rushYds")) AS SIGNED) > ? THEN 1 ELSE 0 END) / NULLIF(COUNT(DISTINCT nfl_box_scores.game_id), 0), 0) * 100 AS percentage_over_threshold')
             )
-            ->setBindings([$yardThreshold, $yardThreshold])
             ->when($teamFilter, function ($q) use ($teamFilter) {
                 $q->where('nfl_player_stats.team_abv', $teamFilter);
             })
@@ -840,10 +899,22 @@ class TeamStatsRepository implements TeamStatsRepositoryInterface
             })
             ->groupBy('nfl_player_stats.long_name', 'nfl_player_stats.team_abv')
             ->orderBy('games_with_over_threshold', 'desc')
-            ->paginate(10);
+            ->limit(2);
+
+        // Bind yardThresholds to the SELECT clause
+        $queryBuilder->addBinding([$yardThreshold, $yardThreshold], 'select');
+
+        // Log the SQL query before execution
+        Log::info('Executing getBestRushers query', [
+            'sql' => $queryBuilder->toSql(),
+            'bindings' => $queryBuilder->getBindings(),
+        ]);
+
+        // Execute the query
+        $results = $queryBuilder->paginate(10)->items();
 
         return [
-            'data' => $query->items(),
+            'data' => $results,
             'headings' => [
                 'Player',
                 'Team',
@@ -854,7 +925,7 @@ class TeamStatsRepository implements TeamStatsRepositoryInterface
                 'Average Yards Per Attempt',
                 'Average Yards Per Game',
                 'Games With Over Threshold',
-                'Percentage Over Threshold'
+                'Percentage Over Threshold (%)',
             ],
         ];
     }
@@ -1341,7 +1412,6 @@ class TeamStatsRepository implements TeamStatsRepositoryInterface
         ];
     }
 
-
     public function getOverUnderAnalysis(?string $teamFilter = null, ?string $locationFilter = null, ?string $conferenceFilter = null, ?string $divisionFilter = null): array
     {
         return array_merge(
@@ -1365,7 +1435,6 @@ class TeamStatsRepository implements TeamStatsRepositoryInterface
         return NflTeam::getTeamVsConference($teamFilter, $locationFilter, $conferenceFilter, $divisionFilter);
     }
 
-
     /**
      * Get player vs conference statistics
      *
@@ -1380,7 +1449,6 @@ class TeamStatsRepository implements TeamStatsRepositoryInterface
     {
         return NflPlayerStat::getPlayerVsConference($teamFilter, $playerFilter, $conferenceFilter);
     }
-
 
     /**
      * Get player vs division statistics
@@ -1994,6 +2062,26 @@ class TeamStatsRepository implements TeamStatsRepositoryInterface
         if ($rating >= 0.4) return 'moderate';
         if ($rating >= 0.2) return 'easy';
         return 'very_easy';
+    }
+
+    protected function calculateConsistencyScore(array $values): float
+    {
+        $mean = collect($values)->average();
+        $variance = collect($values)
+            ->map(fn($value) => pow($value - $mean, 2))
+            ->average();
+
+        return sqrt($variance) / $mean * 100;
+    }
+
+    protected function getRatingFromStats(float $average, float $consistency): string
+    {
+        if ($average >= 350 && $consistency <= 15) return 'Elite Consistent';
+        if ($average >= 350) return 'Elite Variable';
+        if ($average >= 300 && $consistency <= 20) return 'Strong Consistent';
+        if ($average >= 300) return 'Strong Variable';
+        if ($average >= 250) return 'Above Average';
+        return 'Average';
     }
 
 }

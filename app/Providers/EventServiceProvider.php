@@ -6,17 +6,20 @@ use App\Events\BoxScoreFetched;
 use App\Events\GameCalculationsStarted;
 use App\Events\GameResultProcessed;
 use App\Events\GameResultsProcessed;
+use App\Events\MessageSent;
 use App\Events\Nfl\CalculateTeamEloEvent;
+use App\Events\OpenAIResponseReceived;
 use App\Events\PicksSubmitted;
 use App\Events\UserPicksProcessed;
 use App\Events\WeeklyCalculationsCompleted;
+use App\Listeners\HandleOpenAIResponse;
 use App\Listeners\LogGameCalculationsStart;
 use App\Listeners\Nfl\CalculateTeamEloListener;
 use App\Listeners\ProcessUserPickResults;
 use App\Listeners\SendPicksSubmittedNotifications;
 use App\Listeners\SendUserPicksNotifications;
 use App\Listeners\SendWeeklyCalculationsNotification;
-use App\Listeners\StoreBoxScoreData;
+use App\Listeners\StoreMessageInDatabase;
 use App\Listeners\StorePlayerStats;
 use App\Listeners\StoreTeamStats;
 use App\Listeners\UpdateHypotheticalResult;
@@ -44,13 +47,20 @@ class EventServiceProvider extends ServiceProvider
             SendWeeklyCalculationsNotification::class,
         ],
         BoxScoreFetched::class => [
-            StoreBoxScoreData::class,
             StorePlayerStats::class,
             StoreTeamStats::class,
         ],
         // New Events and Listeners
         CalculateTeamEloEvent::class => [
             CalculateTeamEloListener::class,
+        ],
+
+        OpenAIResponseReceived::class => [
+            HandleOpenAIResponse::class,
+        ],
+
+        MessageSent::class => [
+            StoreMessageInDatabase::class,
         ],
 
     ];

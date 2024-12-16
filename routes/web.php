@@ -1,213 +1,183 @@
 <?php
 
-use App\Http\Controllers\AccessRequestController;
-use App\Http\Controllers\Api\CollegeBasketballHypotheticalController;
-use App\Http\Controllers\Api\CollegeFootballHypotheticalController;
-use App\Http\Controllers\Api\CollegeFootballNoteController;
-use App\Http\Controllers\Api\CoversController;
+use App\Http\Controllers\{AccessRequestController,
+    BillingPortalController,
+    ChatGPTController,
+    ForgeApiController,
+    NflNewsController,
+    NflTrendsController,
+    PickemController,
+    StripeWebhookController,
+    SubscriptionController,
+    UserRoleController};
+use App\Http\Controllers\Api\{CollegeBasketballHypotheticalController,
+    CollegeFootballHypotheticalController,
+    CollegeFootballNoteController,
+    CoversController,
+    TeamRankingController,
+    TeamStatsController};
 use App\Http\Controllers\Api\Espn\EspnQbrController;
-use App\Http\Controllers\Api\TeamRankingController;
-use App\Http\Controllers\Api\TeamStatsController;
-use App\Http\Controllers\BillingPortalController;
-use App\Http\Controllers\ChatGPTController;
-use App\Http\Controllers\CheckoutController;
-use App\Http\Controllers\ForgeApiController;
-use App\Http\Controllers\Nfl\NflEloRatingController;
-use App\Http\Controllers\Nfl\NflSheetController;
-use App\Http\Controllers\Nfl\NflStatsViewController;
-use App\Http\Controllers\NflNewsController;
-use App\Http\Controllers\NflTrendsController;
-use App\Http\Controllers\PermissionController;
-use App\Http\Controllers\PickemController;
-use App\Http\Controllers\RoleController;
-use App\Http\Controllers\StripeWebhookController;
-use App\Http\Controllers\SubscriptionController;
-use App\Http\Controllers\UserRoleController;
-use App\Http\Middleware\TrackUserSession;
-use App\Http\Middleware\VerifyCsrfToken;
+use App\Http\Controllers\Nfl\{NflEloRatingController, NflSheetController,};
+use App\Http\Middleware\{TrackUserSession};
 use Illuminate\Support\Facades\Route;
 use Laravel\Cashier\Http\Middleware\VerifyWebhookSignature;
 
-// Basic Routes
+// Public Routes
 Route::get('/', function () {
-    return view('welcome');
-});
-Route::get('/home', function () {
-    return view('welcome');
+    if (auth()->check()) {
+        return view('dashboard'); // Uses app.blade.php
+    }
+    return view('welcome'); // Uses guest.blade.php
 })->name('home');
-
-
-Route::get('/test/form', function () {
-    return view('curbbliss');
-});
+Route::view('/test/form', 'curbbliss');
 
 // Guest Routes
 Route::middleware('guest')->group(function () {
-    Route::post('/request-access', [AccessRequestController::class, 'store'])
-        ->name('request-access');
+    Route::post('/request-access', [AccessRequestController::class, 'store'])->name('request-access');
 });
 
-// Protected Routes
-Route::middleware([
-    'auth:sanctum',
-    config('jetstream.auth_session'),
-    'verified',
-])->group(function () {
+// Authentication Required Routes
+Route::middleware(['auth:sanctum', config('jetstream.auth_session'), 'verified'])->group(function () {
     // Dashboard
-    Route::get('/dashboard', function () {
-        return view('dashboard');
-    })->name('dashboard');
+    Route::view('/dashboard', 'dashboard')->name('dashboard');
 
     // Pick'em Routes
     Route::prefix('pickem')->name('pickem.')->group(function () {
-        Route::get('/schedule/{game_week?}', [PickemController::class, 'showTeamSchedule'])->name('schedule');
-        Route::post('/pick-winner', [PickemController::class, 'pickWinner'])->name('pickWinner');
-        Route::get('/leaderboard', [PickemController::class, 'showLeaderboard'])->name('leaderboard');
+        Route::controller(PickemController::class)->group(function () {
+            Route::get('/schedule/{game_week?}', 'showTeamSchedule')->name('schedule');
+            Route::post('/pick-winner', 'pickWinner')->name('pickWinner');
+            Route::get('/leaderboard', 'showLeaderboard')->name('leaderboard');
+        });
     });
 
     // NFL Routes
     Route::prefix('nfl')->name('nfl.')->group(function () {
-        Route::get('/detail', [NflSheetController::class, 'index'])->name('detail');
-        Route::post('/sheet/store', [NflSheetController::class, 'store'])->name('sheet.store');
+        Route::controller(NflSheetController::class)->group(function () {
+            Route::get('/detail', 'index')->name('detail');
+            Route::post('/sheet/store', 'store')->name('sheet.store');
+        });
 
         // NFL Stats
-        Route::prefix('stats')->name('stats.')->group(function () {
-            Route::get('/', [TeamStatsController::class, 'index'])->name('index');
-            Route::get('/analysis/{queryType}', [TeamStatsController::class, 'showAnalysis'])->name('show');
+        Route::prefix('stats')->name('stats.')->controller(TeamStatsController::class)->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/analysis/{queryType}', 'showAnalysis')->name('show');
         });
     });
 
     // Admin Routes
     Route::prefix('admin')->name('admin.')->group(function () {
-        Route::prefix('access-requests')->name('access-requests.')->group(function () {
-            Route::get('/', [AccessRequestController::class, 'index'])->name('index');
-            Route::post('/{accessRequest}/approve', [AccessRequestController::class, 'approve'])->name('approve');
-            Route::post('/{accessRequest}/deny', [AccessRequestController::class, 'deny'])->name('deny');
+        Route::prefix('access-requests')->name('access-requests.')->controller(AccessRequestController::class)->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/{accessRequest}/approve', 'approve')->name('approve');
+            Route::post('/{accessRequest}/deny', 'deny')->name('deny');
         });
     });
 
     // College Football Routes
     Route::prefix('cfb')->name('cfb.')->group(function () {
-        Route::post('/notes', [CollegeFootballNoteController::class, 'store'])->name('notes.store');
-        Route::get('/notes', [CollegeFootballNoteController::class, 'index'])->name('notes.index');
+        Route::controller(CollegeFootballNoteController::class)->group(function () {
+            Route::post('/notes', 'store')->name('notes.store');
+            Route::get('/notes', 'index')->name('notes.index');
+        });
         Route::patch('/hypothetical/{id}/correct', [CollegeFootballHypotheticalController::class, 'updateCorrect'])
             ->name('hypothetical.correct');
     });
 
     // Forge Routes
-    Route::prefix('forge')->name('forge.')->group(function () {
-        Route::get('/servers', [ForgeApiController::class, 'listServers'])->name('servers.index');
+    Route::prefix('forge')->name('forge.')->controller(ForgeApiController::class)->group(function () {
+        Route::get('/servers', 'listServers')->name('servers.index');
         Route::prefix('servers/{serverId}')->group(function () {
-            Route::get('/sites', [ForgeApiController::class, 'listSites'])->name('sites.index');
+            Route::get('/sites', 'listSites')->name('sites.index');
             Route::prefix('sites/{siteId}')->group(function () {
-                Route::post('/commands', [ForgeApiController::class, 'runSiteCommand'])->name('commands.run');
-                Route::get('/commands', [ForgeApiController::class, 'listCommands'])->name('commands.index');
-                Route::post('/deploy', [ForgeApiController::class, 'deploySite'])->name('sites.deploy');
+                Route::post('/commands', 'runSiteCommand')->name('commands.run');
+                Route::get('/commands', 'listCommands')->name('commands.index');
+                Route::post('/deploy', 'deploySite')->name('sites.deploy');
             });
         });
     });
 });
 
-// Public NFL Routes
-Route::middleware(['role:admin'])->group(function () {
+// Admin Only Routes
+Route::middleware(['role:admin'])->prefix('nfl')->name('nfl.')->group(function () {
 
-    Route::prefix('nfl')->name('nfl.')->group(function () {
-        Route::get('/receivers', [NflStatsViewController::class, 'showReceivers']);
-        Route::get('/rushers', [NflStatsViewController::class, 'showRushers']);
-        Route::get('/qbr/{week}', [EspnQbrController::class, 'fetchQbrData'])->name('qbr');
-        Route::get('/news', [NflNewsController::class, 'index'])->name('news.index');
-        Route::get('/trends', [NflTrendsController::class, 'show'])->name('trends.config');
-        // NFL Elo Routes
-        Route::prefix('elo')->name('elo.')->group(function () {
-            Route::get('/', [NflEloRatingController::class, 'index'])->name('index');
-            Route::get('/predictions', [NflEloRatingController::class, 'prediction'])->name('predictions');
-            Route::get('/show/{gameId}', [NflEloRatingController::class, 'show'])->name('show');
-        });
+
+    Route::get('/qbr/{week}', [EspnQbrController::class, 'fetchQbrData'])->name('qbr');
+    Route::get('/news', [NflNewsController::class, 'index'])->name('news.index');
+    Route::get('/trends', [NflTrendsController::class, 'show'])->name('trends.config');
+    Route::get('/trends/compare', [NflTrendsController::class, 'compare'])->name('trends.compare');
+
+    // NFL Elo Routes
+    Route::prefix('elo')->name('elo.')->controller(NflEloRatingController::class)->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('/predictions', 'prediction')->name('predictions');
+        Route::get('/show/{gameId}', 'show')->name('show');
     });
 });
 
-
-// Public Team Rankings Routes
-Route::prefix('team-rankings')->name('team_rankings.')->group(function () {
-    Route::get('/scoring', [TeamRankingController::class, 'showScoring'])->name('scoring');
-    Route::get('/rankings', [TeamRankingController::class, 'showRankings'])->name('rankings');
+// Public Sports Data Routes
+Route::prefix('team-rankings')->name('team_rankings.')->controller(TeamRankingController::class)->group(function () {
+    Route::get('/scoring', 'showScoring')->name('scoring');
+    Route::get('/rankings', 'showRankings')->name('rankings');
 });
 
-// Covers Routes
-Route::prefix('covers')->name('covers.')->group(function () {
-    Route::get('/games', [CoversController::class, 'showGames'])->name('games');
-    Route::get('/game/{covers_game_id}', [CoversController::class, 'getGameData'])->name('game');
+Route::prefix('covers')->name('covers.')->controller(CoversController::class)->group(function () {
+    Route::get('/games', 'showGames')->name('games');
+    Route::get('/game/{covers_game_id}', 'getGameData')->name('game');
 });
 
 // College Sports Routes
-Route::prefix('college-basketball')->name('cbb.')->group(function () {
-    Route::get('/', [CollegeBasketballHypotheticalController::class, 'index'])->name('index');
-    Route::get('/{id}', [CollegeBasketballHypotheticalController::class, 'show'])->name('show');
+Route::prefix('college-basketball')->name('cbb.')->controller(CollegeBasketballHypotheticalController::class)->group(function () {
+    Route::get('/', 'index')->name('index');
+    Route::get('/{id}', 'show')->name('show');
 });
 
-Route::prefix('cfb')->name('cfb.')->group(function () {
-    Route::get('/', [CollegeFootballHypotheticalController::class, 'index'])->name('index');
-    Route::get('/{game_id}', [CollegeFootballHypotheticalController::class, 'show'])->name('hypothetical.show');
+Route::prefix('cfb')->name('cfb.')->controller(CollegeFootballHypotheticalController::class)->group(function () {
+    Route::get('/', 'index')->name('index');
+    Route::get('/{game_id}', 'show')->name('hypothetical.show');
 });
 
-// routes/web.php
-Route::resource('roles', RoleController::class);
-Route::resource('permissions', PermissionController::class);
-#Route::resource('user-roles', UserRoleController::class)->except(['create', 'store', 'destroy']);
-// routes/web.php
-Route::get('user-roles', [UserRoleController::class, 'index'])->name('user-roles.index');
-Route::get('user-roles/{user}/edit', [UserRoleController::class, 'edit'])->name('user-roles.edit');
-Route::put('user-roles/{user}', [UserRoleController::class, 'update'])->name('user-roles.update');
-
-Route::get('/nfl/trends/compare', [NflTrendsController::class, 'compare'])->name('nfl.trends.compare');
-Route::get('/ask-chatgpt', [ChatGPTController::class, 'showChat'])->name('show-chatgpt');
-Route::post('/ask-chatgpt', [ChatGPTController::class, 'ask'])->name('ask-chatgpt');
-Route::get('/stream-conversations', [ChatGPTController::class, 'loadConversations'])->name('stream-conversations');
-Route::get('/stream-conversations-sse', [ChatGPTController::class, 'streamConversations'])->name('stream-conversations-sse');
-// Stripe webhook route
-Route::post('stripe/webhook', [StripeWebhookController::class, 'handleWebhook'])
-    ->name('cashier.webhook')
-    ->middleware(VerifyWebhookSignature::class)
-    ->withoutMiddleware([
-        TrackUserSession::class
-    ]);
-
-// routes/web.php
-
-// routes/web.php
-
-
-// routes/web.php
-
-Route::middleware(['web', 'auth'])->group(function () {
-    // Keep all routes consistent with 'subscriptions' plural
-    Route::get('/subscriptions', [SubscriptionController::class, 'index'])
-        ->name('subscription.index');
-
-    Route::post('/subscriptions/checkout', [SubscriptionController::class, 'checkout'])
-        ->name('subscription.checkout');
-
-    Route::get('/subscriptions/success', [SubscriptionController::class, 'success'])
-        ->name('subscription.success');
-
-    // Change this to match plural 'subscriptions'
-    Route::get('/subscriptions/cancel', [SubscriptionController::class, 'cancel'])
-        ->name('subscription.cancel');
+Route::middleware(['auth:sanctum', 'verified'])->group(function () {
+    Route::get('/roles', function () {
+        return view('roles.index');
+    })->name('roles.index');
 });
 
-//// Protected routes that require subscription
-//Route::middleware(['auth', 'subscribed'])->group(function () {
-//    Route::get('/dashboard', function () {
-//        return view('dashboard');
-//    })->name('dashboard');
-//
-//    // Add other protected routes here
-//});
+Route::get('permissions', function () {
+    return view('permissions.index');
+})->name('permissions.index');
 
-// Billing portal route
+
+Route::controller(UserRoleController::class)->group(function () {
+    Route::get('user-roles', 'index')->name('user-roles.index');
+    Route::get('user-roles/{user}/edit', 'edit')->name('user-roles.edit');
+    Route::put('user-roles/{user}', 'update')->name('user-roles.update');
+});
+
+// ChatGPT Routes
+Route::controller(ChatGPTController::class)->group(function () {
+    Route::get('/ask-chatgpt', 'showChat')->name('show-chatgpt');
+    Route::post('/ask-chatgpt', 'ask')->name('ask-chatgpt');
+    Route::get('/load-chat', 'loadChat')->name('load-chat');
+    Route::post('/clear-conversations', 'clearConversations')
+        ->name('clear-conversations')
+        ->middleware('auth');
+});
+
+// Subscription and Billing Routes
 Route::middleware(['auth'])->group(function () {
+    Route::controller(SubscriptionController::class)->prefix('subscriptions')->name('subscription.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/checkout', 'checkout')->name('checkout');
+        Route::get('/success', 'success')->name('success');
+        Route::get('/cancel', 'cancel')->name('cancel');
+    });
+
     Route::get('/billing-portal', [BillingPortalController::class, 'redirectToPortal'])
         ->name('billing.portal');
 });
 
-Route::post('/clear-conversations', [ChatGPTController::class, 'clearConversations'])->name('clear-conversations');
+// Stripe Webhook
+Route::post('stripe/webhook', [StripeWebhookController::class, 'handleWebhook'])
+    ->name('cashier.webhook')
+    ->middleware(VerifyWebhookSignature::class)
+    ->withoutMiddleware([TrackUserSession::class]);

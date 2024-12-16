@@ -38,7 +38,6 @@ class NflTeamSchedule extends Model
         'neutral_site', // Neutral site flag
         'conference_competition', // Conference competition flag
         'attendance', // Attendance count
-        'name', // Event name
         'short_name', // Event short name
         'referees', // Referees for the game
     ];
@@ -77,5 +76,14 @@ class NflTeamSchedule extends Model
             ->orWhere('away_team_id', $teamId);
     }
 
-   
+    public function getOpponentAttribute()
+    {
+        if ($this->team_abv === $this->home_team) {
+            return $this->awayTeam;
+        } else {
+            return $this->homeTeam;
+        }
+    }
+
+
 }

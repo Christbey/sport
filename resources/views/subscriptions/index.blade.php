@@ -1,40 +1,95 @@
-<!-- resources/views/subscriptions/index.blade.php -->
 <x-app-layout>
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+    <section class="bg-white dark:bg-gray-900">
+        <div class="py-8 px-4 mx-auto max-w-screen-xl lg:py-16 lg:px-6">
             <div class="text-center mb-8">
                 <h1 class="text-3xl font-bold">Choose Your Subscription Plan</h1>
-                <p class="mt-4 text-gray-600">Select the plan that best fits your needs</p>
+                <p class="mt-4 text-gray-600 dark:text-gray-400">Select the plan that best fits your needs</p>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                @foreach ($plans as $plan)
-                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
-                        <div class="px-6 py-8">
-                            <h2 class="text-2xl font-bold text-center">{{ $plan->name }}</h2>
-                            <div class="mt-4 text-center">
-                                <span class="text-4xl font-bold">${{ number_format($plan->price / 100, 2) }}</span>
-                                <span class="text-gray-600">/{{ $plan->interval }}</span>
-                            </div>
+            <!-- Pricing Card -->
+            <div id="pricingTabs"
+                 x-data="{
+                     activeTab: 'standard',
+                     init() {
+                         // Show initial content
+                         this.$nextTick(() => {
+                             this.activeTab = 'standard';
+                         });
+                     }
+                 }"
+                 class="bg-white rounded-lg divide-y divide-gray-200 shadow dark:divide-gray-700 lg:divide-y-0 lg:divide-x lg:grid lg:grid-cols-3 dark:bg-gray-800">
 
-                            @if($plan->description)
-                                <p class="mt-4 text-gray-600 text-center">{{ $plan->description }}</p>
-                            @endif
+                <div class="col-span-2 p-6 lg:p-8">
+                    <h3 class="mb-4 text-lg font-medium text-gray-900 dark:text-white">Choose a pricing plan:</h3>
 
-                            <div class="mt-8">
-                                <form action="{{ route('subscription.checkout') }}" method="POST">
-                                    @csrf
-                                    <input type="hidden" name="plan_id" value="{{ $plan->id }}">
-                                    <button type="submit"
-                                            class="w-full bg-blue-500 text-white rounded-md py-2 px-4 hover:bg-blue-600 transition duration-150">
-                                        Subscribe to {{ $plan->name }}
-                                    </button>
-                                </form>
-                            </div>
+                    <!-- Plan Tabs -->
+                    <ul class="grid grid-cols-2 text-sm font-medium text-center text-gray-500 shadow md:rounded-lg md:grid-cols-{{ $plans->count() }} dark:divide-gray-600 dark:text-gray-400">
+                        @foreach($plans as $plan)
+                            <li class="w-full">
+                                <button type="button"
+                                        @click="activeTab = '{{ Str::slug($plan->name) }}'"
+                                        :class="{
+                                            'text-gray-900 bg-gray-100 dark:bg-gray-600 dark:text-white': activeTab === '{{ Str::slug($plan->name) }}',
+                                            'bg-white hover:text-gray-700 hover:bg-gray-50 dark:hover:text-white dark:bg-gray-700 dark:hover:bg-gray-600': activeTab !== '{{ Str::slug($plan->name) }}'
+                                        }"
+                                        class="inline-block p-4 w-full border border-gray-200 dark:border-gray-500"
+                                        :class="{{ $loop->first ? '{"md:rounded-l-lg": true}' : ($loop->last ? '{"md:rounded-r-lg": true}' : '{}') }}">
+                                    {{ $plan->name }}
+                                </button>
+                            </li>
+                        @endforeach
+                    </ul>
+
+                    <!-- Plan Details -->
+                    @foreach($plans as $plan)
+                        <div id="{{ Str::slug($plan->name) }}-content"
+                             x-show="activeTab === '{{ Str::slug($plan->name) }}'"
+                             class="mt-6">
+                            <div class="mb-2 font-medium text-gray-900 dark:text-white">{{ $plan->name }} details:</div>
+                            <p class="text-lg font-light text-gray-500 dark:text-gray-400">
+                                Starting at ${{ $plan->price }}/month
+                            </p>
                         </div>
-                    </div>
-                @endforeach
+                    @endforeach
+                </div>
+
+                <!-- Pricing Details -->
+                <div class="flex p-6 lg:p-8">
+                    @foreach($plans as $plan)
+                        <div id="{{ Str::slug($plan->name) }}-plan"
+                             x-show="activeTab === '{{ Str::slug($plan->name) }}'"
+                             class="self-center w-full">
+                            <div class="mb-4 text-2xl font-semibold text-gray-900 dark:text-white">
+                                {{ $plan->name }} plan
+                            </div>
+                            <div class="font-light text-gray-500 dark:text-gray-400">Monthly price</div>
+                            <div class="mb-4 text-5xl font-extrabold text-gray-900 dark:text-white">
+                                ${{ $plan->price }}
+                            </div>
+
+                            <form action="{{ route('subscription.checkout') }}" method="POST">
+                                @csrf
+                                <input type="hidden" name="plan_id" value="{{ $plan->id }}">
+                                <button type="submit"
+                                        class="w-full justify-center text-white bg-primary-600 hover:bg-primary-700 focus:ring-4 focus:ring-blue-200 dark:focus:ring-primary-900 font-medium rounded-lg text-sm px-5 py-2.5 text-center mb-4">
+                                    Subscribe Now
+                                </button>
+                            </form>
+
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-4">
+                                Prices shown in {{ strtoupper($plan->currency) }}. Cancel anytime.
+                            </p>
+                        </div>
+                    @endforeach
+                </div>
             </div>
+
+            @if (session('warning'))
+                <div class="mt-4 p-4 mb-4 text-sm text-yellow-800 rounded-lg bg-yellow-50 dark:bg-gray-800 dark:text-yellow-300"
+                     role="alert">
+                    {{ session('warning') }}
+                </div>
+            @endif
         </div>
-    </div>
+    </section>
 </x-app-layout>

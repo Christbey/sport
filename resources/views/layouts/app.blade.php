@@ -28,7 +28,10 @@
 
     <main class="flex-1 overflow-auto">
         {{ $slot }}
+        @component('components.footer')
+        @endcomponent
     </main>
+
 </div>
 
 @stack('modals')

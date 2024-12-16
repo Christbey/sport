@@ -1,175 +1,164 @@
-<x-app-layout class="overflow-hidden">
-    <div class="flex-1 overflow-y-auto p-4 space-y-3" id="chat-messages">
-        @foreach($conversations as $conversation)
-            <div class="flex flex-col space-y-2">
-                <div class="self-end bg-blue-100 dark:bg-blue-900 rounded-xl p-3 max-w-[80%]">
-                    {{ $conversation->input }}
-                    <span class="block text-xs text-gray-500 mt-1 text-right">
-                        {{ $conversation->created_at->diffForHumans() }}
-                    </span>
-                </div>
-                @if($conversation->output)
-                    <div class="self-start bg-gray-100 dark:bg-gray-800 rounded-xl p-3 max-w-[80%]">
-                        {!! $conversation->output !!}
-                    </div>
-                @endif
-            </div>
-        @endforeach
-    </div>
+<x-app-layout class=" bg-gray-50 dark:bg-gray-900">
+    <main class="container mx-auto px-4 h-screen md:h-[550px] flex flex-col overflow-hidden max-w-5xl">
+        <!-- Chat Container -->
+        <div class="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden flex flex-col my-3 md:max-w-2xl lg:max-w-3xl mx-auto w-full">
 
-
-    <div class="border-t border-gray-200 dark:border-gray-600 p-3 bg-white dark:bg-gray-700">
-        <form id="chat-form" method="POST" class="space-y-0">
-            @csrf
-            <div class="relative">
-                <input
-                        type="text"
-                        name="question"
-                        id="question"
-                        placeholder="Type your message..."
-                        class="w-full p-3 pr-12 text-sm border-2 border-blue-200 dark:border-blue-800 dark:bg-gray-600 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300"
-                        required
-                        autofocus
-                >
+            <!-- Chat Header -->
+            <div class="border-b border-gray-200 dark:border-gray-700 p-4 flex justify-between items-center bg-white dark:bg-gray-800">
+                <h1 class="text-lg font-semibold text-gray-900 dark:text-white">PickPal AI Chat Assistant</h1>
                 <button
-                        type="submit"
-                        class="absolute right-1 top-1/2 -translate-y-1/2 bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 dark:bg-blue-800 dark:hover:bg-blue-700 transition"
+                        id="clearChatBtn"
+                        class="inline-flex items-center px-3 py-1.5 text-sm bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors duration-200"
+                        aria-label="Clear chat history"
                 >
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M13 5l7 7-7 7M5 5l7 7-7 7"/>
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                     </svg>
+                    Clear Chat
                 </button>
             </div>
-        </form>
+
+            <!-- Chat Messages Container -->
+            <div
+                    class="flex-1 overflow-y-auto p-4 space-y-4 min-h-0"
+                    id="chat-messages"
+                    aria-live="polite"
+                    aria-atomic="true"
+            >
+                <!-- Messages will be dynamically inserted here -->
+            </div>
+
+            <!-- Chat Input Form -->
+            <div class="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                <form id="chat-form" method="POST" action="{{ route('ask-chatgpt') }}" class="max-w-4xl mx-auto">
+                    @csrf
+                    <div class="relative flex items-center">
+                        <input
+                                type="text"
+                                name="question"
+                                id="question"
+                                placeholder="Type your message..."
+                                class="w-full px-4 py-3 text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out"
+                                required
+                                autofocus
+                                aria-label="Type your message"
+                        >
+                        <button
+                                type="submit"
+                                class="absolute right-2 p-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors duration-200"
+                                aria-label="Send message"
+                        >
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M13 5l7 7-7 7M5 5l7 7-7 7"/>
+                            </svg>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Container -->
+    <div
+            id="modalContainer"
+            class="relative z-50 hidden"
+            aria-labelledby="modal-title"
+            role="dialog"
+            aria-modal="true"
+    >
+        <!-- Background backdrop -->
+        <div
+                id="modalBackdrop"
+                class="fixed inset-0 bg-black/50"
+        ></div>
+
+        <!-- Modal panel -->
+        <div class="fixed inset-0 z-50 overflow-y-auto">
+            <div class="flex min-h-full items-end sm:items-center justify-center p-0 text-center ">
+                <div class="relative transform overflow-hidden rounded-t-xl sm:rounded-lg bg-white dark:bg-gray-800 w-full sm:max-w-lg text-left shadow-xl transition-all">
+                    <div class="p-6">
+                        <h3 id="modal-title" class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
+                            Clear Chat History
+                        </h3>
+                        <p class="text-gray-700 dark:text-gray-300 mb-6">
+                            Are you sure you want to clear all chat messages? This action cannot be undone.
+                        </p>
+                        <div class="flex justify-end space-x-4">
+                            <button
+                                    id="cancelClear"
+                                    type="button"
+                                    class="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                    id="confirmClear"
+                                    type="button"
+                                    class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
+                            >
+                                Clear History
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
+    <!-- Styles for markdown and code formatting -->
+    <style>
+        .prose pre {
+            @apply bg-slate-800 text-slate-200 p-4 rounded-lg overflow-x-auto;
+        }
+
+        .prose code {
+            @apply bg-slate-800/50 text-slate-200 px-1.5 py-0.5 rounded text-sm;
+        }
+
+        .prose pre code {
+            @apply bg-transparent p-0;
+        }
+
+        .dark .prose {
+            @apply text-slate-200;
+        }
+
+        .dark .prose pre {
+            @apply bg-slate-900;
+        }
+
+        .dark .prose code {
+            @apply bg-slate-900/50;
+        }
+
+        .dark .prose a {
+            @apply text-blue-400;
+        }
+
+        .message-table {
+            @apply w-full border-collapse;
+        }
+
+        .message-table th,
+        .message-table td {
+            @apply p-3 border border-gray-200 dark:border-gray-700;
+        }
+    </style>
+
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const chatMessages = document.getElementById('chat-messages');
-
-            const eventSource = new EventSource('{{ route('stream-conversations-sse') }}');
-
-            eventSource.onmessage = function (event) {
-                const conversations = JSON.parse(event.data);
-
-                // Clear the chat messages
-                chatMessages.innerHTML = '';
-
-                conversations.forEach(conversation => {
-                    const messageHtml = `
-                <div class="flex flex-col ${conversation.user_id === {{ auth()->id() }} ? 'items-end' : 'items-start'}">
-                    <div class="self-end bg-blue-100 dark:bg-blue-900 rounded-xl p-3 max-w-[80%]">
-                        ${conversation.input}
-                        <span class="block text-xs text-gray-500 mt-1 text-right">
-                            ${new Date(conversation.created_at).toLocaleString()}
-                        </span>
-                    </div>
-                    <div class="self-start bg-gray-100 dark:bg-gray-800 rounded-xl p-3 max-w-[80%]">
-                        ${conversation.output ?? 'Waiting for response...'}
-                    </div>
-                </div>`;
-                    chatMessages.insertAdjacentHTML('beforeend', messageHtml);
-                });
-
-                chatMessages.scrollTop = chatMessages.scrollHeight;
+        document.addEventListener('DOMContentLoaded', () => {
+            const chatConfig = {
+                userId: {{ auth()->id() ?? 'null' }},
+                routes: {
+                    loadChat: '{{ route("load-chat") }}',
+                    clearConversations: '{{ route("clear-conversations") }}'
+                },
+                csrfToken: document.querySelector('meta[name="csrf-token"]').content
             };
 
-            eventSource.onerror = function (error) {
-                console.error('SSE error:', error);
-                eventSource.close();
-            };
-        });
-        document.addEventListener('DOMContentLoaded', function () {
-            const chatMessages = document.getElementById('chat-messages');
-            const chatForm = document.getElementById('chat-form');
-            const questionInput = document.getElementById('question');
-
-            // Function to fetch conversations
-            async function fetchConversations() {
-                try {
-                    const response = await fetch('{{ route('stream-conversations') }}');
-                    const data = await response.json();
-
-                    if (response.ok) {
-                        // Clear existing messages
-                        chatMessages.innerHTML = '';
-
-                        // Append each conversation
-                        data.conversations.forEach(conversation => {
-                            const messageHtml = `
-                                <div class="flex flex-col ${conversation.user_id === {{ auth()->id() }} ? 'items-end' : 'items-start'}">
-                                    <div class="self-end bg-blue-100 dark:bg-blue-900 rounded-xl p-3 max-w-[80%]">
-                                        ${conversation.input}
-                                        <span class="block text-xs text-gray-500 mt-1 text-right">
-                                            ${new Date(conversation.created_at).toLocaleString()}
-                                        </span>
-                                    </div>
-                                    <div class="self-start bg-gray-100 dark:bg-gray-800 rounded-xl p-3 max-w-[80%]">
-                                        ${conversation.output ?? 'Waiting for response...'}
-                                    </div>
-                                </div>`;
-                            chatMessages.insertAdjacentHTML('beforeend', messageHtml);
-                        });
-
-                        // Scroll to the bottom of the chat
-                        chatMessages.scrollTop = chatMessages.scrollHeight;
-                    } else {
-                        console.error('Failed to fetch conversations:', data.message);
-                    }
-                } catch (error) {
-                    console.error('Error fetching conversations:', error);
-                }
-            }
-
-            // Long Polling to fetch conversations every 5 seconds
-            setInterval(fetchConversations, 5000);
-
-            // Handle form submission
-            chatForm.addEventListener('submit', async function (e) {
-                e.preventDefault();
-
-                const question = questionInput.value.trim();
-                if (!question) return;
-
-                questionInput.value = ''; // Clear input
-
-                // Show a temporary "loading" message
-                const loadingHtml = `
-                    <div class="flex flex-col items-end">
-                        <div class="self-end bg-blue-100 dark:bg-blue-900 rounded-xl p-3 max-w-[80%]">
-                            ${question}
-                            <span class="block text-xs text-gray-500 mt-1 text-right">Processing...</span>
-                        </div>
-                    </div>`;
-                chatMessages.insertAdjacentHTML('beforeend', loadingHtml);
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-
-                try {
-                    const response = await fetch('{{ route('ask-chatgpt') }}', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                        },
-                        body: JSON.stringify({question}),
-                    });
-
-                    const data = await response.json();
-
-                    if (response.ok) {
-                        fetchConversations(); // Fetch latest conversations
-                    } else {
-                        console.error('Error submitting question:', data.message);
-                        alert('An error occurred while submitting your message.');
-                    }
-                } catch (error) {
-                    console.error('Error submitting question:', error);
-                }
-            });
-
-            // Initial fetch of conversations
-            fetchConversations();
+            const chatManager = new ChatManager(chatConfig);
         });
     </script>
 </x-app-layout>

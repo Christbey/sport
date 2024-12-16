@@ -11,24 +11,41 @@
                 @php
                     $navigationItems = [
                         'Pickem' => [
-                            ['label' => 'Submit Picks', 'route' => 'pickem.schedule'],
-                            ['label' => 'Leaderboard', 'route' => 'pickem.leaderboard'],
+                            ['label' => 'Submit Picks', 'route' => 'pickem.schedule', 'permission' => 'view picks'],
+                            ['label' => 'Leaderboard', 'route' => 'pickem.leaderboard', 'permission' => 'view leaderboard']
                         ],
                         'NFL' => [
-                            ['label' => 'NFL Sheet', 'route' => 'nfl.detail'],
-                            ['label' => 'NFL News', 'route' => 'nfl.news.index'],
-                            ['label' => 'Player Stats', 'route' => 'nfl.stats.index'],
-                            ['label' => 'Offense Defense', 'route' => 'team_rankings.scoring'],
-                            ['label' => 'Covers Games', 'route' => 'covers.games'],
-                            ['label' => 'ESPN QBR', 'route' => 'nfl.qbr', 'params' => ['week' => 1]],
+                            ['label' => 'NFL Sheet', 'route' => 'nfl.detail', 'permission' => 'view nfl sheet'],
+                            ['label' => 'NFL News', 'route' => 'nfl.news.index', 'permission' => 'view nfl news'],
+                            ['label' => 'Analytics', 'route' => 'nfl.stats.index', 'permission' => 'view nfl analytics'],
+                            ['label' => 'Offense Defense', 'route' => 'team_rankings.scoring', 'permission' => 'api tokens'],
+                            ['label' => 'Covers Games', 'route' => 'covers.games', 'permission' => 'api tokens'],
+                            ['label' => 'ESPN QBR', 'route' => 'nfl.qbr', 'params' => ['week' => 1], 'permission' => 'api tokens'],
                             ['label' => 'Elo Predictions', 'route' => 'nfl.elo.index'],
-                            ['label' => 'Trends Analysis', 'route' => 'nfl.trends.config'],
+                            ['label' => 'Trends Analysis', 'route' => 'nfl.trends.config','permission' => 'view analytics'],
                         ],
                         'College' => [
                             ['label' => 'CFB Hypotheticals', 'route' => 'cfb.index'],
                             ['label' => 'CBB Hypotheticals', 'route' => 'cbb.index'],
                         ],
                     ];
+
+    // Filter items based on permissions
+    $navigationItems = collect($navigationItems)->map(function($items, $title) {
+        $filteredItems = collect($items)->filter(function($item) {
+            if (isset($item['permission'])) {
+                return auth()->user()?->can($item['permission']);
+            }
+            if (isset($item['role'])) {
+                return auth()->user()?->hasRole($item['role']);
+            }
+            return true;
+        })->all();
+
+        return $filteredItems;
+    })->filter(function($items) {
+        return !empty($items);
+    })->all();
                 @endphp
 
                         <!-- Desktop Navigation -->
@@ -69,6 +86,8 @@
             <!-- Right Side Navigation -->
             <div class="hidden sm:flex items-center sm:ml-6 space-x-4">
                 @auth
+                    {{-- View Teams permission --}}
+                    @haspermission('view teams')
                     @if (Laravel\Jetstream\Jetstream::hasTeamFeatures() && Auth::user()->currentTeam)
                         <!-- Teams Dropdown -->
                         <div class="relative" x-data="{ open: false }" @click.away="open = false">
@@ -134,7 +153,7 @@
                             </div>
                         </div>
                     @endif
-
+                    @endhaspermission
                     <!-- User Dropdown -->
                     <div class="relative" x-data="{ open: false }" @click.away="open = false">
                         <button @click="open = !open"
@@ -164,10 +183,12 @@
                                 <div class="block px-4 py-2 text-xs text-gray-400">Manage Account</div>
                                 <a href="{{ route('profile.show') }}"
                                    class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Profile</a>
+                                @haspermission('api tokens')
                                 @if (Laravel\Jetstream\Jetstream::hasApiFeatures())
                                     <a href="{{ route('api-tokens.index') }}"
                                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">API Tokens</a>
                                 @endif
+                                @endhaspermission
                                 <div class="border-t border-gray-200"></div>
                                 <form method="POST" action="{{ route('logout') }}">
                                     @csrf
