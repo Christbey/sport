@@ -40,7 +40,7 @@
                     @livewire('profile.delete-user-form')
                 </div>
             @endif
-            @hasrole('admins')
+            @hasrole('admin')
             <x-section-border/>
             <div class="mt-10 sm:mt-0">
                 @livewire('permission-management')

@@ -1,6 +1,17 @@
 <x-app-layout class=" bg-gray-50 dark:bg-gray-900">
+    @if (session('warning'))
+        <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4" role="alert">
+            {{ session('warning') }}
+        </div>
+    @endif
     <main class="container mx-auto px-4 h-screen md:h-[550px] flex flex-col overflow-hidden max-w-5xl">
-        <!-- Chat Container -->
+        <!-- Chat Container --> {{-- In your openai/index.blade.php --}}
+        <div id="remaining-requests" class="text-sm mb-4">
+            <span class="font-medium">Requests remaining:</span>
+            <span class="text-green-600 dark:text-green-400">
+        {{ $remainingRequests }}/{{ $maxRequests }}
+    </span>
+        </div>
         <div class="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden flex flex-col my-3 md:max-w-2xl lg:max-w-3xl mx-auto w-full">
 
             <!-- Chat Header -->

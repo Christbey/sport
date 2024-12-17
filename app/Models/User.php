@@ -66,6 +66,22 @@ class User extends Authenticatable
         return config('services.discord.channel_id'); // Discord channel ID
     }
 
+    public function isSubscribed(): bool
+    {
+        // You can adjust 'default' to match your subscription name
+        return $this->subscribed('default');
+    }
+
+    public function getChatLimit(): int
+    {
+        if ($this->subscription('default')?->hasPrice('price_premium')) {
+            return 100; // Premium tier
+        } elseif ($this->subscription('default')?->hasPrice('price_standard')) {
+            return 60;  // Standard tier
+        }
+        return 5;      // Free tier
+    }
+
     public function submissions()
     {
         return $this->hasMany(UserSubmission::class);

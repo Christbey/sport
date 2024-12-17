@@ -154,10 +154,20 @@ Route::controller(UserRoleController::class)->group(function () {
 });
 
 // ChatGPT Routes
+// ChatGPT Routes
 Route::controller(ChatGPTController::class)->group(function () {
-    Route::get('/ask-chatgpt', 'showChat')->name('show-chatgpt');
-    Route::post('/ask-chatgpt', 'ask')->name('ask-chatgpt');
-    Route::get('/load-chat', 'loadChat')->name('load-chat');
+    Route::get('/ask-chatgpt', 'showChat')
+        ->name('show-chatgpt')
+        ->middleware('auth');
+
+    Route::post('/ask-chatgpt', 'ask')
+        ->name('ask-chatgpt')
+        ->middleware('auth');
+
+    Route::get('/load-chat', 'loadChat')
+        ->name('load-chat')
+        ->middleware('auth');
+
     Route::post('/clear-conversations', 'clearConversations')
         ->name('clear-conversations')
         ->middleware('auth');

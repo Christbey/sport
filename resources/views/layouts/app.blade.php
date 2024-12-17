@@ -17,7 +17,9 @@
 
 <div class="flex flex-col h-full">
     @livewire('navigation-menu')
-
+    @if($uniqueId = request()->cookie('unique_id'))
+        <meta name="x-unique-id" content="{{ $uniqueId }}">
+    @endif
     @isset($header)
         <header class="bg-white shadow">
             <div class="px-4 py-4 mx-auto max-w-7xl sm:px-6 lg:px-8">
