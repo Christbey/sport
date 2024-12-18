@@ -33,6 +33,9 @@ return [
 
     'path' => env('CASHIER_PATH', 'stripe'),
 
+    'subscription_model' => App\Models\Subscription::class,
+
+
     /*
     |--------------------------------------------------------------------------
     | Stripe Webhooks

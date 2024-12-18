@@ -1,4 +1,4 @@
-<section class="min-h-screen bg-gray-50 dark:bg-gray-900">
+<section class="min-h-screen dark:bg-gray-900">
     <div class="container mx-auto min-h-screen px-4 py-12 lg:py-16">
         <div class="grid h-full place-items-center lg:grid-cols-12 lg:gap-8">
             <!-- Hero Content -->
@@ -25,14 +25,14 @@
                             </svg>
                         </a>
 
-                        <a href="{{ route('pickem.leaderboard') }}"
+                        <a href="{{ route('show-chatgpt') }}"
                            class="inline-flex items-center justify-center py-4 px-6 font-medium text-center text-gray-900 rounded-lg border border-gray-300 hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-700 transition-colors duration-200">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" stroke-width="2"
                                  viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round"
                                       d="M3 15v4m6-6v6m6-4v4m6-6v6M3 11l6-5 6 5 5.5-5.5"></path>
                             </svg>
-                            Leaderboard
+                            Pickly Sports Chat
                         </a>
                     </div>
                 @endauth

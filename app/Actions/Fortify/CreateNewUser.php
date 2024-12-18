@@ -42,6 +42,14 @@ class CreateNewUser implements CreatesNewUsers
                 'password' => Hash::make($input['password']),
             ]);
 
+            // Create Stripe Customer
+            $user->createOrGetStripeCustomer();
+
+            // Subscribe the user to the free plan
+            $user->newSubscription('default', 'price_1QWmfyELTH1Vz3ILs7y36EHw') // Replace with your actual Price ID
+            ->create();
+
+            // Handle team invitation
             $invitation = TeamInvitation::where('email', $input['email'])->first();
 
             if ($invitation) {

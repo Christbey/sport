@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Events\MessageSent;
 use App\Events\OpenAIResponseReceived;
 use App\Models\Conversation;
+use App\Models\Plan;
 use App\Services\OpenAIChatService;
 use Exception;
 use Illuminate\Http\Request;
@@ -14,8 +15,7 @@ use Illuminate\Support\Facades\RateLimiter;
 class ChatGPTController extends Controller
 {
     private const FREE_LIMIT = 5;
-    private const PREMIUM_LIMIT = 25;
-    private const DECAY_MINUTES = 600; // 1 hour window
+    private const DECAY_SECONDS = 3600; // 1 hour window
 
     protected OpenAIChatService $chatService;
 
@@ -59,15 +59,28 @@ class ChatGPTController extends Controller
      */
     private function getUserLimit(): int
     {
-        return auth()->user()->subscribed('default') ? self::PREMIUM_LIMIT : self::FREE_LIMIT;
+        $user = auth()->user();
+
+        // Retrieve the active 'default' subscription
+        $subscription = $user->subscription('default');
+
+        if ($subscription) {
+            // Fetch the corresponding plan based on stripe_price_id
+            $plan = Plan::where('stripe_price_id', $subscription->stripe_price)->first();
+
+            if ($plan) {
+                return $plan->limit;
+            } else {
+                // Log the missing plan for debugging purposes
+                \Log::warning("No plan found for stripe_price_id: {$subscription->stripe_price} for user ID: {$user->id}");
+                return self::FREE_LIMIT;
+            }
+        }
+
+        // User is not subscribed; return free limit
+        return self::FREE_LIMIT;
     }
 
-    /**
-     * Handle chat messages and OpenAI response.
-     */
-    /**
-     * Handle chat messages and OpenAI response.
-     */
     /**
      * Handle chat messages and OpenAI response.
      */
@@ -78,7 +91,6 @@ class ChatGPTController extends Controller
         $user = auth()->user();
         $key = $this->getRateLimitKey($user->id);
         $limit = $this->getUserLimit();
-
 
         // Check subscription status first
         if (!$user->subscribed('default')) {
@@ -101,7 +113,9 @@ class ChatGPTController extends Controller
         try {
             // Process the chat request
             $response = $this->processChat($request->question);
-            RateLimiter::increment($key, self::DECAY_MINUTES);
+
+            // Record the hit with decay time
+            RateLimiter::hit($key, self::DECAY_SECONDS);
 
             return response()->json([
                 'status' => 'success',
@@ -109,7 +123,6 @@ class ChatGPTController extends Controller
                 'remaining_requests' => RateLimiter::remaining($key, $limit),
                 'seconds_until_reset' => RateLimiter::availableIn($key)
             ]);
-
         } catch (Exception $e) {
             Log::error('ChatGPT Error:', [
                 'error' => $e->getMessage(),
@@ -185,8 +198,6 @@ class ChatGPTController extends Controller
      */
     public function clearConversations()
     {
-
-
         session()->forget([
             'chat_history',
             'conversation_context',

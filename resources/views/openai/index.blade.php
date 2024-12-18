@@ -4,7 +4,7 @@
             {{ session('warning') }}
         </div>
     @endif
-    <main class="container mx-auto px-4 h-screen md:h-[550px] flex flex-col overflow-hidden max-w-5xl">
+    <main class="container mx-auto px-4 h-dvh md:h-dvh flex flex-col overflow-hidden max-w-5xl">
         <!-- Chat Container --> {{-- In your openai/index.blade.php --}}
         <div id="remaining-requests" class="text-sm mb-4">
             <span class="font-medium">Requests remaining:</span>
