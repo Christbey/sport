@@ -13,4 +13,9 @@ class Subscription extends CashierSubscription
     {
         return $this->belongsTo(Plan::class, 'stripe_price', 'stripe_price_id');
     }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 }

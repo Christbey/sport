@@ -25,4 +25,11 @@ class Plan extends Model
     {
         return $this->stripe_price_id === 'price_1JZG3e2eZvKYlo2C' ? self::FREE_LIMIT : self::PREMIUM_LIMIT;
     }
+
+    public function subscriptions()
+    {
+        return $this->hasMany(Subscription::class);
+    }
+
+
 }

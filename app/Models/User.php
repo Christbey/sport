@@ -21,8 +21,10 @@ class User extends Authenticatable
     use HasProfilePhoto;
     use HasTeams;
     use Notifiable;
+
+    // Removed duplicate Notifiable
+
     use TwoFactorAuthenticatable;
-    use Notifiable;
     use HasRoles;
     use Billable;
 
@@ -36,6 +38,7 @@ class User extends Authenticatable
         'email',
         'password',
     ];
+
     /**
      * The attributes that should be hidden for serialization.
      *
@@ -61,37 +64,21 @@ class User extends Authenticatable
         'profile_photo_url',
     ];
 
+    /**
+     * Route notifications for the Discord channel.
+     *
+     * @return string
+     */
     public function routeNotificationForDiscord(): string
     {
         return config('services.discord.channel_id'); // Discord channel ID
     }
 
-    public function isSubscribed(): bool
-    {
-        // You can adjust 'default' to match your subscription name
-        return $this->subscribed('default');
-    }
-
-    public function getChatLimit(): int
-    {
-        if ($this->subscription('default')?->hasPrice('price_premium')) {
-            return 100; // Premium tier
-        } elseif ($this->subscription('default')?->hasPrice('price_standard')) {
-            return 60;  // Standard tier
-        }
-        return 5;      // Free tier
-    }
-
-    public function submissions()
-    {
-        return $this->hasMany(UserSubmission::class);
-    }
-
-    public function notes()
-    {
-        return $this->hasMany(CollegeFootballNote::class);
-    }
-
+    /**
+     * Get the customer's name for Stripe.
+     *
+     * @return string
+     */
     public function stripeName()
     {
         return $this->name;
@@ -99,6 +86,8 @@ class User extends Authenticatable
 
     /**
      * Get the customer email that should be synced to Stripe.
+     *
+     * @return string
      */
     public function stripeEmail()
     {
@@ -106,7 +95,75 @@ class User extends Authenticatable
     }
 
     /**
-     * Get the attributes that should be cast.
+     * Check if the user has an active subscription.
+     *
+     * @return bool
+     */
+    public function hasActiveSubscription()
+    {
+        return $this->subscribed('default');
+    }
+
+    /**
+     * Get the name of the active subscription's plan.
+     *
+     * @return string|null
+     */
+    /**
+     * Get the name of the active subscription's plan.
+     *
+     * @return string|null
+     */
+    public function activeSubscriptionPlanName()
+    {
+        $activeSubscription = $this->activeSubscription();
+        return optional($activeSubscription->plan)->name;
+    }
+
+
+    /**
+     * Get the active subscription.
+     *
+     * @return \Laravel\Cashier\Subscription|null
+     */
+    public function activeSubscription()
+    {
+        return $this->subscription('default');
+    }
+
+    /**
+     * Determine the chat limit based on the subscription plan.
+     *
+     * @return int
+     */
+    public function getChatLimit(): int
+    {
+        if ($this->activeSubscription()?->hasPrice('price_premium')) {
+            return 100; // Premium tier
+        } elseif ($this->activeSubscription()?->hasPrice('price_standard')) {
+            return 60;  // Standard tier
+        }
+        return 5;      // Free tier
+    }
+
+    /**
+     * Get all submissions made by the user.
+     */
+    public function submissions()
+    {
+        return $this->hasMany(UserSubmission::class);
+    }
+
+    /**
+     * Get all notes associated with the user.
+     */
+    public function notes()
+    {
+        return $this->hasMany(CollegeFootballNote::class);
+    }
+
+    /**
+     * The attributes that should be cast.
      *
      * @return array<string, string>
      */
@@ -117,4 +174,6 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+
 }

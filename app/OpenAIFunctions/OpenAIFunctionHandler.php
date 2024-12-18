@@ -16,14 +16,14 @@ use Illuminate\Support\Facades\Log;
 
 class OpenAIFunctionHandler
 {
-    protected $repository;
+    protected NflEloPredictionRepository $repository;
     protected NflBoxScoreRepository $boxScoreRepository;
-    protected $scheduleRepository;
-    protected $teamStatsRepository;
-    protected $playerDataRepository;
-    protected $bettingOddsRepository;
-    protected $playerStatRepository;
-    protected $nflTeamStatsRepository;
+    protected NflTeamScheduleRepository $scheduleRepository;
+    protected TeamStatsRepository $teamStatsRepository;
+    protected NflPlayerDataRepository $playerDataRepository;
+    protected NflBettingOddsRepository $bettingOddsRepository;
+    protected NflPlayerStatRepository $playerStatRepository;
+    protected NflTeamStatRepository $nflTeamStatsRepository;
 
     /**
      * Inject the required repositories and assign them to class properties.
