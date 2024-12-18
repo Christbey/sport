@@ -1,3 +1,5 @@
+// resources/js/ChatManager.js
+
 import './bootstrap';
 import axios from 'axios';
 
@@ -12,6 +14,11 @@ class ChatManager {
         this.setupAxios(config.csrfToken);
         this.initializeEventListeners();
         this.initializeChat();
+
+        // Store initial max_requests and remaining_requests
+        const remainingRequestsElement = document.getElementById('remaining-requests');
+        this.initialMaxRequests = parseInt(remainingRequestsElement.dataset.maxRequests, 10);
+        this.initialRemainingRequests = parseInt(remainingRequestsElement.dataset.remainingRequests, 10);
     }
 
     // Cache all necessary DOM elements
@@ -45,12 +52,12 @@ class ChatManager {
         const escape = this.escapeHtml;
         return {
             user: ({content, time}) => `
-                <div class="self-end bg-blue-50 dark:bg-blue-900/50 rounded-2xl p-4 max-w-[80%] shadow-sm">
+                <div class="self-end bg-blue-50 rounded-2xl p-4 max-w-3/4 shadow-sm">
                     <div class="text-gray-800 dark:text-gray-200">${escape(content)}</div>
                     <span class="block text-xs text-gray-500 dark:text-gray-400 mt-2 text-right">${time}</span>
                 </div>`,
             assistant: ({content, time, isHtml}) => `
-                <div class="self-start bg-white dark:bg-gray-800 rounded-2xl p-4 ${isHtml ? 'w-full' : 'max-w-[80%]'} shadow-sm">
+                <div class="self-start bg-white rounded-2xl p-4 ${isHtml ? 'w-full' : 'max-w-3/4'} shadow-sm">
                     <div class="${isHtml ? '' : 'prose dark:prose-invert prose-sm max-w-none'}">
                         ${isHtml ? content : escape(content)}
                     </div>
@@ -126,14 +133,14 @@ class ChatManager {
     // Add loading indicator
     addLoadingIndicator() {
         const loadingHtml = `
-            <div class="self-start bg-white dark:bg-gray-800 rounded-2xl p-4 max-w-[80%] shadow-sm" id="loading-indicator">
+            <div class="self-start bg-white rounded-2xl p-4 max-w-3/4 shadow-sm" id="loading-indicator">
                 <div class="flex items-center space-x-2">
                     <div class="flex space-x-1">
                         <div class="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
                         <div class="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
                         <div class="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
                     </div>
-                    <span class="text-sm text-gray-500 dark:text-gray-400">Assistant is typing...</span>
+                    <span class="text-sm text-gray-500">Assistant is typing...</span>
                 </div>
             </div>
         `;
@@ -157,11 +164,18 @@ class ChatManager {
         try {
             const {data} = await axios.post(this.config.routes.clearConversations);
             if (data.status === 'success') {
+                // Clear chat messages from the DOM
                 this.elements.chat.innerHTML = '';
+
+                // Close the modal
                 this.toggleModal(false);
+
+                // Optionally, show a success toast
+                this.showToast('Conversations cleared successfully.', 'success');
             }
         } catch (error) {
             console.error('Error clearing conversations:', error);
+            this.renderErrorMessage('Failed to clear conversations. Please try again.');
         }
     }
 
@@ -169,6 +183,15 @@ class ChatManager {
     updateRequestCounter({remaining_requests, max_requests, seconds_until_reset}) {
         const {remainingRequests} = this.elements;
         if (!remainingRequests) return;
+
+        // Provide default values if undefined
+        max_requests = max_requests !== undefined ? max_requests : this.getCurrentMaxRequests();
+        remaining_requests = remaining_requests !== undefined ? remaining_requests : this.getCurrentRemainingRequests();
+
+        if (max_requests === undefined || remaining_requests === undefined) {
+            console.warn('max_requests or remaining_requests is undefined.');
+            return;
+        }
 
         const percentage = (remaining_requests / max_requests) * 100;
         const colorClass = this.getStatusColorClass(percentage);
@@ -185,6 +208,19 @@ class ChatManager {
         `;
     }
 
+    // Helper methods to retrieve current values from the DOM
+    getCurrentMaxRequests() {
+        const currentText = this.elements.remainingRequests.innerText;
+        const parts = currentText.split('/');
+        return parts[1] ? parseInt(parts[1], 10) : undefined;
+    }
+
+    getCurrentRemainingRequests() {
+        const currentText = this.elements.remainingRequests.innerText;
+        const parts = currentText.split('/');
+        return parts[0] ? parseInt(parts[0].replace('Requests remaining:', '').trim(), 10) : undefined;
+    }
+
     // Determine color class based on percentage
     getStatusColorClass(percentage) {
         if (percentage === 0) return 'text-red-600 dark:text-red-400 font-bold';
@@ -199,6 +235,8 @@ class ChatManager {
             const {data} = await axios.get(this.config.routes.loadChat);
             const {chat_history: messages} = data;
 
+            console.log('Loaded chat history:', messages); // Debugging
+
             if (!messages?.length) return;
 
             const batchSize = this.calculateBatchSize();
@@ -207,21 +245,41 @@ class ChatManager {
             for (let i = 0; i < messages.length; i += batchSize) {
                 const batch = messages.slice(i, i + batchSize);
                 batch.forEach(message => {
-                    const isUser = message.user_id === this.config.userId;
-                    const content = isUser ? message.input : message.output;
-                    const time = new Date(message.created_at).toLocaleString();
-                    const isHtml = typeof content === 'string' && content.trim().startsWith('<') && content.trim().endsWith('>');
+                    // Render User Message
+                    const userContent = message.input;
+                    const userTime = new Date(message.created_at).toLocaleString();
+                    const userIsHtml = false; // Assuming user messages are plain text
 
-                    const messageHtml = this.config.messageTemplate[isUser ? 'user' : 'assistant']({
-                        content,
-                        time,
-                        isHtml,
-                    });
+                    if (userContent) {
+                        const userMessageHtml = this.config.messageTemplate['user']({
+                            content: userContent,
+                            time: userTime,
+                            isHtml: userIsHtml,
+                        });
 
-                    const wrapper = document.createElement('div');
-                    wrapper.className = `flex flex-col ${isUser ? 'items-end' : 'items-start'} space-y-2`;
-                    wrapper.innerHTML = messageHtml;
-                    fragment.appendChild(wrapper);
+                        const userWrapper = document.createElement('div');
+                        userWrapper.className = `flex flex-col items-end space-y-2`;
+                        userWrapper.innerHTML = userMessageHtml;
+                        fragment.appendChild(userWrapper);
+                    }
+
+                    // Render Assistant Message
+                    const assistantContent = message.output;
+                    const assistantTime = new Date(message.created_at).toLocaleString();
+                    const assistantIsHtml = typeof assistantContent === 'string' && assistantContent.trim().startsWith('<') && assistantContent.trim().endsWith('>');
+
+                    if (assistantContent) {
+                        const assistantMessageHtml = this.config.messageTemplate['assistant']({
+                            content: assistantContent,
+                            time: assistantTime,
+                            isHtml: assistantIsHtml,
+                        });
+
+                        const assistantWrapper = document.createElement('div');
+                        assistantWrapper.className = `flex flex-col items-start space-y-2`;
+                        assistantWrapper.innerHTML = assistantMessageHtml;
+                        fragment.appendChild(assistantWrapper);
+                    }
                 });
 
                 this.elements.chat.appendChild(fragment.cloneNode(true));
@@ -290,6 +348,46 @@ class ChatManager {
 
             this.renderMessage({type, content, time});
         });
+    }
+
+    // Render an error message (optional)
+    renderErrorMessage(message) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative';
+        errorDiv.role = 'alert';
+        errorDiv.innerHTML = `
+            <strong class="font-bold">Error:</strong>
+            <span class="block sm:inline">${message}</span>
+            <span class="absolute top-0 bottom-0 right-0 px-4 py-3">
+                <svg class="fill-current h-6 w-6 text-red-500" role="button" xmlns="http://www.w3.org/2000/svg" 
+                     viewBox="0 0 20 20"><title>Close</title>
+                    <path d="M14.348 5.652a1 1 0 00-1.414 0L10 
+                             8.586 7.066 5.652a1 1 0 00-1.414 
+                             1.414L8.586 10l-2.934 2.934a1 1 0 
+                            001.414 1.414L10 11.414l2.934 
+                             2.934a1 1 0 001.414-1.414L11.414 
+                             10l2.934-2.934a1 1 0 000-1.414z"/>
+                </svg>
+            </span>
+        `;
+        this.elements.chat.parentElement.insertBefore(errorDiv, this.elements.chat);
+
+        // Remove the error message after a few seconds
+        setTimeout(() => {
+            errorDiv.remove();
+        }, 5000);
+    }
+
+    // Show toast notification
+    showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `fixed bottom-4 right-4 px-4 py-2 rounded shadow-lg text-white ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`;
+        toast.innerText = message;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.remove();
+        }, 3000);
     }
 }
 

@@ -147,7 +147,7 @@ class ChatGPTController extends Controller
         $response = $this->chatService->getChatCompletion([
             [
                 'role' => 'system',
-                'content' => 'You are an NFL assistant that helps users with their NFL queries. Focus on providing insights and analysis. Structure your responses as engaging articles with proper HTML formatting using Tailwind classes for styling. Never use markdown tables.'
+                'content' => 'You are an NFL assistant that helps users with their NFL queries. Focus on providing insights and analysis. Structure your responses as engaging articles with proper HTML formatting using Tailwind classes for styling. Do not include DOCTYPE, html, head, or body tags. Only provide the inner HTML content to be inserted into the chat interface.'
             ],
             ['role' => 'user', 'content' => $userMessage],
         ]);
@@ -170,39 +170,28 @@ class ChatGPTController extends Controller
      */
     private function storeAndBroadcastMessage(int $userId, string $userMessage, string $assistantResponse): void
     {
-        $newMessage = [
-            'user_id' => $userId,
-            'input' => htmlspecialchars($userMessage, ENT_QUOTES, 'UTF-8'),
-            'output' => $assistantResponse,
-            'created_at' => now(),
-        ];
-
-        // Store in session
-        $chatHistory = session('chat_history', []);
-        $chatHistory[] = $newMessage;
-        session(['chat_history' => $chatHistory]);
-
-        // Store in database
-        Conversation::create([
-            'user_id' => $userId,
-            'input' => $userMessage,
-            'output' => $assistantResponse
-        ]);
+        // Remove the database storage
 
         // Broadcast to others
-        broadcast(new MessageSent((object)$newMessage))->toOthers();
+        broadcast(new MessageSent((object)[
+            'user_id' => $userId,
+            'input' => $userMessage,
+            'output' => $assistantResponse,
+            'created_at' => now() // Use current timestamp
+        ]))->toOthers();
     }
 
     /**
      * Clear all conversations for the current user.
      */
+
+
     public function clearConversations()
     {
-        session()->forget([
-            'chat_history',
-            'conversation_context',
-            'conversation_state'
-        ]);
+        $user = auth()->user();
+
+        // Soft delete all conversations for the user
+        Conversation::where('user_id', $user->id)->delete();
 
         return response()->json([
             'status' => 'success',
@@ -213,10 +202,20 @@ class ChatGPTController extends Controller
     /**
      * Load chat history.
      */
+
+
     public function loadChat()
     {
+        $user = auth()->user();
+
+        // Fetch all non-deleted conversations for the authenticated user, ordered by creation time
+        $conversations = Conversation::where('user_id', $user->id)
+            ->orderBy('created_at', 'asc')
+            ->get(['user_id', 'input', 'output', 'created_at']);
+
         return response()->json([
-            'chat_history' => session('chat_history', [])
+            'chat_history' => $conversations
         ]);
     }
+
 }

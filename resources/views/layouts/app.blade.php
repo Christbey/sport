@@ -6,37 +6,36 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ config('app.name', 'Laravel') }}</title>
 
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet">
 
+    <!-- Styles & Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
 </head>
-<body class="font-sans antialiased bg-gray-100 h-full">
+<body class="font-sans antialiased bg-gray-100 flex flex-col h-full">
 <x-banner/>
 
-<div class="flex flex-col h-full">
-    @livewire('navigation-menu')
-    @if($uniqueId = request()->cookie('unique_id'))
-        <meta name="x-unique-id" content="{{ $uniqueId }}">
-    @endif
-    @isset($header)
-        <header class="bg-white shadow">
-            <div class="px-4 py-4 mx-auto max-w-7xl sm:px-6 lg:px-8">
-                {{ $header }}
-            </div>
-        </header>
-    @endisset
+@livewire('navigation-menu')
 
-    <main class="flex-1 overflow-auto">
-        {{ $slot }}
-        @component('components.footer')
-        @endcomponent
-    </main>
+@if ($uniqueId = request()->cookie('unique_id'))
+    <meta name="x-unique-id" content="{{ $uniqueId }}">
+@endif
 
-</div>
+@isset($header)
+    <header class="bg-white shadow">
+        <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
+            {{ $header }}
+        </div>
+    </header>
+@endisset
 
-@stack('modals')
+<main class="flex-1 overflow-auto">
+    {{ $slot }}
+    @include('components.footer')
+</main>
+
 @livewireScripts
 </body>
 </html>
