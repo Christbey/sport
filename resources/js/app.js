@@ -1,6 +1,8 @@
 import './bootstrap';
 import 'flowbite'; // Import Flowbite JS
 import ChatManager from './chat'; // Note: .js extension is not needed with Vite
+import process from 'process';
+import 'alpinejs';
 
 window.ChatManager = ChatManager; // Make it available globally
 
@@ -33,3 +35,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // If you're using Alpine.js or need it globally
 window.initializeUniqueId = initializeUniqueId;
+
+window.process = process;
+

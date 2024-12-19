@@ -191,3 +191,7 @@ Route::post('stripe/webhook', [StripeWebhookController::class, 'handleWebhook'])
     ->name('cashier.webhook')
     ->middleware(VerifyWebhookSignature::class)
     ->withoutMiddleware([TrackUserSession::class]);
+
+Route::post('broadcasting/auth', function () {
+    return auth()->check() ? auth()->user() : abort(403);
+})->name('broadcasting.auth');

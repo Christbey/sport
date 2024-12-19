@@ -59,7 +59,7 @@ class OpenAIFunctionHandler
         switch ($functionName) {
 
             case 'get_predictions_by_week':
-                return $this->repository->getPredictions($arguments['week']);
+                return $this->repository->getPredictions($arguments['week'] ?? OpenAI::getCurrentNFLWeek());
 
             case 'find_prediction_by_game_id':
                 return $this->repository->findByGameId($arguments['game_id']);
@@ -167,7 +167,7 @@ class OpenAIFunctionHandler
                     $arguments['gameIds'] ?? [],
                     $arguments['teamAbv1'] ?? null,
                     $arguments['teamAbv2'] ?? null,
-                    $arguments['week'] ?? null,
+                    $arguments['week'] ?? OpenAI::getCurrentNFLWeek(),
                     $arguments['locationFilter'] ?? null
                 );
 
@@ -175,7 +175,7 @@ class OpenAIFunctionHandler
                 // Extract arguments with default values
                 $playerFilter = $arguments['playerFilter'] ?? null;
                 $teamFilter = $arguments['teamFilter'] ?? null;
-                $week = $arguments['week'] ?? null;
+                $week = $arguments['week'] ?? OpenAI::getCurrentNFLWeek();
                 $startWeek = $arguments['start_week'] ?? null;
                 $endWeek = $arguments['end_week'] ?? null;
                 $yardThreshold = $arguments['yardThreshold'] ?? 50;
@@ -253,7 +253,7 @@ class OpenAIFunctionHandler
                 $rawData = $this->teamStatsRepository->getBestTacklers(
                     teamFilter: $arguments['teamFilter'] ?? null,
                     week: $arguments['week'] ?? openAi::getCurrentNFLWeek(),
-                    startWeek: $arguments['start_week'] ?? null,
+                    startWeek: $arguments['start_week'] ?? OpenAI::getCurrentNFLWeek(),
                     endWeek: $arguments['end_week'] ?? null,
                     playerFilter: $arguments['playerFilter'] ?? null,
                     tackleThreshold: $arguments['tackleThreshold'] ?? null,
@@ -277,7 +277,7 @@ class OpenAIFunctionHandler
                     $arguments['teamFilter'] ?? null,
                     $arguments['teamAbv1'] ?? null,
                     $arguments['teamAbv2'] ?? null,
-                    $arguments['week'] ?? null,
+                    $arguments['week'] ?? OpenAI::getCurrentNFLWeek(),
                     $arguments['locationFilter'] ?? null
                 );
 
@@ -353,7 +353,7 @@ class OpenAIFunctionHandler
                 return $this->bettingOddsRepository->getOddsByTeam($arguments['teamFilter']);
 
             case 'get_odds_by_week':
-                return $this->bettingOddsRepository->getOddsByWeek($arguments['week']);
+                return $this->bettingOddsRepository->getOddsByWeek($arguments['week'] ?? OpenAI::getCurrentNFLWeek());
 
             case 'get_odds_by_date_range':
                 return $this->bettingOddsRepository->getOddsByDateRange($arguments['startDate'], $arguments['endDate']);
@@ -364,7 +364,7 @@ class OpenAIFunctionHandler
             case 'get_odds_by_team_and_week':
                 $odds = $this->bettingOddsRepository->getOddsByTeamAndWeek(
                     $arguments['teamFilter'],
-                    $arguments['week']
+                    $arguments['week'] ?? OpenAI::getCurrentNFLWeek(),
                 );
 
                 return response()->json(['odds' => $odds->toArray()]);
@@ -402,7 +402,7 @@ class OpenAIFunctionHandler
             case 'get_first_downs_average':
                 return $this->nflTeamStatsRepository->getFirstDownsAverage(
                     $arguments['teamFilters'],
-                    $arguments['week'] ?? null,
+                    $arguments['week'] ?? OpenAI::getCurrentNFLWeek(),
                     $arguments['season'] ?? null
                 );
 
@@ -410,7 +410,7 @@ class OpenAIFunctionHandler
                 return $this->nflTeamStatsRepository->getTeamStatAverage(
                     $arguments['teamFilters'],
                     $arguments['statColumn'],
-                    $arguments['week'] ?? null,
+                    $arguments['week'] ?? OpenAI::getCurrentNFLWeek(),
                     $arguments['season'] ?? null
                 );
 
@@ -442,7 +442,7 @@ class OpenAIFunctionHandler
 
                 $response = $this->repository->getTeamPrediction(
                     teamAbv: $teamAbv,
-                    week: $week,
+                    week: $week ?? OpenAI::getCurrentNFLWeek(),
                     includeStats: $includeStats,
                     includeFactors: $includeFactors
                 );

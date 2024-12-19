@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\Espn\EspnQbrController;
 use App\Http\Controllers\Api\Espn\EspnTeamProjectionController;
 use App\Http\Controllers\Api\EspnAthleteController;
 use App\Http\Controllers\Api\EspnAthleteEventLogController;
+use App\Http\Controllers\Api\NflBettingOddsController;
 use App\Http\Controllers\Api\NflTeamController;
 use App\Http\Controllers\Api\NflTeamScheduleController;
 use App\Http\Controllers\Api\TeamRankingController;
@@ -67,6 +68,8 @@ Route::get('/stats/player/season', [CollegeFootballDataController::class, 'getPl
 Route::get('/player/portal', [CollegeFootballDataController::class, 'getTransferPortal']);
 
 Route::get('/nfl/betting-odds', [NflRapidApiController::class, 'getNFLBettingOdds']);
+Route::apiResource('nfl-betting-odds', NflBettingOddsController::class);
+
 Route::get('/nfl/news', [NflRapidApiController::class, 'getNFLNews']);
 Route::get('/nfl/scores-only', [NflRapidApiController::class, 'getNFLScoresOnly']);
 Route::get('/nfl/team-schedule', [NflRapidApiController::class, 'getNFLTeamSchedule']);
@@ -133,3 +136,4 @@ Route::prefix('nfl/stats')->group(function () {
     Route::get('/{queryType}/data', [TeamStatsController::class, 'getAnalysisData']);
     Route::get('/recent-games', [TeamStatsController::class, 'getRecentGames']);
 });
+

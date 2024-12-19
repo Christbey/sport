@@ -165,7 +165,9 @@
             @apply p-3 border border-gray-200 dark:border-gray-700;
         }
     </style>
-
+    <script>
+        window.userId = {{ auth()->id() }};
+    </script>
     <!-- Initialize ChatManager -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
