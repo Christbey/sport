@@ -3,6 +3,8 @@
 namespace App\OpenAIFunctions;
 
 use App\Helpers\OpenAI;
+use App\Models\CollegeBasketballGame;
+use App\Models\CollegeBasketballHypothetical;
 use App\Repositories\Nfl\NflBettingOddsRepository;
 use App\Repositories\Nfl\NflBoxScoreRepository;
 use App\Repositories\Nfl\NflEloPredictionRepository;
@@ -12,6 +14,7 @@ use App\Repositories\Nfl\NflTeamStatRepository;
 use App\Repositories\Nfl\TeamStatsRepository;
 use App\Repositories\NflTeamScheduleRepository;
 use Exception;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class OpenAIFunctionHandler
@@ -375,6 +378,7 @@ class OpenAIFunctionHandler
                     $arguments['team_abv'] ?? null
                 );
 
+
             case 'get_rushing_stats':
                 return $this->playerStatRepository->getRushingStats(
                     $arguments['long_name'] ?? null,
@@ -461,6 +465,27 @@ class OpenAIFunctionHandler
                     'data' => $response,
                 ];
 
+            // College Basketball Function Handlers
+            case 'get_college_game_predictions':
+                return $this->getCollegeGamePredictions($arguments);
+
+            case 'analyze_team_performance':
+                return $this->analyzeTeamPerformance($arguments);
+
+            // College Basketball Game Function Handlers
+            case 'get_upcoming_games':
+                return $this->getUpcomingGames($arguments);
+
+            case 'get_game_details':
+                return $this->getGameDetails($arguments);
+
+            case 'get_completed_games':
+                return $this->getCompletedGames($arguments);
+
+            case 'get_college_game_predictions_by_date':
+                return $this->getCollegeGamePredictionsByDate($arguments);
+
+
             default:
                 throw new Exception("Unknown function: $functionName");
         }
@@ -491,5 +516,417 @@ class OpenAIFunctionHandler
         }
 
         return $rawData['data'];
+    }
+
+    private function getCollegeGamePredictions(array $arguments)
+    {
+        $query = CollegeBasketballHypothetical::query();
+
+        if (!empty($arguments['game_id'])) {
+            $query->where('game_id', $arguments['game_id']);
+        }
+
+        if (!empty($arguments['home_team_abv'])) {
+            $query->where('home_team', $arguments['home_team_abv']);
+        }
+
+        if (!empty($arguments['away_team_abv'])) {
+            $query->where('away_team', $arguments['away_team_abv']);
+        }
+
+        if (!empty($arguments['season'])) {
+            $query->whereYear('game_date', $arguments['season']);
+        }
+
+        $predictions = $query->get();
+
+        if ($predictions->isEmpty()) {
+            return [
+                'success' => false,
+                'message' => 'No game predictions found for the specified criteria.'
+            ];
+        }
+
+        return [
+            'success' => true,
+            'data' => $predictions
+        ];
+    }
+
+    /**
+     * Handle analyze_team_performance function.
+     */
+
+    /**
+     * Handle analyze_team_performance function.
+     */
+    private function analyzeTeamPerformance(array $arguments)
+    {
+        Log::info('Invoking analyzeTeamPerformance', ['arguments' => $arguments]);
+
+        $teamAbv = $arguments['team_abv'];
+        $season = $arguments['season'] ?? Config('college_basketball.season');
+        $metrics = $arguments['metrics'] ?? [];
+
+        // Validate metrics
+        $validMetrics = ['points_scored', 'points_allowed', 'rebounds', 'assists', 'turnovers', 'steals', 'blocks'];
+        foreach ($metrics as $metric) {
+            if (!in_array($metric, $validMetrics)) {
+                Log::warning('Invalid metric provided', ['metric' => $metric]);
+                return [
+                    'success' => false,
+                    'message' => "Invalid metric: {$metric}. Valid options are: " . implode(', ', $validMetrics) . '.'
+                ];
+            }
+        }
+
+        // Fetch games for the team and season
+        $games = CollegeBasketballGame::where(function ($q) use ($teamAbv) {
+            $q->where('home_team', $teamAbv)
+                ->orWhere('away_team', $teamAbv);
+        })
+            ->whereYear('game_date', $season)
+            ->get();
+
+        if ($games->isEmpty()) {
+            Log::info('No games found for the specified team and season.');
+            return [
+                'success' => false,
+                'message' => 'No games found for the specified team and season.'
+            ];
+        }
+
+        // Initialize analysis data
+        $analysis = [];
+
+        // Calculate metrics
+        foreach ($metrics as $metric) {
+            switch ($metric) {
+                case 'points_scored':
+                    $analysis['points_scored'] = $games->sum(function ($game) use ($teamAbv) {
+                        return $game->home_team === $teamAbv ? $game->home_team_score : $game->away_team_score;
+                    });
+                    break;
+
+                case 'points_allowed':
+                    $analysis['points_allowed'] = $games->sum(function ($game) use ($teamAbv) {
+                        return $game->home_team === $teamAbv ? $game->away_team_score : $game->home_team_score;
+                    });
+                    break;
+
+                case 'rebounds':
+                    // Assuming you have a 'rebounds' column or related data
+                    // Replace with actual data fetching logic
+                    $analysis['rebounds'] = $games->sum('rebounds');
+                    break;
+
+                case 'assists':
+                    // Assuming you have an 'assists' column or related data
+                    $analysis['assists'] = $games->sum('assists');
+                    break;
+
+                case 'turnovers':
+                    // Assuming you have a 'turnovers' column or related data
+                    $analysis['turnovers'] = $games->sum('turnovers');
+                    break;
+
+                case 'steals':
+                    // Assuming you have a 'steals' column or related data
+                    $analysis['steals'] = $games->sum('steals');
+                    break;
+
+                case 'blocks':
+                    // Assuming you have a 'blocks' column or related data
+                    $analysis['blocks'] = $games->sum('blocks');
+                    break;
+
+                default:
+                    // This should not occur due to earlier validation
+                    break;
+            }
+        }
+
+        Log::info('Successfully analyzed team performance', ['team_abv' => $teamAbv, 'season' => $season]);
+
+        return [
+            'success' => true,
+            'analysis' => $analysis
+        ];
+    }
+
+    private function getUpcomingGames(array $arguments)
+    {
+        Log::info('Invoking getUpcomingGames', ['arguments' => $arguments]);
+
+        // Determine date range based on 'time_frame'
+        $timeFrame = $arguments['time_frame'];
+        $startDate = null;
+        $endDate = null;
+
+        switch ($timeFrame) {
+            case 'today':
+                $startDate = Carbon::today()->startOfDay();
+                $endDate = Carbon::today()->endOfDay();
+                break;
+
+            case 'this_week':
+                $startDate = Carbon::now()->startOfWeek(); // Typically Monday
+                $endDate = Carbon::now()->endOfWeek();     // Typically Sunday
+                break;
+
+            case 'next_week':
+                $startDate = Carbon::now()->addWeek()->startOfWeek();
+                $endDate = Carbon::now()->addWeek()->endOfWeek();
+                break;
+
+            case 'custom':
+                if (empty($arguments['start_date']) || empty($arguments['end_date'])) {
+                    Log::warning('Missing start_date or end_date for custom time_frame');
+                    return [
+                        'success' => false,
+                        'message' => 'Both start_date and end_date are required for custom time_frame.'
+                    ];
+                }
+                try {
+                    $startDate = Carbon::createFromFormat('Y-m-d', $arguments['start_date'])->startOfDay();
+                    $endDate = Carbon::createFromFormat('Y-m-d', $arguments['end_date'])->endOfDay();
+                } catch (Exception $e) {
+                    Log::error('Invalid date format for custom time_frame', ['error' => $e->getMessage()]);
+                    return [
+                        'success' => false,
+                        'message' => 'Invalid date format. Please use YYYY-MM-DD.'
+                    ];
+                }
+                break;
+
+            default:
+                Log::warning('Invalid time_frame provided', ['time_frame' => $timeFrame]);
+                return [
+                    'success' => false,
+                    'message' => 'Invalid time_frame provided.'
+                ];
+        }
+
+        // Build the query
+        $query = CollegeBasketballGame::query()
+            ->whereBetween('game_date', [$startDate, $endDate])
+            ->where('is_completed', false) // Fetch only upcoming games
+            ->with(['homeTeam', 'awayTeam']); // Eager load relationships
+
+        // Optional: Filter by team abbreviation if provided
+        if (!empty($arguments['team_abv'])) {
+            $teamAbv = $arguments['team_abv'];
+            $query->where(function ($q) use ($teamAbv) {
+                $q->where('home_team', $teamAbv)
+                    ->orWhere('away_team', $teamAbv);
+            });
+        }
+
+        // Optional: Filter by location if provided
+        if (!empty($arguments['location'])) {
+            $location = ucfirst(strtolower($arguments['location'])); // Normalize input
+            $query->where('location', $location);
+        }
+
+        // Pagination parameters
+        $page = isset($arguments['page']) ? (int)$arguments['page'] : 1;
+        $perPage = isset($arguments['per_page']) ? (int)$arguments['per_page'] : 10;
+
+        // Execute the query with pagination
+        $upcomingGames = $query->paginate($perPage, ['*'], 'page', $page);
+
+        // Handle no results
+        if ($upcomingGames->isEmpty()) {
+            Log::info('No upcoming games found for the specified criteria.');
+            return [
+                'success' => false,
+                'message' => 'No upcoming games found for the specified criteria.'
+            ];
+        }
+
+        // Format the games
+        $formattedGames = $upcomingGames->map(function ($game) {
+            // Debugging: Check the type of homeTeam and awayTeam
+            Log::info('Type of homeTeam', ['type' => gettype($game->homeTeam)]);
+            Log::info('homeTeam content', ['homeTeam' => $game->homeTeam]);
+
+            Log::info('Type of awayTeam', ['type' => gettype($game->awayTeam)]);
+            Log::info('awayTeam content', ['awayTeam' => $game->awayTeam]);
+
+            return [
+                'event_id' => $game->id,
+                'game_date' => $game->game_date->toDateString(), // Now works as Carbon
+                'game_time' => $game->game_time,
+                'location' => $game->location,
+                'home_team' => [
+                    'id' => $game->homeTeam->id, // Access via relationship
+                    'name' => $game->homeTeam->name,
+                    'abbreviation' => $game->homeTeam->abbreviation,
+                    'rank' => $game->home_rank,
+                ],
+                'away_team' => [
+                    'id' => $game->awayTeam->id, // Access via relationship
+                    'name' => $game->awayTeam->name,
+                    'abbreviation' => $game->awayTeam->abbreviation,
+                    'rank' => $game->away_rank,
+                ],
+                'hotness_score' => $game->hotness_score,
+                'matchup' => $game->matchup,
+            ];
+        });
+
+        Log::info('Successfully retrieved upcoming games', ['count' => $upcomingGames->count()]);
+
+        return [
+            'success' => true,
+            'data' => $formattedGames,
+            'pagination' => [
+                'current_page' => $upcomingGames->currentPage(),
+                'last_page' => $upcomingGames->lastPage(),
+                'per_page' => $upcomingGames->perPage(),
+                'total' => $upcomingGames->total(),
+            ]
+        ];
+    }
+
+    /**
+     * Handle get_game_details function.
+     */
+    private function getGameDetails(array $arguments)
+    {
+        Log::info('Invoking getGameDetails', ['arguments' => $arguments]);
+
+        $gameId = $arguments['game_id'];
+
+        // Validate game_id
+        if (empty($gameId)) {
+            return [
+                'success' => false,
+                'message' => 'game_id is required.'
+            ];
+        }
+
+        // Fetch the game
+        $game = CollegeBasketballGame::with(['homeTeam', 'awayTeam'])
+            ->where('id', $gameId)
+            ->first();
+
+        if (!$game) {
+            Log::warning('Game not found', ['game_id' => $gameId]);
+            return [
+                'success' => false,
+                'message' => 'Game not found.'
+            ];
+        }
+
+        // Format the game details
+        $gameDetails = [
+            'game_id' => $game->id,
+            'game_date' => $game->game_date->toDateString(),
+            'game_time' => $game->game_time,
+            'location' => $game->location,
+            'home_team' => [
+                'id' => $game->home_team->id,
+                'name' => $game->home_team->name,
+                'abbreviation' => $game->home_team->abbreviation,
+                'rank' => $game->home_rank,
+                'score' => $game->home_team_score,
+            ],
+            'away_team' => [
+                'id' => $game->away_team->id,
+                'name' => $game->away_team->name,
+                'abbreviation' => $game->away_team->abbreviation,
+                'rank' => $game->away_rank,
+                'score' => $game->away_team_score,
+            ],
+            'hotness_score' => $game->hotness_score,
+            'matchup' => $game->matchup,
+            'is_completed' => $game->is_completed,
+        ];
+
+        Log::info('Successfully retrieved game details', ['game_id' => $gameId]);
+
+        return [
+            'success' => true,
+            'data' => $gameDetails
+        ];
+    }
+
+    /**
+     * Handle get_completed_games function.
+     */
+
+    private function getCollegeGamePredictionsByDate(array $arguments)
+    {
+        // Validate 'time_frame'
+        $timeFrame = $arguments['time_frame'];
+
+        // Initialize date range
+        $startDate = null;
+        $endDate = null;
+
+        // Determine date range based on 'time_frame'
+        switch ($timeFrame) {
+            case 'today':
+                $startDate = Carbon::today()->startOfDay();
+                $endDate = Carbon::today()->endOfDay();
+                break;
+
+            case 'this_week':
+                $startDate = Carbon::now()->startOfWeek(); // Monday
+                $endDate = Carbon::now()->endOfWeek();     // Sunday
+                break;
+
+            default:
+                throw new Exception("Invalid time_frame: $timeFrame");
+        }
+
+        // Build the query
+        $query = CollegeBasketballHypothetical::query()
+            ->whereBetween('game_date', [$startDate, $endDate]);
+
+        // Optional: Filter by season if provided
+        if (!empty($arguments['season'])) {
+            $query->whereYear('game_date', $arguments['season']);
+        }
+
+        // Optional: Filter by team abbreviation if provided
+        if (!empty($arguments['team_abv'])) {
+            $teamAbv = $arguments['team_abv'];
+            $query->where(function ($q) use ($teamAbv) {
+                $q->where('home_team', $teamAbv)
+                    ->orWhere('away_team', $teamAbv);
+            });
+        }
+
+        // Execute the query
+        $predictions = $query->get();
+
+        // Handle no results
+        if ($predictions->isEmpty()) {
+            return [
+                'success' => false,
+                'message' => 'No game predictions found for the specified criteria.'
+            ];
+        }
+
+        // Format the predictions (you can customize this as needed)
+        $formattedPredictions = $predictions->map(function ($game) {
+            return [
+                'game_id' => $game->game_id,
+                'game_date' => $game->game_date->toDateString(),
+                'home_team' => $game->home_team,
+                'away_team' => $game->away_team,
+                'hypothetical_spread' => $game->hypothetical_spread,
+                'offense_difference' => $game->offense_difference,
+                'defense_difference' => $game->defense_difference,
+                // Add more fields as necessary...
+            ];
+        });
+
+        return [
+            'success' => true,
+            'data' => $formattedPredictions
+        ];
     }
 }

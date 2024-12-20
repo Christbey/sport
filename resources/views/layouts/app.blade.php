@@ -34,8 +34,10 @@
 <main class="flex-1 overflow-auto">
     {{ $slot }}
     @include('components.footer')
+
 </main>
 
 @livewireScripts
 </body>
+
 </html>

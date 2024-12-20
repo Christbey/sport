@@ -25,6 +25,21 @@ class CollegeBasketballGame extends Model
         'home_team',
         'away_team',
     ];
+    protected $casts = [
+        'game_date' => 'date', // Ensures game_date is treated as a Carbon instance
+        'is_completed' => 'boolean',
+        'hotness_score' => 'float',
+        'home_rank' => 'integer',
+        'away_rank' => 'integer',
+        'home_team_score' => 'integer',
+        'away_team_score' => 'integer',
+        'rebounds' => 'integer',
+        'assists' => 'integer',
+        'turnovers' => 'integer',
+        'steals' => 'integer',
+        'blocks' => 'integer',
+    ];
+
 
     public function homeTeam()
     {

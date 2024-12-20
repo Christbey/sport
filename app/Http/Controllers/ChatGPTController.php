@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\RateLimiter;
 class ChatGPTController extends Controller
 {
     private const FREE_LIMIT = 5;
+
     private const DECAY_SECONDS = 3600; // 1 hour window
 
     protected OpenAIChatService $chatService;
@@ -37,12 +38,16 @@ class ChatGPTController extends Controller
             ->orderBy('created_at', 'asc')
             ->get();
 
+        // Retrieve suggested questions from the config
+        $suggestedQuestions = config('open_ai_questions.suggested_questions.nfl');
+
         return view('openai.index', [
             'conversations' => $conversations,
             'chatId' => $userId,
             'remainingRequests' => RateLimiter::remaining($key, $limit),
             'maxRequests' => $limit,
-            'resetTime' => RateLimiter::availableIn($key)
+            'resetTime' => RateLimiter::availableIn($key),
+            'suggestedQuestions' => $suggestedQuestions
         ]);
     }
 
@@ -94,11 +99,12 @@ class ChatGPTController extends Controller
 
         // Check subscription status first
         if (!$user->subscribed('default')) {
-            return response()->json([
-                'message' => 'Subscription required to continue.',
-                'redirect' => route('subscription.index')
-            ], 403);
+            // Allow up to FREE_LIMIT requests
+            $limit = self::FREE_LIMIT;
+        } else {
+            $limit = $this->getUserLimit();
         }
+
 
         // Then check rate limit for subscribed users
         if (RateLimiter::tooManyAttempts($key, $limit)) {
@@ -147,7 +153,10 @@ class ChatGPTController extends Controller
         $response = $this->chatService->getChatCompletion([
             [
                 'role' => 'system',
-                'content' => 'You are an NFL assistant that helps users with their NFL queries. Focus on providing insights and analysis. Structure your responses as engaging articles with proper HTML formatting using Tailwind classes for styling. Do not include DOCTYPE, html, head, or body tags. Only provide the inner HTML content to be inserted into the chat interface.'
+                'content' => 'You are a sports analytics assistant that helps users with their sports queries. Focus on 
+                providing insights and analysis. Structure your responses as engaging articles with proper HTML formatting 
+                using Tailwind classes for styling. Do not include DOCTYPE, html, head, or body tags. Only provide the 
+                inner HTML content to be inserted into the chat interface.'
             ],
             ['role' => 'user', 'content' => $userMessage],
         ]);
