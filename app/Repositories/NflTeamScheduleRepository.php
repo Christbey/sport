@@ -219,8 +219,7 @@ class NflTeamScheduleRepository implements NflTeamScheduleRepositoryInterface
         }
 
         // Split the string by commas and trim whitespace
-        $refereesArray = array_map('trim', explode(',', $referees));
-        return $refereesArray;
+        return array_map('trim', explode(',', $referees));
     }
 
     /**

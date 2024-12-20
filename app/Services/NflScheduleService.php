@@ -6,7 +6,7 @@ use App\Repositories\Nfl\{NflBoxScoreRepository,
     NflPlayByPlayRepository,
     NflPlayerStatRepository,
     NflTeamStatRepository};
-use App\Repositories\Nfl\Interfaces\NflTeamScheduleRepositoryInterface;
+use App\Repositories\NflTeamScheduleRepository;
 use Exception;
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Log;
@@ -24,11 +24,11 @@ class NflScheduleService
     private Client $client;
 
     public function __construct(
-        private NflTeamScheduleRepositoryInterface $scheduleRepository,
-        private NflBoxScoreRepository              $boxScoreRepository,
-        private NflPlayerStatRepository            $playerStatRepository,
-        private NflTeamStatRepository              $teamStatRepository,
-        private NflPlayByPlayRepository            $playByPlayRepository
+        private NflTeamScheduleRepository $scheduleRepository,
+        private NflBoxScoreRepository     $boxScoreRepository,
+        private NflPlayerStatRepository   $playerStatRepository,
+        private NflTeamStatRepository     $teamStatRepository,
+        private NflPlayByPlayRepository   $playByPlayRepository
     )
     {
         $this->apiKey = config('services.rapidapi.key');
