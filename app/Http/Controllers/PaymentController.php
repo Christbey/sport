@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Exception;
 use Illuminate\Http\Request;
 use Laravel\Cashier\Payment;
+use Log;
 use Stripe\PaymentIntent;
 use Stripe\Stripe;
 
@@ -151,17 +152,54 @@ class PaymentController extends Controller
     {
         try {
             $user = $request->user();
-            $paymentMethods = $user->paymentMethods();
+            $paymentMethods = $user->paymentMethods()->map(function ($method) {
+                try {
+                    // Safely retrieve card details
+                    $card = $method->card ?? null;
+
+                    return (object)[
+                        'id' => $method->id,
+                        'brand' => $card ? strtoupper($card->brand) : 'Unknown Card',
+                        'last4' => $card ? $card->last4 : '****',
+                        'exp_month' => $card ? sprintf('%02d', $card->exp_month) : '00',
+                        'exp_year' => $card ? $card->exp_year : '0000',
+                    ];
+                } catch (Exception $e) {
+                    Log::error('Error processing payment method', [
+                        'method_id' => $method->id,
+                        'error' => $e->getMessage()
+                    ]);
+
+                    return (object)[
+                        'id' => $method->id,
+                        'brand' => 'Unknown',
+                        'last4' => '****',
+                        'exp_month' => '00',
+                        'exp_year' => '0000',
+                    ];
+                }
+            });
+
             $defaultPaymentMethod = $user->defaultPaymentMethod();
+            $formattedDefaultMethod = $defaultPaymentMethod ? (object)[
+                'id' => $defaultPaymentMethod->id,
+                'brand' => $defaultPaymentMethod->card ? strtoupper($defaultPaymentMethod->card->brand) : 'Unknown',
+                'last4' => $defaultPaymentMethod->card ? $defaultPaymentMethod->card->last4 : '****',
+            ] : null;
 
             return view('payment.methods', [
                 'paymentMethods' => $paymentMethods,
-                'defaultPaymentMethod' => $defaultPaymentMethod
+                'defaultPaymentMethod' => $formattedDefaultMethod
             ]);
         } catch (Exception $e) {
-            report($e);
+            Log::error('Payment methods retrieval error', [
+                'user_id' => $request->user()->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return redirect()->route('subscription.manage')
-                ->with('error', 'Unable to retrieve payment methods: ' . $e->getMessage());
+                ->with('error', 'Unable to retrieve payment methods. Please try again.');
         }
     }
 
