@@ -169,7 +169,7 @@ Route::controller(ChatGPTController::class)->group(function () {
         ->name('load-chat')
         ->middleware('auth');
 
-    Route::post('/clear-conversations', 'clearConversations')
+    Route::post('/clear-conversations', [ChatGPTController::class, 'clearConversations'])
         ->name('clear-conversations')
         ->middleware('auth');
 });
@@ -295,3 +295,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/subscription/resume', [SubscriptionController::class, 'resumeSubscription'])
         ->name('subscription.resume');
 });
+
+Route::post('/chat', [ChatGPTController::class, 'chat'])
+    ->middleware(['auth', 'web']);
+
+// A quick test route just to see if we can get a completion in a non-streaming way
+

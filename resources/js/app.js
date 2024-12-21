@@ -1,4 +1,5 @@
 import './bootstrap';
+import './echo';
 import 'flowbite';
 import ChatManager from './ChatManager';
 import process from 'process';

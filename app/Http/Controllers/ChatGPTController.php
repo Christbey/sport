@@ -2,19 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Events\MessageSent;
-use App\Events\OpenAIResponseReceived;
 use App\Models\Conversation;
 use App\Services\OpenAIChatService;
 use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\RateLimiter;
+use Parsedown;
 
 class ChatGPTController extends Controller
 {
-    private const DECAY_SECONDS = 3600; // 1 hour window
-
     protected OpenAIChatService $chatService;
 
     public function __construct(OpenAIChatService $chatService)
@@ -22,189 +19,165 @@ class ChatGPTController extends Controller
         $this->chatService = $chatService;
     }
 
-
-    /**
-     * Show the chat view.
-     */
     public function showChat()
     {
-        $userId = auth()->id();
-        $key = $this->getRateLimitKey($userId);
-        $limit = $this->getUserLimit();
+        $answerHtml = 'Ask your '; // Initialize with an empty string or any default content
+        $conversations = $this->loadUserConversations();
 
-        $conversations = Conversation::where('user_id', $userId)
-            ->orderBy('created_at', 'asc')
+        return view('chat.index', compact('answerHtml', 'conversations'));
+    }
+
+    private function loadUserConversations()
+    {
+        return Conversation::where('user_id', Auth::id())
+            ->whereNull('deleted_at')
+            ->orderBy('created_at', 'desc')
+            ->select('id', 'input', 'output')
             ->get();
-
-        // Retrieve suggested questions from the config
-        $suggestedQuestions = config('open_ai_questions.suggested_questions.nfl');
-
-        return view('openai.index', [
-            'conversations' => $conversations,
-            'chatId' => $userId,
-            'remainingRequests' => RateLimiter::remaining($key, $limit),
-            'maxRequests' => $limit,
-            'resetTime' => RateLimiter::availableIn($key),
-            'suggestedQuestions' => $suggestedQuestions
-        ]);
     }
-
-    /**
-     * Get the rate limiting key for a user.
-     */
-    private function getRateLimitKey(int $userId): string
-    {
-        return "chat:{$userId}";
-    }
-
-    /**
-     * Get the rate limit for the current user.
-     */
-    private function getUserLimit(): int
-    {
-        $user = auth()->user();
-
-        // Check permissions based on role
-        if ($user->hasRole('pro_user')) {
-            return config('chat.limits.pro', 100); // Store in config
-        }
-
-        // Default to free user limit
-        return config('chat.limits.free', 5);
-    }
-
-    /**
-     * Handle chat messages and OpenAI response.
-     */
-    public function ask(Request $request)
-    {
-        $request->validate(['question' => 'required|string|max:500']);
-
-        $user = auth()->user();
-        $key = $this->getRateLimitKey($user->id);
-        $limit = $this->getUserLimit();
-
-
-        // Check rate limit
-        if (RateLimiter::tooManyAttempts($key, $limit)) {
-            $seconds = RateLimiter::availableIn($key);
-            return response()->json([
-                'error' => "Rate limit exceeded. Please try again in {$seconds} seconds.",
-                'remaining_requests' => 0,
-                'seconds_until_reset' => $seconds,
-                'upgrade_url' => route('subscription.index') // Add upgrade link
-            ], 429);
-        }
-
-        try {
-            // Process the chat request
-            $response = $this->processChat($request->question);
-
-            // Record the hit with decay time
-            RateLimiter::hit($key, self::DECAY_SECONDS);
-
-            return response()->json([
-                'status' => 'success',
-                'response' => $response['assistantResponse'],
-                'remaining_requests' => RateLimiter::remaining($key, $limit),
-                'seconds_until_reset' => RateLimiter::availableIn($key)
-            ]);
-        } catch (Exception $e) {
-            Log::error('ChatGPT Error:', [
-                'error' => $e->getMessage(),
-                'user_id' => $user->id,
-                'message' => $request->question
-            ]);
-
-            return response()->json([
-                'error' => 'An error occurred while processing your request.',
-                'remaining_requests' => RateLimiter::remaining($key, $limit)
-            ], 500);
-        }
-    }
-
-    /**
-     * Process the chat interaction with OpenAI.
-     */
-    private function processChat(string $userMessage): array
-    {
-        $user = auth()->user();
-
-        $response = $this->chatService->getChatCompletion([
-            [
-                'role' => 'system',
-                'content' => 'You are a sports analytics assistant that helps users with their sports queries. Focus on 
-                providing insights and analysis. Structure your responses as engaging articles with proper HTML formatting 
-                using Tailwind classes for styling. Do not include DOCTYPE, html, head, or body tags. Only provide the 
-                inner HTML content to be inserted into the chat interface.'
-            ],
-            ['role' => 'user', 'content' => $userMessage],
-        ]);
-
-        $assistantResponse = $response['choices'][0]['message']['content'] ?? 'No response from OpenAI.';
-
-        // Store and broadcast the conversation
-        $this->storeAndBroadcastMessage($user->id, $userMessage, $assistantResponse);
-
-        // Dispatch event for the response
-        event(new OpenAIResponseReceived($response));
-
-        return [
-            'assistantResponse' => $assistantResponse
-        ];
-    }
-
-    /**
-     * Store and broadcast the chat message.
-     */
-    private function storeAndBroadcastMessage(int $userId, string $userMessage, string $assistantResponse): void
-    {
-        // Remove the database storage
-
-        // Broadcast to others
-        broadcast(new MessageSent((object)[
-            'user_id' => $userId,
-            'input' => $userMessage,
-            'output' => $assistantResponse,
-            'created_at' => now() // Use current timestamp
-        ]))->toOthers();
-    }
-
-    /**
-     * Clear all conversations for the current user.
-     */
-
 
     public function clearConversations()
     {
-        $user = auth()->user();
-
-        // Soft delete all conversations for the user
-        Conversation::where('user_id', $user->id)->delete();
+        $deletedCount = Conversation::where('user_id', Auth::id())->delete();
 
         return response()->json([
-            'status' => 'success',
-            'message' => 'Conversations cleared successfully'
+            'message' => 'All conversations cleared successfully',
+            'deleted_count' => $deletedCount
         ]);
     }
 
     /**
-     * Load chat history.
+     * Repeatedly call OpenAI until all function calls are resolved,
+     * then return the final text to the user.
      */
-
-
-    public function loadChat()
+    public function chat(Request $request)
     {
-        $user = auth()->user();
-
-        // Fetch all non-deleted conversations for the authenticated user, ordered by creation time
-        $conversations = Conversation::where('user_id', $user->id)
-            ->orderBy('created_at', 'asc')
-            ->get(['user_id', 'input', 'output', 'created_at']);
-
-        return response()->json([
-            'chat_history' => $conversations
+        // Validate input
+        $request->validate([
+            'question' => 'required|string|max:500'
         ]);
+
+        $userQuestion = $request->input('question');
+
+        // Create our initial conversation messages
+        $messages = [
+            [
+                'role' => 'system',
+                'content' => 'You are a helpful sports analytics assistant. Use available functions to provide detailed insights.'
+            ],
+            [
+                'role' => 'user',
+                'content' => $userQuestion
+            ]
+        ];
+
+        try {
+            $conversationOver = false;
+
+            while (!$conversationOver) {
+                $responseData = $this->chatService->getChatCompletion($messages);
+
+                if (!isset($responseData['choices'][0])) {
+                    break;
+                }
+
+                $message = $responseData['choices'][0]['message'] ?? [];
+                if (!$message) {
+                    break;
+                }
+
+                // Add assistant message to our conversation
+                $messages[] = $message;
+
+                // Check function calls
+                if (isset($message['tool_calls']) && count($message['tool_calls']) > 0) {
+                    $functionResults = $this->processFunctionCalls($message['tool_calls']);
+                    $messages = array_merge($messages, $functionResults);
+                } else {
+                    // No more function calls => final text
+                    $conversationOver = true;
+                }
+            }
+
+            // The last assistant message likely has the final text
+            $assistantMessage = end($messages);
+            $assistantMarkdown = $assistantMessage['content'] ?? '(No content)';
+
+            // 1) Convert Markdown to HTML
+            $parsedown = new Parsedown();
+            // Convert Markdown to HTML
+            $assistantHtml = $parsedown->text($assistantMarkdown);
+
+            $this->saveConversation($request->input('question'), $assistantHtml);
+
+            // After processing the AI’s markdown:
+            return response()->json([
+                'answerHtml' => $assistantHtml,
+                'question' => $userQuestion,
+            ]);
+
+
+        } catch (Exception $e) {
+            Log::error('Chat error', [
+                'error' => $e->getMessage()
+            ]);
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 
+    /**
+     * Process function calls
+     */
+    private function processFunctionCalls(array $toolCalls): array
+    {
+        $functionResults = [];
+
+        foreach ($toolCalls as $toolCall) {
+            try {
+                $functionName = $toolCall['function']['name'];
+                $functionArgs = json_decode($toolCall['function']['arguments'], true);
+
+                Log::info('Invoking function from ChatGPTController', [
+                    'functionName' => $functionName,
+                    'functionArgs' => $functionArgs
+                ]);
+
+                // Actually call the function
+                $result = $this->chatService->functionHandler->invokeFunction($functionName, $functionArgs);
+
+                // Return the result as a "tool" role message
+                $functionResults[] = [
+                    'tool_call_id' => $toolCall['id'],
+                    'role' => 'tool',
+                    'name' => $functionName,
+                    'content' => json_encode($result)
+                ];
+            } catch (Exception $e) {
+                Log::error('Function call error', [
+                    'function' => $functionName ?? 'unknown',
+                    'error' => $e->getMessage()
+                ]);
+                $functionResults[] = [
+                    'tool_call_id' => $toolCall['id'] ?? '',
+                    'role' => 'tool',
+                    'name' => $functionName ?? 'unknown',
+                    'content' => json_encode([
+                        'error' => 'Function call failed',
+                        'details' => $e->getMessage()
+                    ])
+                ];
+            }
+        }
+
+        return $functionResults;
+    }
+
+    private function saveConversation($input, $output)
+    {
+        Conversation::create([
+            'user_id' => Auth::id(),
+            'input' => $input,
+            'output' => $output,
+        ]);
+    }
 }

@@ -11,8 +11,8 @@ use stdClass;
 
 class OpenAIChatService
 {
+    public OpenAIFunctionHandler $functionHandler;
     protected Client $client;
-    protected OpenAIFunctionHandler $functionHandler;
 
     public function __construct(OpenAIFunctionHandler $functionHandler)
     {
@@ -21,151 +21,81 @@ class OpenAIChatService
     }
 
     /**
-     * Fetch chat completions from OpenAI API with optional functions (tools).
+     * Send chat completions to OpenAI with optional function calling (non-streaming)
      */
     public function getChatCompletion(array $messages, array $options = []): array
     {
-        $model = $options['model'] ?? config('services.openai.model', 'gpt-3.5-turbo');
-        $temperature = isset($options['temperature'])
-            ? (float)$options['temperature']
-            : (float)config('services.openai.temperature', 0.7);
+        Log::info('OpenAIChatService::getChatCompletion called', [
+            'messages' => $messages,
+            'options' => $options,
+        ]);
 
-        // Desired maximum completion tokens
-        $desiredOutputTokens = $options['max_completion_tokens'] ?? 3500; // Set your desired default
+        $model = $options['model'] ?? config('services.openai.model', 'gpt-4o-mini');
+        $temperature = $options['temperature'] ?? 0.7;
+        $maxTokens = $options['max_tokens'] ?? 3500;
 
-        // Calculate max_completion_tokens
-        $maxCompletionTokens = (int)$desiredOutputTokens;
+        // Get functions from the repository
+        $rawFunctions = OpenAIFunctionRepository::getFunctions();
+//        Log::debug('Fetched raw functions from repository', [
+//            'rawFunctions' => $rawFunctions
+//        ]);
 
-        // Ensure maxCompletionTokens does not exceed the model's limit
-        // Adjust based on the model's max token limit
-        // For example, if using gpt-4, the limit might be 8192 or higher
-        $modelMaxTokens = $this->getModelMaxTokens($model);
-        $maxCompletionTokens = min($maxCompletionTokens, $modelMaxTokens - 3000); // Reserve tokens for input and response
-
-        $store = $options['store'] ?? true;
-        $userParam = auth()->check() ? 'user-' . auth()->id() : 'guest-user';
-
-        $rawFunctions = $options['functions'] ?? OpenAIFunctionRepository::getFunctions();
-
-        // Transform each function definition for the request
+        // Transform functions for OpenAI API format
         $tools = array_map(function ($fn) {
             return [
                 'type' => 'function',
                 'function' => [
                     'name' => $fn['name'],
-                    'description' => $fn['description'] ?? '',
+                    'description' => $fn['description'],
                     'parameters' => $fn['parameters'] ?? new stdClass(),
                 ]
             ];
         }, $rawFunctions);
-
-        $toolChoice = $options['tool_choice'] ?? null;
-        $parallelToolCalls = $options['parallel_tool_calls'] ?? null;
+//        Log::debug('Transformed functions for OpenAI API format', [
+//            'tools' => $tools
+//        ]);
 
         try {
             $payload = [
                 'model' => $model,
                 'messages' => $messages,
                 'temperature' => $temperature,
-                'max_completion_tokens' => $maxCompletionTokens,
-                'user' => $userParam,
-                'store' => $store,
+                'max_tokens' => $maxTokens,
+                'stream' => false, // Non-streaming
+                'store' => true,
+                'tools' => $tools,
+                'tool_choice' => 'auto',
             ];
 
-            if (!empty($tools)) {
-                $payload['tools'] = $tools;
-
-                if (!is_null($toolChoice)) {
-                    $payload['tool_choice'] = $toolChoice;
-                }
-
-                if (!is_null($parallelToolCalls)) {
-                    $payload['parallel_tool_calls'] = (bool)$parallelToolCalls;
-                }
-            }
+//            Log::info('Sending non-streaming request to OpenAI', [
+//                'endpoint' => '/v1/chat/completions',
+//                'payload' => $payload,
+//            ]);
 
             $response = $this->client->post('/v1/chat/completions', [
                 'headers' => [
                     'Content-Type' => 'application/json',
                     'Authorization' => 'Bearer ' . config('services.openai.key'),
+                    'Accept' => 'application/json'
                 ],
-                'json' => $payload,
+                'json' => $payload
             ]);
 
-            $result = json_decode($response->getBody()->getContents(), true);
-
-            Log::info('OpenAI response:', $result);
-
-            // Check if we have tool calls
-            $toolCalls = $result['choices'][0]['message']['tool_calls'] ?? [];
-            if (!empty($toolCalls)) {
-                // Assume a single tool call for simplicity
-                $toolCall = $toolCalls[0];
-                $functionName = $toolCall['function']['name'] ?? null;
-                $functionArgs = isset($toolCall['function']['arguments'])
-                    ? json_decode($toolCall['function']['arguments'], true)
-                    : [];
-
-                if ($functionName) {
-                    // Invoke the local function
-                    try {
-                        $functionResult = $this->functionHandler->invokeFunction($functionName, $functionArgs);
-                    } catch (Exception $e) {
-                        Log::error("Function invocation error for {$functionName}", ['error' => $e->getMessage()]);
-                        $functionResult = ['error' => 'Function call failed: ' . $e->getMessage()];
-                    }
-
-                    // Add the function result to the messages
-                    $messages[] = [
-                        'role' => 'function',
-                        'name' => $functionName,
-                        'content' => json_encode($functionResult),
-                    ];
-
-                    // Call getChatCompletion again to let the model use the function's result
-                    return $this->getChatCompletion($messages, $options);
-                }
+            if ($response->getStatusCode() !== 200) {
+                throw new Exception('OpenAI returned status ' . $response->getStatusCode());
             }
 
-            // If we reach here, there's no function call or we have final answer
-            return $result;
+            $responseData = json_decode($response->getBody(), true);
+
+            Log::info('Received response from OpenAI', ['responseData' => $responseData]);
+
+            return $responseData;
         } catch (Exception $e) {
-            Log::error('Error from OpenAI API', ['error' => $e->getMessage()]);
-            throw new Exception('Unable to fetch response from OpenAI.');
+            Log::error('OpenAI Request Error', [
+                'exception' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
         }
-    }
-
-    /**
-     * Get the maximum tokens allowed for a given model.
-     * Adjust these values based on OpenAI's documentation and the specific models you use.
-     */
-    protected function getModelMaxTokens(string $model): int
-    {
-        $modelLimits = [
-            'gpt-3.5-turbo' => 4096,
-            'gpt-4' => 8192,
-            // Add other models and their max tokens here
-        ];
-
-        return $modelLimits[$model] ?? 4096; // Default to 4096 if model not specified
-    }
-
-    /**
-     * Estimate the number of tokens in the input messages.
-     * This is a basic estimator. For precise counts, consider integrating with OpenAI's tokenizer.
-     */
-    protected function estimateInputTokens(array $messages): int
-    {
-        $tokenCount = 0;
-
-        foreach ($messages as $message) {
-            if (isset($message['content'])) {
-                // Simple word count as a rough estimate
-                // For better accuracy, integrate with a tokenizer
-                $tokenCount += str_word_count($message['content']);
-            }
-        }
-
-        return $tokenCount;
     }
 }
