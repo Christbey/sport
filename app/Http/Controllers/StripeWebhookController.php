@@ -132,7 +132,8 @@ class StripeWebhookController extends CashierWebhookController
             // Determine role based on plan name
             $roleName = match ($plan->name) {
                 'pro_user' => 'Pro User',
-                default => 'free_user'
+                'free_user' => 'Free User',
+                default => null,
             };
 
             // Find the corresponding role
