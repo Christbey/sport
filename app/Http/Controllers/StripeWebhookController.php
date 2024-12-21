@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Plan;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -118,42 +117,35 @@ class StripeWebhookController extends CashierWebhookController
                 return;
             }
 
-            // Find the corresponding plan
-            $plan = Plan::where('stripe_price_id', $newStripePriceId)->first();
+            // Direct role ID mapping
+            $roleMapping = [
+                'price_1QYI1qELTH1Vz3ILtAIQdjOB' => 9,  // Pro User
+                'price_1QYHzyELTH1Vz3ILkF46LZkA' => 7 // Free User
+            ];
 
-            if (!$plan) {
-                Log::warning('No matching plan found for stripe price ID', [
+            // Get the role ID
+            $roleId = $roleMapping[$newStripePriceId] ?? null;
+
+            if (!$roleId) {
+                Log::warning('No role mapping found for stripe price', [
                     'user_id' => $user->id,
-                    'stripe_price_id' => $newStripePriceId
-                ]);
-                return;
-            }
-
-            // Determine role based on plan name
-            $roleName = match ($plan->name) {
-                'pro_user' => 'Pro User',
-                'free_user' => 'Free User',
-                default => null,
-            };
-
-            // Find the corresponding role
-            $role = Role::where('name', $roleName)->first();
-
-            if (!$role) {
-                Log::warning('Role not found', [
-                    'user_id' => $user->id,
-                    'role_name' => $roleName
+                    'stripe_price_id' => $newStripePriceId,
+                    'available_mappings' => $roleMapping
                 ]);
                 return;
             }
 
             // Sync the user's roles
-            $user->roles()->sync([$role->id]);
+            $user->roles()->sync([$roleId]);
+
+            // Fetch the role name for logging
+            $roleName = Role::find($roleId)->name ?? 'Unknown Role';
 
             Log::info('User role updated via Stripe webhook', [
                 'user_id' => $user->id,
                 'email' => $user->email,
-                'new_role' => $roleName,
+                'new_role_id' => $roleId,
+                'new_role_name' => $roleName,
                 'new_stripe_price_id' => $newStripePriceId
             ]);
         } catch (Exception $e) {
