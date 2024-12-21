@@ -232,7 +232,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('cancel', [SubscriptionController::class, 'cancel'])->name('subscription.cancel');
         Route::get('manage', [SubscriptionController::class, 'manage'])->name('subscription.manage');
         Route::post('cancel', [SubscriptionController::class, 'cancelSubscription'])->name('subscription.cancel-subscription');
-        Route::post('resume', [SubscriptionController::class, 'resumeSubscription'])->name('subscription.resume');
+        //Route::post('resume', [SubscriptionController::class, 'resumeSubscription'])->name('subscription.resume');
         Route::post('update-plan', [SubscriptionController::class, 'updatePlan'])->name('subscription.update-plan');
         Route::post('add-item', [SubscriptionController::class, 'addItem'])->name('subscription.add-item');
         Route::post('remove-item', [SubscriptionController::class, 'removeItem'])->name('subscription.remove-item');
