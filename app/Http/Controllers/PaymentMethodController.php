@@ -14,13 +14,13 @@ class PaymentMethodController extends Controller
     {
         $user = auth()->user();
 
-        // Get all payment methods, including the card details
         $paymentMethods = $user->paymentMethods();
+        $defaultPaymentMethod = $user->defaultPaymentMethod() ?: null;
 
-        // Get the default payment method
-        $defaultPaymentMethod = $user->defaultPaymentMethod();
-
-        return view('payment-methods.index', compact('paymentMethods', 'defaultPaymentMethod'));
+        return view('payment-methods.index', [
+            'paymentMethods' => $paymentMethods,
+            'defaultPaymentMethod' => $defaultPaymentMethod
+        ]);
     }
 
     public function setDefault(Request $request, $paymentMethodId)

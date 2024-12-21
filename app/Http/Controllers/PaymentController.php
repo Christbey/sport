@@ -104,23 +104,18 @@ class PaymentController extends Controller
     /**
      * Set a payment method as default
      */
-    public function setDefaultPaymentMethod(Request $request, $paymentMethodId)
+    public function setDefaultPaymentMethod($paymentMethodId)
     {
+        $user = auth()->user();
+
         try {
-            $user = $request->user();
-            $paymentMethod = $user->findPaymentMethod($paymentMethodId);
+            $user->updateDefaultPaymentMethod($paymentMethodId);
 
-            if ($paymentMethod) {
-                $user->updateDefaultPaymentMethod($paymentMethodId);
-
-                return redirect()->route('payment.methods')
-                    ->with('success', 'Default payment method updated.');
-            }
-
-            return back()->with('error', 'Payment method not found.');
+            return redirect()->route('payment.methods')
+                ->with('success', 'Default payment method updated successfully.');
         } catch (Exception $e) {
-            report($e);
-            return back()->with('error', 'Unable to set default payment method: ' . $e->getMessage());
+            return redirect()->route('payment.methods')
+                ->with('error', 'Unable to set default payment method: ' . $e->getMessage());
         }
     }
 
@@ -135,9 +130,9 @@ class PaymentController extends Controller
 
             if ($paymentMethod) {
                 // Prevent removing the last payment method
-                if ($user->paymentMethods()->count() <= 1) {
-                    return back()->with('error', 'You must have at least one payment method.');
-                }
+//                if ($user->paymentMethods()->count() <= 1) {
+//                    return back()->with('error', 'You must have at least one payment method.');
+//                }
 
                 $paymentMethod->delete();
 

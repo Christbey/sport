@@ -25,7 +25,7 @@
                                 <div>
                                     <p class="font-medium text-gray-900 dark:text-gray-200">
                                         {{ strtoupper($method->brand) }} **** **** **** {{ $method->last4 }}
-                                        @if($method->id === $defaultPaymentMethod->id)
+                                        @if($defaultPaymentMethod && $method->id === $defaultPaymentMethod->id)
                                             <span class="ml-2 text-sm text-green-600 dark:text-green-400">(Default)</span>
                                         @endif
                                     </p>
@@ -34,7 +34,7 @@
                                     </p>
                                 </div>
                                 <div class="flex space-x-2">
-                                    @if($method->id !== $defaultPaymentMethod->id)
+                                    @if(!$defaultPaymentMethod || $method->id !== $defaultPaymentMethod->id)
                                         <form action="{{ route('payment.set-default', $method->id) }}" method="POST"
                                               class="inline">
                                             @csrf
@@ -61,12 +61,14 @@
                             <p class="text-gray-500 dark:text-gray-400">No payment methods found.</p>
                         @endforelse
                     </div>
+
                     <div class='mt-6'>
                         <a href="{{ route('payment.create') }}"
                            class='inline-block bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600'>
                             Add New Payment Method
                         </a>
                     </div>
+
                     <div class="mt-6">
                         <a href="{{ route('subscription.manage') }}"
                            class="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600">
