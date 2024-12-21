@@ -50,14 +50,16 @@ class SyncStripePlans extends Command
     private function retrieveStripePrices()
     {
         $params = [
-            'expand' => ['data.product'],
-            'limit' => 100
+            'expand' => [
+                'data.product',
+                'data.recurring'
+            ],
+            'limit' => 100,
+            'type' => 'recurring',
+            'active' => null
         ];
 
-        if (!$this->option('force')) {
-            $params['active'] = true;
-        }
-
+        // Remove the active filter to get all plans
         return $this->stripe->prices->all($params);
     }
 
@@ -77,11 +79,16 @@ class SyncStripePlans extends Command
                         'name' => $price->product->name ?? 'Unknown Product',
                         'price' => $price->unit_amount / 100,
                         'currency' => $price->currency,
-                        'active' => $price->active
+                        'active' => $price->active ? 1 : 0, // Convert boolean to 1 or 0
+                        'interval' => $price->recurring?->interval ?? 'month',
+                        'interval_count' => $price->recurring?->interval_count ?? 1,
                     ]
                 );
 
                 $syncedCount++;
+
+                // Optional: Log the status for debugging
+                $this->info("Synced price {$price->id} with active status: " . ($price->active ? '1' : '0'));
 
             } catch (Exception $e) {
                 $errorCount++;

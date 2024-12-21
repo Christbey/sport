@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 
 class Plan extends Model
 {
@@ -15,7 +17,11 @@ class Plan extends Model
         'name',
         'stripe_price_id',
         'price',
-        'currency'
+        'currency',
+        'active',
+        'interval',
+        'interval_count',
+
     ];
     protected $casts = [
         'price' => 'decimal:2'
@@ -29,6 +35,16 @@ class Plan extends Model
     public function subscriptions()
     {
         return $this->hasMany(Subscription::class);
+    }
+
+    public function permissions()
+    {
+        return $this->belongsToMany(Permission::class);
+    }
+
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class);
     }
 
 

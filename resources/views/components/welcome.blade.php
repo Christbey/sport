@@ -138,7 +138,7 @@
                         </div>
 
                         <div class="flex flex-col space-y-4">
-                            <a href="{{ route('subscription.index') }}"
+                            <a href="{{ route('subscription.manage') }}"
                                class="w-full py-4 px-6 font-medium text-center text-white rounded-lg bg-[#4284F4] hover:bg-[#3372df] focus:ring-4 focus:ring-[#4284F4]/50 transition-colors duration-200">
                                 Subscription
                             </a>

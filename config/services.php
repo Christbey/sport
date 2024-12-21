@@ -67,8 +67,8 @@ return [
     'stripe' => [
         'model' => App\Models\User::class,
         'api' => [
-            'key' => env('STRIPE_API_KEY'),
-            'secret' => env('STRIPE_API_SECRET'),
+            'key' => env('STRIPE_KEY'),
+            'secret' => env('STRIPE_SECRET'),
         ],
         'webhook' => [
             'secret' => env('STRIPE_WEBHOOK_SECRET'),

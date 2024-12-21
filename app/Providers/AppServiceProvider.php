@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 
+use App\Models\Subscription;
+use App\Observers\SubscriptionObserver;
 use App\OpenAIFunctions\OpenAIFunctionHandler;
 use App\Repositories\Nfl\Interfaces\NflBettingOddsRepositoryInterface;
 use App\Repositories\Nfl\Interfaces\NflEloPredictionRepositoryInterface;
@@ -67,6 +69,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot()
     {
+        Subscription::observe(SubscriptionObserver::class);
 
     }
 }

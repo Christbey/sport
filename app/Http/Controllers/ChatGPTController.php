@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Events\MessageSent;
 use App\Events\OpenAIResponseReceived;
 use App\Models\Conversation;
-use App\Models\Plan;
 use App\Services\OpenAIChatService;
 use Exception;
 use Illuminate\Http\Request;
@@ -14,8 +13,6 @@ use Illuminate\Support\Facades\RateLimiter;
 
 class ChatGPTController extends Controller
 {
-    private const FREE_LIMIT = 5;
-
     private const DECAY_SECONDS = 3600; // 1 hour window
 
     protected OpenAIChatService $chatService;
@@ -24,6 +21,7 @@ class ChatGPTController extends Controller
     {
         $this->chatService = $chatService;
     }
+
 
     /**
      * Show the chat view.
@@ -66,24 +64,13 @@ class ChatGPTController extends Controller
     {
         $user = auth()->user();
 
-        // Retrieve the active 'default' subscription
-        $subscription = $user->subscription('default');
-
-        if ($subscription) {
-            // Fetch the corresponding plan based on stripe_price_id
-            $plan = Plan::where('stripe_price_id', $subscription->stripe_price)->first();
-
-            if ($plan) {
-                return $plan->limit;
-            } else {
-                // Log the missing plan for debugging purposes
-                \Log::warning("No plan found for stripe_price_id: {$subscription->stripe_price} for user ID: {$user->id}");
-                return self::FREE_LIMIT;
-            }
+        // Check permissions based on role
+        if ($user->hasRole('pro_user')) {
+            return config('chat.limits.pro', 100); // Store in config
         }
 
-        // User is not subscribed; return free limit
-        return self::FREE_LIMIT;
+        // Default to free user limit
+        return config('chat.limits.free', 5);
     }
 
     /**
@@ -97,22 +84,15 @@ class ChatGPTController extends Controller
         $key = $this->getRateLimitKey($user->id);
         $limit = $this->getUserLimit();
 
-        // Check subscription status first
-        if (!$user->subscribed('default')) {
-            // Allow up to FREE_LIMIT requests
-            $limit = self::FREE_LIMIT;
-        } else {
-            $limit = $this->getUserLimit();
-        }
 
-
-        // Then check rate limit for subscribed users
+        // Check rate limit
         if (RateLimiter::tooManyAttempts($key, $limit)) {
             $seconds = RateLimiter::availableIn($key);
             return response()->json([
                 'error' => "Rate limit exceeded. Please try again in {$seconds} seconds.",
                 'remaining_requests' => 0,
-                'seconds_until_reset' => $seconds
+                'seconds_until_reset' => $seconds,
+                'upgrade_url' => route('subscription.index') // Add upgrade link
             ], 429);
         }
 

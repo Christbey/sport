@@ -2,48 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Mail\PaymentFailed;
-use App\Mail\SubscriptionCancelled;
-use App\Mail\SubscriptionCreated;
-use App\Models\Subscription;
+use App\Models\Plan;
 use Exception;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\{Log};
+use Illuminate\Support\Facades\Log;
 use Laravel\Cashier\Http\Controllers\WebhookController as CashierWebhookController;
-use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpFoundation\Response;
 
 class StripeWebhookController extends CashierWebhookController
 {
-    // Define subscription plan mappings
-    private const SUBSCRIPTION_ROLES = [
-        'price_basic' => 'basic_subscriber',
-        'price_pro' => 'pro_subscriber',
-        'price_enterprise' => 'enterprise_subscriber'
-    ];
-
-    private const SUBSCRIPTION_PERMISSIONS = [
-        'price_basic' => [
-            'access_basic_features',
-            'create_basic_content'
-        ],
-        'price_pro' => [
-            'access_basic_features',
-            'access_pro_features',
-            'create_basic_content',
-            'create_pro_content'
-        ],
-        'price_enterprise' => [
-            'access_basic_features',
-            'access_pro_features',
-            'access_enterprise_features',
-            'create_basic_content',
-            'create_pro_content',
-            'create_enterprise_content'
-        ]
-    ];
-
     public function handleWebhook(Request $request): Response
     {
         $this->logWebhook($request);
@@ -60,13 +28,16 @@ class StripeWebhookController extends CashierWebhookController
 
     protected function handleCustomerSubscriptionDeleted(array $payload): Response
     {
-        $response = parent::handleCustomerSubscriptionDeleted($payload);
-
         if ($user = $this->getUserFromPayload($payload)) {
-            $this->handleSubscriptionCancelled($user, $payload['data']['object']);
+            Log::info('Subscription cancelled', [
+                'user_id' => $user->id,
+                'subscription_id' => $payload['data']['object']['id']
+            ]);
+
+            // The observer will handle role changes when the subscription is updated
         }
 
-        return $response;
+        return parent::handleCustomerSubscriptionDeleted($payload);
     }
 
     private function getUserFromPayload(array $payload): ?object
@@ -75,82 +46,16 @@ class StripeWebhookController extends CashierWebhookController
         return $this->getUserByStripeId($customerId);
     }
 
-    private function handleSubscriptionCancelled($user, array $subscription): void
-    {
-        Log::info('Subscription cancelled', [
-            'user_id' => $user->id,
-            'subscription_id' => $subscription['id']
-        ]);
-
-        try {
-            // Update subscription status in your custom Subscription model
-            $this->updateSubscriptionStatus($user, $subscription['id'], 'cancelled');
-
-            // Remove subscription-related roles and permissions
-            $this->removeSubscriptionPrivileges($user);
-
-            // Send cancellation email
-            #Mail::to($user)->send(new SubscriptionCancelled($user));
-        } catch (Exception $e) {
-            Log::error('Failed to process subscription cancellation', [
-                'user_id' => $user->id,
-                'error' => $e->getMessage()
-            ]);
-        }
-    }
-
-    private function updateSubscriptionStatus($user, string $subscriptionId, string $status): void
-    {
-        $subscription = Subscription::where('stripe_id', $subscriptionId)->first();
-
-        if ($subscription) {
-            $subscription->update([
-                'stripe_status' => $status,
-                'ends_at' => $status === 'cancelled' ? now() : $subscription->ends_at,
-                // Update other fields as necessary
-            ]);
-
-            Log::info('Updated subscription status', [
-                'user_id' => $user->id,
-                'subscription_id' => $subscriptionId,
-                'new_status' => $status
-            ]);
-        } else {
-            Log::warning('Subscription not found for status update', [
-                'user_id' => $user->id,
-                'subscription_id' => $subscriptionId
-            ]);
-        }
-    }
-
-    private function removeSubscriptionPrivileges($user): void
-    {
-        // Remove subscription-specific roles
-        foreach (self::SUBSCRIPTION_ROLES as $roleName) {
-            if ($user->hasRole($roleName)) {
-                $user->removeRole($roleName);
-            }
-        }
-
-        // Optionally revoke permissions directly if necessary
-        // This depends on how permissions are structured in your application
-
-        Log::info('Removed subscription privileges', [
-            'user_id' => $user->id
-        ]);
-    }
-
     protected function handleCustomerSubscriptionCreated(array $payload): Response
     {
         if ($user = $this->getUserFromPayload($payload)) {
-            // Check if user already has an active subscription
+            // Check for duplicate active subscriptions
             if ($this->hasActiveSubscription($user)) {
                 Log::warning('Attempted to create multiple subscriptions', [
                     'user_id' => $user->id,
                     'subscription_id' => $payload['data']['object']['id']
                 ]);
 
-                // Optionally cancel the new subscription
                 try {
                     $user->subscription($payload['data']['object']['id'])->cancelNow();
                 } catch (Exception $e) {
@@ -163,8 +68,11 @@ class StripeWebhookController extends CashierWebhookController
                 return $this->successMethod();
             }
 
-            // Handle subscription creation
-            $this->handleSubscriptionCreated($user, $payload['data']['object']);
+            Log::info('Subscription created', [
+                'user_id' => $user->id,
+                'subscription_id' => $payload['data']['object']['id'],
+                'price_id' => $payload['data']['object']['items']['data'][0]['price']['id'] ?? null
+            ]);
         }
 
         return parent::handleCustomerSubscriptionCreated($payload);
@@ -177,235 +85,112 @@ class StripeWebhookController extends CashierWebhookController
             ->exists();
     }
 
-    private function handleSubscriptionCreated($user, array $subscription): void
-    {
-        $priceId = $subscription['items']['data'][0]['price']['id'] ?? null;
-
-        Log::info('Subscription created', [
-            'user_id' => $user->id,
-            'subscription_id' => $subscription['id'],
-            'price_id' => $priceId
-        ]);
-
-        try {
-            // Create or update the subscription in your custom Subscription model
-            Subscription::updateOrCreate(
-                ['stripe_id' => $subscription['id']],
-                [
-                    'user_id' => $user->id,
-                    'stripe_status' => $subscription['status'],
-                    'stripe_price' => $priceId,
-                    'quantity' => $subscription['quantity'] ?? 1,
-                    'ends_at' => $subscription['cancel_at_period_end'] ? now()->addSeconds($subscription['cancel_at']) : null,
-                ]
-            );
-
-            // Assign roles and permissions based on subscription level
-            $this->assignSubscriptionPrivileges($user, $priceId);
-
-            // Send subscription creation email
-            #Mail::to($user)->send(new SubscriptionCreated($user));
-        } catch (Exception $e) {
-            Log::error('Failed to process subscription creation', [
-                'user_id' => $user->id,
-                'error' => $e->getMessage()
-            ]);
-        }
-    }
-
-    private function assignSubscriptionPrivileges($user, ?string $priceId): void
-    {
-        if (!$priceId || !isset(self::SUBSCRIPTION_ROLES[$priceId])) {
-            Log::warning('Invalid price ID for role assignment', [
-                'user_id' => $user->id,
-                'price_id' => $priceId
-            ]);
-            return;
-        }
-
-        // Remove existing subscription roles and permissions
-        $this->removeSubscriptionPrivileges($user);
-
-        // Assign new role
-        $roleName = self::SUBSCRIPTION_ROLES[$priceId];
-        $role = Role::firstOrCreate(['name' => $roleName]);
-        $user->assignRole($role);
-
-        // Assign permissions for the subscription level
-        if (isset(self::SUBSCRIPTION_PERMISSIONS[$priceId])) {
-            foreach (self::SUBSCRIPTION_PERMISSIONS[$priceId] as $permissionName) {
-                $permission = Permission::firstOrCreate(['name' => $permissionName]);
-                if (!$role->hasPermissionTo($permission)) {
-                    $role->givePermissionTo($permission);
-                }
-            }
-        }
-
-        Log::info('Assigned subscription privileges', [
-            'user_id' => $user->id,
-            'role' => $roleName,
-            'permissions' => self::SUBSCRIPTION_PERMISSIONS[$priceId] ?? []
-        ]);
-    }
-
     protected function handleCustomerSubscriptionUpdated(array $payload): Response
     {
-        $response = parent::handleCustomerSubscriptionUpdated($payload);
-
         if ($user = $this->getUserFromPayload($payload)) {
-            $this->handleSubscriptionUpdated($user, $payload['data']['object']);
+            $subscriptionData = $payload['data']['object'];
+
+            Log::info('Subscription updated', [
+                'user_id' => $user->id,
+                'subscription_id' => $subscriptionData['id'],
+                'status' => $subscriptionData['status'],
+                'price_id' => $subscriptionData['items']['data'][0]['price']['id'] ?? null
+            ]);
+
+            // Handle role update based on the new price
+            $this->updateUserRole($user, $subscriptionData);
         }
 
-        return $response;
+        return parent::handleCustomerSubscriptionUpdated($payload);
     }
 
-    private function handleSubscriptionUpdated($user, array $subscription): void
+    private function updateUserRole($user, array $subscriptionData)
     {
-        $priceId = $subscription['items']['data'][0]['price']['id'] ?? null;
-
-        Log::info('Subscription updated', [
-            'user_id' => $user->id,
-            'subscription_id' => $subscription['id'],
-            'status' => $subscription['status'],
-            'price_id' => $priceId
-        ]);
-
         try {
-            // Update subscription status in your custom Subscription model
-            $this->updateSubscriptionStatus($user, $subscription['id'], $subscription['status']);
+            // Get the new price ID
+            $newStripePriceId = $subscriptionData['items']['data'][0]['price']['id'] ?? null;
 
-            switch ($subscription['status']) {
-                case 'past_due':
-                    // Optionally restrict some permissions
-                    $this->restrictSubscriptionPrivileges($user);
-                    break;
-                case 'active':
-                    // Update roles and permissions for new plan
-                    $this->assignSubscriptionPrivileges($user, $priceId);
-                    break;
-                case 'canceled':
-                case 'unpaid':
-                    $this->handleSubscriptionCancelled($user, $subscription);
-                    break;
-                // Add more cases as needed
+            if (!$newStripePriceId) {
+                Log::warning('No price ID found in subscription update', [
+                    'user_id' => $user->id,
+                    'subscription_id' => $subscriptionData['id']
+                ]);
+                return;
             }
-        } catch (Exception $e) {
-            Log::error('Failed to process subscription update', [
+
+            // Find the corresponding plan
+            $plan = Plan::where('stripe_price_id', $newStripePriceId)->first();
+
+            if (!$plan) {
+                Log::warning('No matching plan found for stripe price ID', [
+                    'user_id' => $user->id,
+                    'stripe_price_id' => $newStripePriceId
+                ]);
+                return;
+            }
+
+            // Determine role based on plan name
+            $roleName = match ($plan->name) {
+                'pro_user' => 'Pro User',
+                default => 'free_user'
+            };
+
+            // Find the corresponding role
+            $role = Role::where('name', $roleName)->first();
+
+            if (!$role) {
+                Log::warning('Role not found', [
+                    'user_id' => $user->id,
+                    'role_name' => $roleName
+                ]);
+                return;
+            }
+
+            // Sync the user's roles
+            $user->roles()->sync([$role->id]);
+
+            Log::info('User role updated via Stripe webhook', [
                 'user_id' => $user->id,
-                'error' => $e->getMessage()
+                'email' => $user->email,
+                'new_role' => $roleName,
+                'new_stripe_price_id' => $newStripePriceId
+            ]);
+        } catch (Exception $e) {
+            Log::error('Error updating user role', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
         }
-    }
-
-    private function restrictSubscriptionPrivileges($user): void
-    {
-        // Example: Temporarily restrict certain permissions while maintaining the role
-        $restrictedPermissions = [
-            'create_pro_content',
-            'create_enterprise_content'
-        ];
-
-        foreach ($restrictedPermissions as $permission) {
-            if ($user->hasPermissionTo($permission)) {
-                $user->revokePermissionTo($permission);
-            }
-        }
-
-        Log::info('Restricted subscription privileges', [
-            'user_id' => $user->id,
-            'restricted_permissions' => $restrictedPermissions
-        ]);
     }
 
     protected function handleInvoicePaymentFailed(array $payload): Response
     {
         if ($user = $this->getUserFromPayload($payload)) {
-            $this->handlePaymentFailed($user, $payload['data']['object']);
+            Log::error('Payment failed', [
+                'user_id' => $user->id,
+                'invoice_id' => $payload['data']['object']['id'],
+                'amount' => $payload['data']['object']['amount_due']
+            ]);
+
+            // You might want to send an email here
+            // Mail::to($user)->send(new PaymentFailed($user));
         }
 
         return $this->successMethod();
-    }
-
-    private function handlePaymentFailed($user, array $invoice): void
-    {
-        Log::error('Payment failed', [
-            'user_id' => $user->id,
-            'invoice_id' => $invoice['id'],
-            'amount' => $invoice['amount_due']
-        ]);
-
-        try {
-            // Optionally restrict permissions on payment failure
-            $this->restrictSubscriptionPrivileges($user);
-
-            // Send payment failure email
-            #Mail::to($user)->send(new PaymentFailed($user));
-        } catch (Exception $e) {
-            Log::error('Failed to process payment failure', [
-                'user_id' => $user->id,
-                'error' => $e->getMessage()
-            ]);
-        }
     }
 
     protected function handleInvoicePaymentSucceeded(array $payload): Response
     {
         if ($user = $this->getUserFromPayload($payload)) {
-            $this->handlePaymentSucceeded($user, $payload['data']['object']);
+            Log::info('Payment succeeded', [
+                'user_id' => $user->id,
+                'invoice_id' => $payload['data']['object']['id'],
+                'amount' => $payload['data']['object']['amount_paid'],
+                'subscription_id' => $payload['data']['object']['subscription']
+            ]);
         }
 
         return $this->successMethod();
-    }
-
-    private function handlePaymentSucceeded($user, array $invoice): void
-    {
-        Log::info('Payment succeeded', [
-            'user_id' => $user->id,
-            'invoice_id' => $invoice['id'],
-            'amount' => $invoice['amount_paid'],
-            'subscription_id' => $invoice['subscription']
-        ]);
-
-        try {
-            // Optionally restore permissions if previously restricted
-            $this->restoreSubscriptionPrivileges($user);
-
-            // You can also update subscription records if needed
-            $subscription = Subscription::where('stripe_id', $invoice['subscription'])->first();
-            if ($subscription) {
-                $subscription->update([
-                    'last_payment_at' => now(),
-                    // Add other fields as necessary
-                ]);
-            }
-        } catch (Exception $e) {
-            Log::error('Failed to process payment success', [
-                'user_id' => $user->id,
-                'error' => $e->getMessage()
-            ]);
-        }
-    }
-
-    private function restoreSubscriptionPrivileges($user): void
-    {
-        // Example: Restore previously restricted permissions based on current roles
-        foreach (self::SUBSCRIPTION_PERMISSIONS as $priceId => $permissions) {
-            foreach ($permissions as $permissionName) {
-                if ($user->can($permissionName)) {
-                    continue; // Already has permission via role
-                }
-
-                // Grant permission if any of the user's roles include it
-                foreach ($user->roles as $role) {
-                    if ($role->hasPermissionTo($permissionName)) {
-                        $user->givePermissionTo($permissionName);
-                        Log::info('Restored permission', [
-                            'user_id' => $user->id,
-                            'permission' => $permissionName
-                        ]);
-                    }
-                }
-            }
-        }
     }
 }

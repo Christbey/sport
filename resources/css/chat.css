@@ -1,0 +1,82 @@
+@import './chat.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+@layer components {
+    .chat-message {
+        @apply flex flex-col space-y-2;
+    }
+
+    .chat-message-user {
+        @apply items-end;
+    }
+
+    .chat-message-assistant {
+        @apply items-start;
+    }
+
+    .message-bubble {
+        @apply rounded-2xl p-4 shadow-sm;
+    }
+
+    .message-bubble-user {
+        @apply self-end bg-blue-50 max-w-3/4;
+    }
+
+    .message-bubble-assistant {
+        @apply self-start bg-white;
+    }
+
+    .message-time {
+        @apply block text-xs text-gray-500 dark:text-gray-400 mt-2;
+    }
+
+    .loading-indicator {
+        @apply flex items-center space-x-2;
+    }
+
+    .loading-dot {
+        @apply w-2 h-2 bg-blue-500 rounded-full animate-bounce;
+    }
+
+    /* Prose styles */
+    .prose pre {
+        @apply bg-slate-800 text-slate-200 p-4 rounded-lg overflow-x-auto;
+    }
+
+    .prose code {
+        @apply bg-slate-800/50 text-slate-200 px-1.5 py-0.5 rounded text-sm;
+    }
+
+    .prose pre code {
+        @apply bg-transparent p-0;
+    }
+
+    .dark .prose {
+        @apply text-slate-200;
+    }
+
+    .dark .prose pre {
+        @apply bg-slate-900;
+    }
+
+    .dark .prose code {
+        @apply bg-slate-900/50;
+    }
+
+    .dark .prose a {
+        @apply text-blue-400;
+    }
+
+    .message-table {
+        @apply w-full border-collapse;
+    }
+
+    .message-table th,
+    .message-table td {
+        @apply p-3 border border-gray-200 dark:border-gray-700;
+    }
+}

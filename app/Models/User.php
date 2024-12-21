@@ -13,6 +13,7 @@ use Laravel\Jetstream\HasProfilePhoto;
 use Laravel\Jetstream\HasTeams;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
+use Stripe\Stripe;
 
 class User extends Authenticatable
 {
@@ -67,8 +68,18 @@ class User extends Authenticatable
     /**
      * Route notifications for the Discord channel.
      *
-     * @return string
+     * @return array
      */
+
+    public function stripeOptions()
+    {
+        return [
+            'api_key' => config('cashier.secret'),
+            'stripe_version' => Stripe::VERSION,
+            'stripe_account' => $this->stripe_account
+        ];
+    }
+
     public function routeNotificationForDiscord(): string
     {
         return config('services.discord.channel_id'); // Discord channel ID
@@ -160,6 +171,11 @@ class User extends Authenticatable
     public function notes()
     {
         return $this->hasMany(CollegeFootballNote::class);
+    }
+
+    public function hasPermission(string $string)
+    {
+        return $this->hasPermissionTo($string);
     }
 
     /**

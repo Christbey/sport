@@ -1,19 +1,15 @@
 import './bootstrap';
-import 'flowbite'; // Import Flowbite JS
-import ChatManager from './chat'; // Note: .js extension is not needed with Vite
+import 'flowbite';
+import ChatManager from './ChatManager';
 import process from 'process';
 import 'alpinejs';
 
-window.ChatManager = ChatManager; // Make it available globally
+// Make ChatManager available globally
+window.ChatManager = ChatManager;
 
-// In app.js
-
-// Function to initialize unique ID
+// Initialize unique ID function
 function initializeUniqueId() {
-    // Check for unique ID in localStorage first
     let uniqueId = localStorage.getItem('unique_id');
-
-    // If not in localStorage, check response headers
     if (!uniqueId) {
         const headers = document.getElementsByTagName('meta');
         for (let header of headers) {
@@ -28,13 +24,27 @@ function initializeUniqueId() {
     }
 }
 
-// Call it when DOM is loaded
+// Initialize chat if configuration exists
+function initializeChat() {
+    if (window.chatConfig) {
+        const chatManager = new ChatManager(window.chatConfig);
+    }
+}
+
+// Call initializations when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     initializeUniqueId();
+    initializeChat();
 });
 
-// If you're using Alpine.js or need it globally
+// Make functions available globally
 window.initializeUniqueId = initializeUniqueId;
+window.populateQuestion = function (question) {
+    const input = document.getElementById('question');
+    if (input) {
+        input.value = question;
+        input.focus();
+    }
+};
 
 window.process = process;
-

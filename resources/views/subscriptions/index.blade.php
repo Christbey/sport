@@ -1,125 +1,102 @@
 <x-app-layout>
-    <section class="bg-white dark:bg-gray-900">
-        <div class="py-8 px-4 mx-auto max-w-screen-xl lg:py-16 lg:px-6">
-            <div class="text-center mb-8">
-                <h1 class="text-3xl font-bold">Choose Your Subscription Plan</h1>
-                <p class="mt-4 text-gray-600 dark:text-gray-400">Select the plan that best fits your needs</p>
-            </div>
-
-            @php
-                // Determine the active subscription's plan slug if the user is subscribed
-                $activeSubscription = auth()->user()->activeSubscriptionPlanName();
-                $activePlanSlug = $activeSubscription ? Str::slug($activeSubscription->plan->name) : Str::slug($plans->first()->name);
-            @endphp
-
-                    <!-- Pricing Card -->
-            <div id="pricingTabs"
-                 x-data="{
-                     activeTab: '{{ $activePlanSlug }}',
-                     init() {
-                         // Initialize the active tab based on the user's subscription
-                         this.activeTab = '{{ $activePlanSlug }}';
-                     }
-                 }"
-                 class="bg-white rounded-lg divide-y divide-gray-200 shadow dark:divide-gray-700 lg:divide-y-0 lg:divide-x lg:grid lg:grid-cols-3 dark:bg-gray-800">
-
-                <!-- Plan Selection and Details -->
-                <div class="col-span-2 p-6 lg:p-8">
-                    <h3 class="mb-4 text-lg font-medium text-gray-900 dark:text-white">Choose a pricing plan:</h3>
-
-                    <!-- Plan Tabs -->
-                    <ul class="grid grid-cols-{{ $plans->count() }} text-sm font-medium text-center text-gray-500 shadow md:rounded-lg dark:divide-gray-600 dark:text-gray-400">
-                        @foreach($plans as $plan)
-                            @php
-                                $planSlug = Str::slug($plan->name);
-                                $isFirst = $loop->first;
-                                $isLast = $loop->last;
-                            @endphp
-                            <li class="w-full">
-                                <button type="button"
-                                        @click="activeTab = '{{ $planSlug }}'"
-                                        :class="{
-                                            'text-gray-900 bg-gray-100 dark:bg-gray-600 dark:text-white': activeTab === '{{ $planSlug }}',
-                                            'bg-white hover:text-gray-700 hover:bg-gray-50 dark:hover:text-white dark:bg-gray-700 dark:hover:bg-gray-600': activeTab !== '{{ $planSlug }}'
-                                        }"
-                                        class="inline-block p-4 w-full border border-gray-200 dark:border-gray-500 rounded-t-lg md:rounded-none {{ $isFirst ? 'md:rounded-l-lg' : ($isLast ? 'md:rounded-r-lg' : '') }}">
-                                    {{ $plan->name }}
-                                </button>
-                            </li>
-                        @endforeach
-                    </ul>
-
-                    <!-- Plan Details -->
-                    @foreach($plans as $plan)
-                        @php
-                            $planSlug = Str::slug($plan->name);
-                        @endphp
-                        <div id="{{ $planSlug }}-content"
-                             x-show="activeTab === '{{ $planSlug }}'"
-                             class="mt-6">
-                            <div class="mb-2 font-medium text-gray-900 dark:text-white">{{ $plan->name }} Details:</div>
-                            <p class="text-lg font-light text-gray-500 dark:text-gray-400">
-                                Starting at ${{ number_format($plan->price, 2) }}/month
-                            </p>
-                        </div>
-                    @endforeach
-                </div>
-
-                <!-- Pricing Details and Subscribe Buttons -->
-                <div class="flex p-6 lg:p-8">
-                    @foreach($plans as $plan)
-                        @php
-                            $planSlug = Str::slug($plan->name);
-                            $isActivePlan = $activeSubscription && $activeSubscription->plan->id === $plan->id;
-                        @endphp
-                        <div id="{{ $planSlug }}-plan"
-                             x-show="activeTab === '{{ $planSlug }}'"
-                             class="self-center w-full">
-                            <div class="mb-4 text-2xl font-semibold text-gray-900 dark:text-white">
-                                {{ $plan->name }} Plan
-                            </div>
-                            <div class="font-light text-gray-500 dark:text-gray-400">Monthly Price</div>
-                            <div class="mb-4 text-5xl font-extrabold text-gray-900 dark:text-white">
-                                ${{ number_format($plan->price, 2) }}
-                            </div>
-
-                            @if($isActivePlan)
-                                <div class="mb-4 text-center text-green-600 dark:text-green-400">
-                                    You are currently subscribed to this plan.
-                                </div>
-                                <form action="{{ route('subscription.manage') }}" method="GET">
-                                    @csrf
-                                    <button type="submit"
-                                            class="w-full justify-center text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 dark:focus:ring-blue-900 font-medium rounded-lg text-sm px-5 py-2.5 text-center mb-4">
-                                        Manage Subscription
-                                    </button>
-                                </form>
-                            @else
-                                <form action="{{ route('subscription.checkout') }}" method="POST">
-                                    @csrf
-                                    <input type="hidden" name="plan_id" value="{{ $plan->id }}">
-                                    <button type="submit"
-                                            class="w-full justify-center text-white bg-primary-600 hover:bg-primary-700 focus:ring-4 focus:ring-blue-200 dark:focus:ring-primary-900 font-medium rounded-lg text-sm px-5 py-2.5 text-center mb-4">
-                                        Subscribe Now
-                                    </button>
-                                </form>
-                            @endif
-
-                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-4">
-                                Prices shown in {{ strtoupper($plan->currency) }}. Cancel anytime.
-                            </p>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-
-            <!-- Warning Message -->
-            @if (session('warning'))
-                <div class="mt-4 p-4 mb-4 text-sm text-yellow-800 rounded-lg bg-yellow-50 dark:bg-gray-800 dark:text-yellow-300"
-                     role="alert">
-                    {{ session('warning') }}
-                </div>
-            @endif
+    <div class="relative p-8 lg:p-12">
+        <!-- Section Header -->
+        <div class="text-center max-w-2xl mx-auto mb-12">
+            <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-white mb-4">
+                Available Plans
+            </h2>
+            <div class="h-1 w-24 bg-blue-600 mx-auto mb-4 rounded-full"></div>
+            <p class="text-lg text-gray-600 dark:text-gray-400">
+                Choose the perfect plan for your needs
+            </p>
         </div>
-    </section>
+
+        <!-- Plans Grid -->
+        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            @foreach($plans as $plan)
+                <div class="relative group">
+                    <!-- Card -->
+                    <div class="h-full flex flex-col bg-white dark:bg-gray-800 rounded-2xl shadow-lg transition-all duration-200
+                        {{ $subscription && $subscription->stripe_price === $plan->stripe_price_id
+                            ? 'border-2 border-blue-500 ring-2 ring-blue-500 ring-opacity-50'
+                            : 'border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700' }}
+                        transform hover:-translate-y-1 hover:shadow-xl">
+
+                        <!-- Current Plan Badge -->
+                        @if($subscription && $subscription->stripe_price === $plan->stripe_price_id)
+                            <div class="absolute -top-4 inset-x-0 flex justify-center">
+                                <span class="inline-flex items-center px-4 py-1 rounded-full text-sm font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 shadow-md">
+                                    <svg class="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd"
+                                              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                              clip-rule="evenodd"/>
+                                    </svg>
+                                    Current Plan
+                                </span>
+                            </div>
+                        @endif
+
+                        <!-- Plan Content -->
+                        <div class="p-6 flex-1 flex flex-col">
+                            <!-- Plan Header -->
+                            <div class="text-center mb-6">
+                                <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                                    {{ $plan->name }}
+                                </h3>
+                                <div class="flex items-baseline justify-center mb-3">
+                                    <span class="text-4xl font-extrabold text-gray-900 dark:text-white">
+                                        ${{ number_format($plan->price, 2) }}
+                                    </span>
+                                    <span class="text-gray-500 dark:text-gray-400 ml-1">/month</span>
+                                </div>
+                                <p class="text-gray-600 dark:text-gray-400">
+                                    {{ $plan->description }}
+                                </p>
+                            </div>
+
+                            <!-- Features List -->
+                            <div class="mb-8 flex-1">
+                                <div class="prose prose-sm dark:prose-invert max-w-none">
+                                    {!! $plan->features !!}
+                                </div>
+                            </div>
+
+                            <!-- Action Button -->
+                            @if(!($subscription && $subscription->stripe_price === $plan->stripe_price_id))
+                                <div class="mt-auto">
+                                    <a href="{{ route('subscription.change-plan.show', ['plan_id' => $plan->id]) }}"
+                                       class="block w-full text-center px-6 py-3 rounded-lg text-white transition-all duration-200
+                                           {{ $subscription
+                                               ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/30'
+                                               : 'bg-green-600 hover:bg-green-700 shadow-green-500/30' }}
+                                           shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-offset-2
+                                           {{ $subscription ? 'focus:ring-blue-500' : 'focus:ring-green-500' }}">
+                                        <span class="flex items-center justify-center">
+                                            @if($subscription)
+                                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor"
+                                                     viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                                          stroke-width="2"
+                                                          d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                                                </svg>
+                                                Switch Plan
+                                            @else
+                                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor"
+                                                     viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                                          stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                                </svg>
+                                                Get Started
+                                            @endif
+                                        </span>
+                                    </a>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    </div>
+
 </x-app-layout>
