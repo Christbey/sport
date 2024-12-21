@@ -174,45 +174,45 @@ Route::controller(ChatGPTController::class)->group(function () {
         ->middleware('auth');
 });
 
-Route::middleware(['auth'])->group(function () {
-    // Subscription Routes
-    Route::prefix('subscriptions')->name('subscription.')->group(function () {
-        Route::get('/', [SubscriptionController::class, 'index'])->name('index');
-        Route::post('checkout', [SubscriptionController::class, 'checkout'])->name('checkout');
-        Route::get('success', [SubscriptionController::class, 'success'])->name('success');
-        Route::get('cancel', [SubscriptionController::class, 'cancel'])->name('cancel');
-        Route::get('manage', [SubscriptionController::class, 'manage'])->name('manage');
-
-        // Subscription Management Routes
-        Route::post('cancel', [SubscriptionController::class, 'cancelSubscription'])->name('cancel-subscription');
-        Route::post('resume', [SubscriptionController::class, 'resumeSubscription'])->name('resume');
-        Route::post('update-plan', [SubscriptionController::class, 'updatePlan'])->name('update-plan');
-        Route::get('change-plan/show', [SubscriptionController::class, 'showChangePlan'])->name('change-plan.show');
-        Route::post('change-plan', [SubscriptionController::class, 'changePlan'])->name('change-plan');
-
-        // Additional Subscription Item Routes
-        Route::post('add-item', [SubscriptionController::class, 'addItem'])->name('add-item');
-        Route::post('remove-item', [SubscriptionController::class, 'removeItem'])->name('remove-item');
-        Route::post('update-quantity', [SubscriptionController::class, 'updateItemQuantity'])->name('update-quantity');
-
-        // Payment and Billing Routes
-        Route::get('billing-portal', [SubscriptionController::class, 'billingPortal'])->name('billing-portal');
-        Route::post('preview-change', [SubscriptionController::class, 'previewPlanChange'])->name('preview-change');
-        Route::post('add-payment-method', [SubscriptionController::class, 'addPaymentMethodAndChangePlan'])->name('add-payment-method');
-        Route::post('add-payment-and-change-plan', [SubscriptionController::class, 'addPaymentMethodAndChangePlan'])->name('add-payment-and-change-plan');
-        Route::post('confirm-payment', [SubscriptionController::class, 'confirmPayment'])->name('confirm-payment');
-    });
-
-    // Payment Routes
-    Route::prefix('stripe')->name('cashier.')->group(function () {
-        Route::get('payment/{id}', [PaymentController::class, 'show'])->name('payment');
-        Route::post('payment/process', [PaymentController::class, 'processPayment'])->name('payment.process');
-    });
-
-    // Payment Outcome Routes
-    Route::get('payment/success', [PaymentController::class, 'success'])->name('payment.success');
-    Route::get('payment/failure', [PaymentController::class, 'failure'])->name('payment.failure');
-});
+//Route::middleware(['auth'])->group(function () {
+//    // Subscription Routes
+//    Route::prefix('subscriptions')->name('subscription.')->group(function () {
+//        Route::get('/', [SubscriptionController::class, 'index'])->name('index');
+//        Route::post('checkout', [SubscriptionController::class, 'checkout'])->name('checkout');
+//        Route::get('success', [SubscriptionController::class, 'success'])->name('success');
+//        Route::get('cancel', [SubscriptionController::class, 'cancel'])->name('cancel');
+//        Route::get('manage', [SubscriptionController::class, 'manage'])->name('manage');
+//
+//        // Subscription Management Routes
+//        Route::post('cancel', [SubscriptionController::class, 'cancelSubscription'])->name('cancel-subscription');
+//        Route::post('resume', [SubscriptionController::class, 'resumeSubscription'])->name('resume');
+//        Route::post('update-plan', [SubscriptionController::class, 'updatePlan'])->name('update-plan');
+//        Route::get('change-plan/show', [SubscriptionController::class, 'showChangePlan'])->name('change-plan.show');
+//        Route::post('change-plan', [SubscriptionController::class, 'changePlan'])->name('change-plan');
+//
+//        // Additional Subscription Item Routes
+//        Route::post('add-item', [SubscriptionController::class, 'addItem'])->name('add-item');
+//        Route::post('remove-item', [SubscriptionController::class, 'removeItem'])->name('remove-item');
+//        Route::post('update-quantity', [SubscriptionController::class, 'updateItemQuantity'])->name('update-quantity');
+//
+//        // Payment and Billing Routes
+//        Route::get('billing-portal', [SubscriptionController::class, 'billingPortal'])->name('billing-portal');
+//        Route::post('preview-change', [SubscriptionController::class, 'previewPlanChange'])->name('preview-change');
+//        Route::post('add-payment-method', [SubscriptionController::class, 'addPaymentMethodAndChangePlan'])->name('add-payment-method');
+//        Route::post('add-payment-and-change-plan', [SubscriptionController::class, 'addPaymentMethodAndChangePlan'])->name('add-payment-and-change-plan');
+//        Route::post('confirm-payment', [SubscriptionController::class, 'confirmPayment'])->name('confirm-payment');
+//    });
+//
+//    // Payment Routes
+//    Route::prefix('stripe')->name('cashier.')->group(function () {
+//        Route::get('payment/{id}', [PaymentController::class, 'show'])->name('payment');
+//        Route::post('payment/process', [PaymentController::class, 'processPayment'])->name('payment.process');
+//    });
+//
+//    // Payment Outcome Routes
+//    Route::get('payment/success', [PaymentController::class, 'success'])->name('payment.success');
+//    Route::get('payment/failure', [PaymentController::class, 'failure'])->name('payment.failure');
+//});
 
 // Stripe Webhook
 Route::post('stripe/webhook', [StripeWebhookController::class, 'handleWebhook'])
