@@ -13,7 +13,7 @@ class StripeWebhookController extends CashierWebhookController
 {
     public function handleWebhook(Request $request): Response
     {
-        $this->logWebhook($request);
+        //$this->logWebhook($request);
         return parent::handleWebhook($request);
     }
 
