@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Laravel\Cashier\Http\Controllers\WebhookController as CashierWebhookController;
 use Spatie\Permission\Models\Role;
+use Stripe\Subscription;
 use Symfony\Component\HttpFoundation\Response;
 
 class StripeWebhookController extends CashierWebhookController
@@ -47,20 +48,46 @@ class StripeWebhookController extends CashierWebhookController
 
     protected function handleCustomerSubscriptionCreated(array $payload): Response
     {
-        if ($user = $this->getUserFromPayload($payload)) {
+        try {
+            $user = $this->getUserFromPayload($payload);
+
+            if (!$user) {
+                Log::warning('No user found for subscription creation', [
+                    'customer_id' => $payload['data']['object']['customer'] ?? 'Unknown',
+                    'subscription_id' => $payload['data']['object']['id'] ?? 'Unknown'
+                ]);
+                return $this->successMethod();
+            }
+
             // Check for duplicate active subscriptions
-            if ($this->hasActiveSubscription($user)) {
-                Log::warning('Attempted to create multiple subscriptions', [
+            $activeSubscriptions = $user->subscriptions()
+                ->whereIn('stripe_status', ['active', 'trialing'])
+                ->get();
+
+            if ($activeSubscriptions->count() > 0) {
+                Log::warning('Multiple active subscriptions found', [
                     'user_id' => $user->id,
-                    'subscription_id' => $payload['data']['object']['id']
+                    'new_subscription_id' => $payload['data']['object']['id'],
+                    'active_subscriptions_count' => $activeSubscriptions->count()
                 ]);
 
+                // Cancel the new subscription via Stripe API directly
+                $newSubscriptionId = $payload['data']['object']['id'];
+
                 try {
-                    $user->subscription($payload['data']['object']['id'])->cancelNow();
-                } catch (Exception $e) {
+                    Subscription::update($newSubscriptionId, [
+                        'cancel_at_period_end' => true
+                    ]);
+
+                    Log::info('New duplicate subscription marked to cancel at period end', [
+                        'user_id' => $user->id,
+                        'subscription_id' => $newSubscriptionId
+                    ]);
+                } catch (Exception $stripeError) {
                     Log::error('Failed to cancel duplicate subscription', [
                         'user_id' => $user->id,
-                        'error' => $e->getMessage()
+                        'subscription_id' => $newSubscriptionId,
+                        'error' => $stripeError->getMessage()
                     ]);
                 }
 
@@ -72,16 +99,16 @@ class StripeWebhookController extends CashierWebhookController
                 'subscription_id' => $payload['data']['object']['id'],
                 'price_id' => $payload['data']['object']['items']['data'][0]['price']['id'] ?? null
             ]);
+
+            return parent::handleCustomerSubscriptionCreated($payload);
+        } catch (Exception $e) {
+            Log::error('Error in handleCustomerSubscriptionCreated', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return $this->successMethod();
         }
-
-        return parent::handleCustomerSubscriptionCreated($payload);
-    }
-
-    private function hasActiveSubscription($user): bool
-    {
-        return $user->subscriptions()
-            ->whereIn('stripe_status', ['active', 'trialing'])
-            ->exists();
     }
 
     protected function handleCustomerSubscriptionUpdated(array $payload): Response
@@ -185,5 +212,12 @@ class StripeWebhookController extends CashierWebhookController
         }
 
         return $this->successMethod();
+    }
+
+    private function hasActiveSubscription($user): bool
+    {
+        return $user->subscriptions()
+            ->whereIn('stripe_status', ['active', 'trialing'])
+            ->exists();
     }
 }
