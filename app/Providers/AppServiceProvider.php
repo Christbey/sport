@@ -19,6 +19,7 @@ use App\Repositories\NflTeamScheduleRepository;
 use App\Services\OpenAIChatService;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\ServiceProvider;
+use Stripe\Stripe;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -67,6 +68,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot()
     {
+        Stripe::setApiKey(config('services.stripe.secret'));
 
     }
 }

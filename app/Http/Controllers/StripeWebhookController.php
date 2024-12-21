@@ -10,8 +10,11 @@ use Spatie\Permission\Models\Role;
 use Stripe\Subscription;
 use Symfony\Component\HttpFoundation\Response;
 
+
 class StripeWebhookController extends CashierWebhookController
 {
+
+
     public function handleWebhook(Request $request): Response
     {
         //$this->logWebhook($request);
