@@ -17,13 +17,13 @@ class StripeWebhookController extends CashierWebhookController
         return parent::handleWebhook($request);
     }
 
-    private function logWebhook(Request $request): void
-    {
-        Log::info('Stripe webhook received', [
-            'event' => $request->input('type'),
-            'payload' => $request->all()
-        ]);
-    }
+//    private function logWebhook(Request $request): void
+//    {
+//        Log::info('Stripe webhook received', [
+//            'event' => $request->input('type'),
+//            'payload' => $request->all()
+//        ]);
+//    }
 
     protected function handleCustomerSubscriptionDeleted(array $payload): Response
     {
