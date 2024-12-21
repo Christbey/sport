@@ -8,6 +8,7 @@ use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 use Parsedown;
 
 class ChatGPTController extends Controller
@@ -21,10 +22,16 @@ class ChatGPTController extends Controller
 
     public function showChat()
     {
+        $user = Auth::user();
         $answerHtml = 'Ask your '; // Initialize with an empty string or any default content
         $conversations = $this->loadUserConversations();
+        $userLimit = $this->getUserLimit();
 
-        return view('chat.index', compact('answerHtml', 'conversations'));
+        $key = "chat:{$user->id}";
+        $remainingRequests = $userLimit - RateLimiter::attempts($key);
+        $secondsUntilReset = RateLimiter::availableIn($key);
+
+        return view('chat.index', compact('answerHtml', 'conversations', 'userLimit', 'remainingRequests', 'secondsUntilReset'));
     }
 
     private function loadUserConversations()
@@ -34,6 +41,19 @@ class ChatGPTController extends Controller
             ->orderBy('created_at', 'desc')
             ->select('id', 'input', 'output')
             ->get();
+    }
+
+    private function getUserLimit(): int
+    {
+        $user = Auth::user();
+
+        // Check permissions based on role
+        if ($user->hasRole('pro_user')) {
+            return config('chat.limits.pro', 100); // Store in config
+        }
+
+        // Default to free user limit
+        return config('chat.limits.free', 5);
     }
 
     public function clearConversations()
@@ -56,6 +76,24 @@ class ChatGPTController extends Controller
         $request->validate([
             'question' => 'required|string|max:500'
         ]);
+
+        $user = Auth::user();
+        $key = "chat:{$user->id}";
+        $limit = $this->getUserLimit();
+
+        // Check rate limit
+        if (RateLimiter::tooManyAttempts($key, $limit)) {
+            $seconds = RateLimiter::availableIn($key);
+            return response()->json([
+                'error' => "Rate limit exceeded. Please try again in {$seconds} seconds.",
+                'remaining_requests' => 0,
+                'seconds_until_reset' => $seconds,
+                'upgrade_url' => route('subscription.index') // Add upgrade link
+            ], 429);
+        }
+
+        // If within rate limit, hit the limiter
+        RateLimiter::hit($key);
 
         $userQuestion = $request->input('question');
 
@@ -103,19 +141,19 @@ class ChatGPTController extends Controller
             $assistantMessage = end($messages);
             $assistantMarkdown = $assistantMessage['content'] ?? '(No content)';
 
-            // 1) Convert Markdown to HTML
-            $parsedown = new Parsedown();
             // Convert Markdown to HTML
+            $parsedown = new Parsedown();
             $assistantHtml = $parsedown->text($assistantMarkdown);
 
             $this->saveConversation($request->input('question'), $assistantHtml);
 
-            // After processing the AI’s markdown:
+            // After processing the AI's markdown:
             return response()->json([
                 'answerHtml' => $assistantHtml,
                 'question' => $userQuestion,
+                'remaining_requests' => $limit - RateLimiter::attempts($key),
+                'seconds_until_reset' => RateLimiter::availableIn($key)
             ]);
-
 
         } catch (Exception $e) {
             Log::error('Chat error', [
@@ -180,4 +218,6 @@ class ChatGPTController extends Controller
             'output' => $output,
         ]);
     }
+
+
 }

@@ -8,6 +8,12 @@
                     Clear Chat
                 </button>
             </div>
+            <div class="rate-limit-info">
+                <p>You have {{ $remainingRequests }} out of {{ $userLimit }} requests remaining.</p>
+                @if ($secondsUntilReset > 0)
+                    <p>Rate limit will reset in {{ gmdate("H:i:s", $secondsUntilReset) }}.</p>
+                @endif
+            </div>
 
             <!-- Chat container -->
             <div id="chat-container" class="p-4 space-y-4 h-[500px] overflow-y-auto">
