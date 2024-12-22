@@ -27,33 +27,40 @@ class CollegeFootballHypotheticalController extends Controller
     public function index(Request $request)
     {
         $week = $request->input('week', $this->getCurrentWeek());
-        $weeks = $this->getWeeks();
-        $hypotheticals = $this->getHypotheticals($week);
+        $seasonType = $request->input('season_type', 'regular');
+        $weeks = $this->getWeeks($seasonType);
+        $hypotheticals = $this->getHypotheticals($week, $seasonType);
 
         // Get prediction accuracy stats
-        $weeklyStats = $this->getWeeklyPredictionStats($week);
+        $weeklyStats = $this->getWeeklyPredictionStats($week, $seasonType);
 
         if ($request->wantsJson()) {
             return (new CollegeFootballHypotheticalCollection($hypotheticals))
                 ->additional(['meta' => [
                     'weeks' => $weeks,
                     'current_week' => $week,
+                    'season_type' => $seasonType,
                     'prediction_stats' => $weeklyStats
                 ]]);
         }
 
-        return view('cfb.index', compact('hypotheticals', 'weeks', 'week', 'weeklyStats'));
+        return view('cfb.index', compact('hypotheticals', 'weeks', 'week', 'seasonType', 'weeklyStats'));
     }
 
     private function getCurrentWeek(): int
     {
         $today = Carbon::today();
+        $weeks = config('college_football.regular season.weeks');
+        $postseasonWeeks = config('college_football.regular season.postseason.weeks');
 
-        foreach (config('college_football.weeks') as $weekNumber => $range) {
-            if ($today->between(
-                Carbon::parse($range['start']),
-                Carbon::parse($range['end'])
-            )) {
+        foreach ($weeks as $weekNumber => $range) {
+            if ($today->between(Carbon::parse($range['start']), Carbon::parse($range['end']))) {
+                return $weekNumber;
+            }
+        }
+
+        foreach ($postseasonWeeks as $weekNumber => $range) {
+            if ($today->between(Carbon::parse($range['start']), Carbon::parse($range['end']))) {
                 return $weekNumber;
             }
         }
@@ -61,19 +68,22 @@ class CollegeFootballHypotheticalController extends Controller
         return 1;
     }
 
-    private function getWeeks()
+    private function getWeeks($seasonType)
     {
-        return Cache::remember('cfb_weeks', self::CACHE_TTL, function () {
+        $cacheKey = "cfb_weeks_{$seasonType}";
+        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($seasonType) {
             return CollegeFootballHypothetical::select('week')
+                ->where('season_type', $seasonType)
                 ->distinct()
                 ->orderBy('week', 'asc')
                 ->get();
         });
     }
 
-    private function getHypotheticals($week)
+    private function getHypotheticals($week, $seasonType)
     {
         $hypotheticals = CollegeFootballHypothetical::where('college_football_hypotheticals.week', $week)
+            ->where('college_football_hypotheticals.season_type', $seasonType)
             ->join('college_football_games', 'college_football_hypotheticals.game_id', '=', 'college_football_games.id')
             ->select(
                 'college_football_hypotheticals.*',
@@ -112,14 +122,15 @@ class CollegeFootballHypotheticalController extends Controller
         return round(($eloProbability + $fpiProbability) / 2, 4);
     }
 
-    private function getWeeklyPredictionStats($week): array
+    private function getWeeklyPredictionStats($week, $seasonType): array
     {
         $stats = CollegeFootballHypothetical::where('week', $week)
+            ->where('season_type', $seasonType)
             ->selectRaw('
-                COUNT(*) as total_predictions,
-                SUM(CASE WHEN correct = 1 THEN 1 ELSE 0 END) as correct_predictions,
-                SUM(CASE WHEN correct = 0 THEN 1 ELSE 0 END) as incorrect_predictions
-            ')
+            COUNT(*) as total_predictions,
+            SUM(CASE WHEN correct = 1 THEN 1 ELSE 0 END) as correct_predictions,
+            SUM(CASE WHEN correct = 0 THEN 1 ELSE 0 END) as incorrect_predictions
+        ')
             ->first();
 
         return [

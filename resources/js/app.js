@@ -1,12 +1,8 @@
 import './bootstrap';
-import './echo';
 import 'flowbite';
-import ChatManager from './ChatManager';
-import process from 'process';
 import 'alpinejs';
 
 // Make ChatManager available globally
-window.ChatManager = ChatManager;
 
 // Initialize unique ID function
 function initializeUniqueId() {
@@ -25,18 +21,6 @@ function initializeUniqueId() {
     }
 }
 
-// Initialize chat if configuration exists
-function initializeChat() {
-    if (window.chatConfig) {
-        const chatManager = new ChatManager(window.chatConfig);
-    }
-}
-
-// Call initializations when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    initializeUniqueId();
-    initializeChat();
-});
 
 // Make functions available globally
 window.initializeUniqueId = initializeUniqueId;
@@ -47,5 +31,3 @@ window.populateQuestion = function (question) {
         input.focus();
     }
 };
-
-window.process = process;

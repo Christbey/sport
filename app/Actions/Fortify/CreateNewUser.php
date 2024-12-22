@@ -24,12 +24,12 @@ class CreateNewUser implements CreatesNewUsers
                 'email',
                 'max:255',
                 'unique:users',
-                function ($attribute, $value, $fail) {
-                    $invitation = TeamInvitation::where('email', $value)->first();
-                    if (!$invitation) {
-                        $fail('Registration is only available with a valid team invitation.');
-                    }
-                }
+                //                function ($attribute, $value, $fail) {
+                //                    $invitation = TeamInvitation::where('email', $value)->first();
+                //                    if (!$invitation) {
+                //                        $fail('Registration is only available with a valid team invitation.');
+                //                    }
+                //                }
             ],
             'password' => $this->passwordRules(),
             'terms' => Jetstream::hasTermsAndPrivacyPolicyFeature() ? ['accepted', 'required'] : '',
@@ -46,7 +46,7 @@ class CreateNewUser implements CreatesNewUsers
             $user->createOrGetStripeCustomer();
 
             // Subscribe the user to the free plan
-            $user->newSubscription('default', 'price_1QWmfyELTH1Vz3ILs7y36EHw') // Replace with your actual Price ID
+            $user->newSubscription('default', 'price_1QYHzyELTH1Vz3ILkF46LZkA') // Replace with your actual Price ID
             ->create();
 
             // Handle team invitation

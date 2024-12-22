@@ -24,6 +24,7 @@ class CollegeFootballHypothetical extends Model
         'away_fpi',
         'hypothetical_spread',
         'correct',
+        'season_type',
     ];
 
     protected $casts = [

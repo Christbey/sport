@@ -1,4 +1,9 @@
+{{--@php--}}
+{{--    dd(config('services.stripe.api.key'));--}}
+{{--@endphp--}}
 <x-app-layout>
+
+
     <div class="py-12">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
@@ -42,24 +47,35 @@
         </div>
     </div>
 
-    @push('scripts')
-        <script src="https://js.stripe.com/v3/"></script>
-        <script>
-            document.addEventListener('DOMContentLoaded', function () {
-                const stripe = Stripe('{{ config('services.stripe.key') }}');
-                const elements = stripe.elements();
-                const cardElement = elements.create('card');
+    <script src="https://js.stripe.com/v3/"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const stripeKey = '{{ config('services.stripe.api.key') }}';
 
-                cardElement.mount('#card-element');
+            if (!stripeKey) {
+                console.error('Stripe publishable key is missing');
+                document.getElementById('card-errors').textContent = 'Configuration error. Please contact support.';
+                document.getElementById('card-button').disabled = true;
+                return;
+            }
 
-                const form = document.getElementById('payment-form');
-                const cardButton = document.getElementById('card-button');
-                const cardHolderName = document.getElementById('card-holder-name');
+            const stripe = Stripe(stripeKey);
+            const elements = stripe.elements();
+            const cardElement = elements.create('card');
 
-                form.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    cardButton.disabled = true;
+            cardElement.mount('#card-element');
 
+            const form = document.getElementById('payment-form');
+            const cardButton = document.getElementById('card-button');
+            const cardHolderName = document.getElementById('card-holder-name');
+            const errorElement = document.getElementById('card-errors');
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                cardButton.disabled = true;
+                errorElement.textContent = ''; // Clear previous errors
+
+                try {
                     const {setupIntent, error} = await stripe.confirmCardSetup(
                         cardButton.dataset.secret, {
                             payment_method: {
@@ -72,15 +88,18 @@
                     );
 
                     if (error) {
-                        const errorElement = document.getElementById('card-errors');
                         errorElement.textContent = error.message;
                         cardButton.disabled = false;
                     } else {
                         document.getElementById('payment-method').value = setupIntent.payment_method;
                         form.submit();
                     }
-                });
+                } catch (e) {
+                    errorElement.textContent = 'An unexpected error occurred. Please try again.';
+                    cardButton.disabled = false;
+                    console.error('Stripe error:', e);
+                }
             });
-        </script>
-    @endpush
+        });
+    </script>
 </x-app-layout>

@@ -10,6 +10,7 @@ use App\Repositories\Nfl\Interfaces\{NflBettingOddsRepositoryInterface,
 use App\Services\NflGameEnrichmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Log;
 use stdClass;
 
 class NflEloRatingController extends Controller
@@ -102,5 +103,52 @@ class NflEloRatingController extends Controller
 
         $games = $this->scheduleRepo->getTeamLast3Games($teamId, $currentGameId);
         return $games->map(fn($game) => $this->gameEnrichmentService->enrichGame($game, $teamId));
+    }
+
+    public function showTable(Request $request)
+    {
+        $week = $request->input('week');
+        $eloPredictions = $this->eloRepo->getPredictions($week)->where('year', 2024);
+        $gameIds = $eloPredictions->pluck('game_id');
+
+        $odds = $this->oddsRepo->findByEventIds($gameIds);
+        $schedules = $this->scheduleRepo->findByGameIds($gameIds) ?? collect();
+
+        // Let's debug what's in schedules
+        Log::info('Schedules data:', ['schedules' => $schedules->toArray()]);
+        //dd($schedules->first());  // Add this line temporarily
+
+        $enrichedPredictions = $this->eloRepo->enrichPredictionsWithGameData($eloPredictions, $schedules)
+            ->map(function ($prediction) use ($schedules) {
+                $schedule = $schedules->firstWhere('game_id', $prediction->game_id);
+
+                // Debug the schedule object for each prediction
+                Log::info('Schedule for game:', [
+                    'game_id' => $prediction->game_id,
+                    'schedule' => $schedule ? $schedule->toArray() : null
+                ]);
+
+                $prediction->gameTime = $schedule ? $schedule->game_time : null;
+                $prediction->homePts = $schedule ? $schedule->home_pts : null;
+                $prediction->awayPts = $schedule ? $schedule->away_pts : null;
+                $prediction->gameStatusDetail = $schedule ? $schedule->status_type_detail : 'Scheduled';
+                // Add home team and result
+                $prediction->homeTeam = $schedule ? $schedule->home_team : null;
+                $prediction->homeResult = $schedule ? $schedule->home_result : null;
+
+                return $prediction;
+            });
+
+        // Debug final enriched predictions
+        Log::info('Enriched predictions:', ['predictions' => $enrichedPredictions->toArray()]);
+
+        $sortedPredictions = $this->gameEnrichmentService->sortAndGroupPredictions($enrichedPredictions);
+
+        return view('nfl.elo.table', [
+            'eloPredictions' => $sortedPredictions,
+            'weeks' => $this->eloRepo->getDistinctWeeks(),
+            'week' => $week,
+            'nflBettingOdds' => $odds
+        ]);
     }
 }

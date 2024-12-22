@@ -7,9 +7,15 @@ use Exception;
 use Illuminate\Http\Request;
 use Laravel\Cashier\Exceptions\IncompletePayment;
 use Stripe\SetupIntent;
+use Stripe\Stripe;
 
 class PaymentMethodController extends Controller
 {
+    public function __construct()
+    {
+        Stripe::setApiKey(config('cashier.secret'));
+    }
+
     public function index()
     {
         $user = auth()->user();

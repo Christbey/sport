@@ -301,3 +301,5 @@ Route::post('/chat', [ChatGPTController::class, 'chat'])
 
 // A quick test route just to see if we can get a completion in a non-streaming way
 
+Route::get('/nfl/predictions/table', [NflEloRatingController::class, 'showTable'])
+    ->name('nfl.elo.table');

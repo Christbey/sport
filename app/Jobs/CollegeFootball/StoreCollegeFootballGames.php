@@ -27,42 +27,15 @@ class StoreCollegeFootballGames implements ShouldQueue
     public $tries = 3;     // Allow 3 attempts
 
     public function __construct(
-        private ?int    $year = null,
-        private ?int    $week = null,
-        private ?string $apiKey = null
+        private ?int          $year = null,
+        private readonly ?int $week = null,
+        private ?string       $seasonType = null,
+        private ?string       $apiKey = null
     )
     {
         $this->year = $year ?? config('college_football.season');
-        $this->week = $week ?? $this->getCurrentWeek();
+        $this->seasonType = $seasonType ?? config('college_football.season_type', 'regular');
         $this->apiKey = $apiKey ?? config('services.college_football_data.key');
-    }
-
-    private function getCurrentWeek(): int
-    {
-        $today = Carbon::today();
-        $weeks = config('college_football.weeks');
-
-        foreach ($weeks as $weekNumber => $dates) {
-            $weekStart = Carbon::parse($dates['start']);
-            $weekEnd = Carbon::parse($dates['end']);
-
-            if ($today->between($weekStart, $weekEnd)) {
-                return $weekNumber;
-            }
-        }
-
-        // If before season start, return week 1
-        if ($today->isBefore(Carbon::parse(config('college_football.season_start')))) {
-            return 1;
-        }
-
-        // If after season end, return last week
-        if ($today->isAfter(Carbon::parse(config('college_football.season_end')))) {
-            return count(config('college_football.weeks'));
-        }
-
-        // Default to configured week
-        return config('college_football.week');
     }
 
     public function handle(): void
@@ -71,7 +44,7 @@ class StoreCollegeFootballGames implements ShouldQueue
             $games = $this->fetchGamesData();
 
             if (empty($games)) {
-                $this->sendNotification("No games found for week {$this->week} of {$this->year}");
+                $this->sendNotification("No games found for {$this->seasonType} season {$this->year}");
                 return;
             }
 
@@ -82,7 +55,11 @@ class StoreCollegeFootballGames implements ShouldQueue
                     $this->processGamesChunk($chunk->toArray());
                 });
 
-            $this->sendNotification('Successfully processed ' . count($games) . " games for week {$this->week} of {$this->year}");
+            $message = 'Successfully processed ' . count($games) . " games for {$this->seasonType} season {$this->year}";
+            if ($this->seasonType === 'regular') {
+                $message .= " week {$this->week}";
+            }
+            $this->sendNotification($message);
         } catch (Exception $e) {
             $this->sendNotification("Error: {$e->getMessage()}", 'error');
             throw $e;
@@ -96,12 +73,17 @@ class StoreCollegeFootballGames implements ShouldQueue
             'connect_timeout' => 10
         ]);
 
+        $query = [
+            'year' => $this->year,
+            'seasonType' => $this->seasonType
+        ];
+
+        if ($this->week !== null) {
+            $query['week'] = $this->week;
+        }
+
         $response = $client->request('GET', self::API_URL, [
-            'query' => [
-                'year' => $this->year,
-                'week' => $this->week,
-                'seasonType' => $this->getSeasonType()
-            ],
+            'query' => $query,
             'headers' => [
                 'Authorization' => "Bearer {$this->apiKey}",
                 'Accept' => 'application/json',
@@ -109,12 +91,6 @@ class StoreCollegeFootballGames implements ShouldQueue
         ]);
 
         return json_decode($response->getBody()->getContents(), true);
-    }
-
-    private function getSeasonType(): string
-    {
-        // Championship weeks are typically 15 and 16
-        return $this->week >= 17 ? 'postseason' : 'regular';
     }
 
     private function sendNotification(string $message = '', string $status = 'success'): void
@@ -192,7 +168,6 @@ class StoreCollegeFootballGames implements ShouldQueue
         return $teamsToUpdate;
     }
 
-
     private function processGames(array $games, Collection $teams): void
     {
         Log::info('Processing games:', ['count' => count($games)]);
@@ -201,7 +176,7 @@ class StoreCollegeFootballGames implements ShouldQueue
             // Format the start_date
             $startDate = null;
             if (!empty($game['start_date'])) {
-                $startDate = Carbon::parse($game['start_date'])->format('Y-m-d');
+                $startDate = Carbon::parse($game['start_date'])->format('Y-m-d H:i:s');
             }
 
             return [
@@ -234,6 +209,9 @@ class StoreCollegeFootballGames implements ShouldQueue
                 'away_post_win_prob' => $game['away_post_win_prob'] ?? null,
                 'away_pregame_elo' => $game['away_pregame_elo'] ?? null,
                 'away_postgame_elo' => $game['away_postgame_elo'] ?? null,
+                'excitement_index' => $game['excitement_index'] ?? null,
+                'highlights' => $game['highlights'] ?? null,
+                'notes' => $game['notes'] ?? null,
             ];
         });
 
@@ -247,5 +225,38 @@ class StoreCollegeFootballGames implements ShouldQueue
         }
 
         Log::info('Games processed and saved', ['count' => $gamesData->count()]);
+    }
+
+    private function getCurrentWeek(): int
+    {
+        $today = Carbon::today();
+        $weeks = config('college_football.weeks');
+
+        foreach ($weeks as $weekNumber => $dates) {
+            $weekStart = Carbon::parse($dates['start']);
+            $weekEnd = Carbon::parse($dates['end']);
+
+            if ($today->between($weekStart, $weekEnd)) {
+                return $weekNumber;
+            }
+        }
+
+        // If before season start, return week 1
+        if ($today->isBefore(Carbon::parse(config('college_football.season_start')))) {
+            return 1;
+        }
+
+        // If after season end, return last week
+        if ($today->isAfter(Carbon::parse(config('college_football.season_end')))) {
+            return count(config('college_football.weeks'));
+        }
+
+        // Default to configured week
+        return config('college_football.week');
+    }
+
+    private function getSeasonType(): string
+    {
+        return $this->seasonType ?? config('college_football.season_type', 'regular');
     }
 }

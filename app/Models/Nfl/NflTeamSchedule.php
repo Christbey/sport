@@ -48,7 +48,7 @@ class NflTeamSchedule extends Model
         'away_pts' => 'integer',
         'game_time' => 'string',
         'neutral_site' => 'boolean',
-        'status_type_detail' => 'array', // Automatically JSON encode/decode
+        'status_type_detail' => 'string', // Automatically JSON encode/decode
         'referees' => 'array', // Automatically JSON encode/decode
         'conference_competition' => 'boolean', // If applicable
 

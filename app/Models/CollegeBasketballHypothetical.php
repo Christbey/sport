@@ -21,5 +21,6 @@ class CollegeBasketballHypothetical extends Model
         'hypothetical_spread',
         'offense_difference',
         'defense_difference',
+        
     ];
 }

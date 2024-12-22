@@ -1,7 +1,7 @@
-<section class="min-h-screen dark:bg-gray-900">
-    <div class="container mx-auto min-h-screen px-4 py-12 lg:py-16">
+<section>
+    <div class="container mx-auto px-4 lg:px-0 py-12">
         <div class="grid h-full items-start lg:grid-cols-12 lg:gap-8">
-            <!-- Hero Content -->
+            <!-- Left Column - Main Content -->
             <div class="lg:col-span-7 xl:col-span-8 space-y-8 max-w-3xl">
                 <h1 class="text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight text-gray-900 dark:text-white">
                     Welcome to Picksports!
@@ -12,55 +12,19 @@
                     your colleagues, Picksports offers an exciting way to enjoy every game.
                 </p>
 
-                <!-- Action Buttons -->
                 @auth
                     <div class="flex flex-col sm:flex-row gap-4">
-                        {{--                        <a href="{{ route('pickem.schedule') }}"--}}
-                        {{--                           class="inline-flex items-center justify-center py-4 px-6 font-medium text-center text-gray-900 rounded-lg bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800 transition-colors duration-200">--}}
-                        {{--                            Submit Picks--}}
-                        {{--                            <svg class="ml-2 w-5 h-5" fill="currentColor" viewBox="0 0 20 20">--}}
-                        {{--                                <path fill-rule="evenodd"--}}
-                        {{--                                      d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z"--}}
-                        {{--                                      clip-rule="evenodd"></path>--}}
-                        {{--                            </svg>--}}
-                        {{--                        </a>--}}
-
                         <a href="{{ route('show-chatgpt') }}"
                            class="inline-flex items-center justify-center py-4 px-6 font-medium text-center text-gray-900 rounded-lg border border-gray-300 hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-700 transition-colors duration-200">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" stroke-width="2"
                                  viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round"
-                                      d="M3 15v4m6-6v6m6-4v4m6-6v6M3 11l6-5 6 5 5.5-5.5"></path>
+                                      d="M3 15v4m6-6v6m6-4v4m6-6v6M3 11l6-5 6 5 5.5-5.5"/>
                             </svg>
                             Pickly Sports Chat
                         </a>
                     </div>
                 @endauth
-
-                <!-- Stats Grid -->
-                <div class="hidden md:grid grid-cols-1 sm:grid-cols-3 gap-8 pt-12 mt-8 border-t border-gray-300 dark:border-gray-700">
-                    <div class="flex items-center">
-                        <span class="text-4xl lg:text-5xl font-extrabold dark:text-white">42k</span>
-                        <div class="ml-4 text-lg text-gray-500 dark:text-gray-400">
-                            <div>Active</div>
-                            <div>Players</div>
-                        </div>
-                    </div>
-                    <div class="flex items-center">
-                        <span class="text-4xl lg:text-5xl font-extrabold dark:text-white">3k</span>
-                        <div class="ml-4 text-lg text-gray-500 dark:text-gray-400">
-                            <div>Weekly</div>
-                            <div>Games</div>
-                        </div>
-                    </div>
-                    <div class="flex items-center">
-                        <span class="text-4xl lg:text-5xl font-extrabold dark:text-white">560k</span>
-                        <div class="ml-4 text-lg text-gray-500 dark:text-gray-400">
-                            <div>Total</div>
-                            <div>Picks</div>
-                        </div>
-                    </div>
-                </div>
             </div>
 
             <!-- Right Column - Auth Box -->
@@ -70,9 +34,7 @@
                         <x-validation-errors class="mb-4"/>
 
                         @session('status')
-                        <div class="mb-4 font-medium text-sm text-green-600 dark:text-green-400">
-                            {{ $value }}
-                        </div>
+                        <div class="mb-4 font-medium text-sm text-green-600 dark:text-green-400">{{ $value }}</div>
                         @endsession
 
                         <form method="POST" action="{{ route('login') }}" class="space-y-6">
@@ -92,61 +54,54 @@
                                          required autocomplete="current-password"/>
                             </div>
 
-                            <div class="flex items-center justify-between">
+                            <div class="flex items-center">
                                 <label for="remember_me" class="inline-flex items-center">
                                     <x-checkbox id="remember_me" name="remember"/>
                                     <span class="ml-2 text-sm text-gray-600 dark:text-gray-400">{{ __('Remember me') }}</span>
                                 </label>
                             </div>
 
-                            <div class="flex flex-col space-y-4">
-                                <x-button class="w-full justify-center py-3">
-                                    {{ __('Log in') }}
-                                </x-button>
+                            <x-button class="w-full justify-center py-3">{{ __('Log in') }}</x-button>
 
+                            <div class="flex flex-col space-y-4 text-center text-sm">
                                 @if (Route::has('password.request'))
-                                    <a class="text-sm text-center text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 transition-colors duration-200"
-                                       href="{{ route('password.request') }}">
+                                    <a href="{{ route('password.request') }}"
+                                       class="text-gray-600 hover:text-gray-900 dark:text-gray-400">
                                         {{ __('Forgot your password?') }}
                                     </a>
                                 @endif
-                            </div>
 
-                            <div class="text-center">
                                 <a href="{{ route('register') }}"
-                                   class="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 transition-colors duration-200">
+                                   class="text-gray-600 hover:text-gray-900 dark:text-gray-400">
                                     {{ __('Don\'t have an account? Sign up') }}
                                 </a>
                             </div>
                         </form>
                     @else
-                        <div class="flex items-center justify-between mb-6">
-                            <h2 class="text-xl font-medium text-gray-900 dark:text-white">
-                                Welcome Back {{ auth()->user()->name }}!
-                            </h2>
+                        <div class="space-y-6">
+                            <div class="flex items-center justify-between">
+                                <h2 class="text-xl font-medium text-gray-900 dark:text-white">
+                                    Welcome Back {{ auth()->user()->name }}!
+                                </h2>
+                                @if(auth()->user()->hasActiveSubscription())
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd"
+                                                  d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586 4.707 9.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z"
+                                                  clip-rule="evenodd"/>
+                                        </svg>
+                                        Active
+                                    </span>
+                                @endif
+                            </div>
 
-                            @if(auth()->user()->hasActiveSubscription())
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd"
-                                  d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586 4.707 9.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z"
-                                  clip-rule="evenodd"/>
-                        </svg>
-                        Active
-                    </span>
-                            @endif
-                        </div>
-
-                        <div class="flex flex-col space-y-4">
                             <a href="{{ route('subscription.manage') }}"
-                               class="w-full py-4 px-6 font-medium text-center text-white rounded-lg bg-[#4284F4] hover:bg-[#3372df] focus:ring-4 focus:ring-[#4284F4]/50 transition-colors duration-200">
+                               class="block w-full py-4 px-6 font-medium text-center text-white rounded-lg bg-[#4284F4] hover:bg-[#3372df] focus:ring-4 focus:ring-[#4284F4]/50 transition-colors duration-200">
                                 Subscription
                             </a>
-
-                            {{-- Additional Links (Commented Out) --}}
-                            {{-- <a href="{{ route('billing.portal') }}" class="...">Subscription</a> --}}
                         </div>
-                    @endguest                </div>
+                    @endguest
+                </div>
             </div>
         </div>
     </div>

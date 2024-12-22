@@ -16,13 +16,13 @@ class AccessRequestController extends Controller
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
-            'reason' => ['required', 'string', 'max:1000'],
+            //'reason' => ['required', 'string', 'max:1000'],
         ]);
 
         $accessRequest = AccessRequest::create([
             'name' => $request->name,
             'email' => $request->email,
-            'reason' => $request->reason,
+            //'reason' => $request->reason,
         ]);
 
         // Notify admin

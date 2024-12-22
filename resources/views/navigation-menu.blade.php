@@ -21,12 +21,15 @@
                             ['label' => 'Offense Defense', 'route' => 'team_rankings.scoring', 'permission' => 'api tokens'],
                             ['label' => 'Covers Games', 'route' => 'covers.games', 'permission' => 'api tokens'],
                             ['label' => 'ESPN QBR', 'route' => 'nfl.qbr', 'params' => ['week' => 1], 'permission' => 'api tokens'],
-                            ['label' => 'Elo Predictions', 'route' => 'nfl.elo.index'],
+                            ['label' => 'Elo Predictions', 'route' => 'nfl.elo.index', 'role' => 'admin'],
                             ['label' => 'Trends Analysis', 'route' => 'nfl.trends.config','permission' => 'view analytics'],
                         ],
-                        'College' => [
-                            ['label' => 'CFB Hypotheticals', 'route' => 'cfb.index'],
-                            ['label' => 'CBB Hypotheticals', 'route' => 'cbb.index'],
+                        'Predictions' => [
+                            ['label' => 'College Football', 'route' => 'cfb.index'],
+                            ['label' => 'College Basketball', 'route' => 'cbb.index'],
+                            ['label' => 'NFL', 'route' => 'nfl.elo.table'],
+
+
                         ],
                     ];
 
