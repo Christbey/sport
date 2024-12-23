@@ -2,7 +2,7 @@
     <div class="space-y-4">
 
         @foreach($posts as $post)
-            <a href="{{ route('posts.show', $post->slug) }}"
+            <a href="{{ $post->custom_url }}"
                class="block bg-white rounded-lg shadow hover:bg-gray-50 transition duration-200 p-6">
                 <h2 class="text-xl font-semibold text-gray-800 mb-2">{{ $post->title }}</h2>
                 <div class="text-sm text-gray-500 mb-4">

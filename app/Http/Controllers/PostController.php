@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Post;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 class PostController extends Controller
 {
@@ -39,9 +40,32 @@ class PostController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Post $post)
+    public function show($season, $week, $game_date, $slug)
     {
-        // Pass the single post to the show view
+        // Validate the parameters
+        $validator = Validator::make([
+            'season' => $season,
+            'week' => $week,
+            'game_date' => $game_date,
+            'slug' => $slug,
+        ], [
+            'season' => 'required|digits:4|integer|min:1900|max:2100',
+            'week' => 'required|integer|min:1|max:25', // Adjust max based on NFL weeks
+            'game_date' => 'required|date_format:Y-m-d',
+            'slug' => ['required', 'regex:/^[A-Za-z0-9\-]+$/'],
+        ]);
+
+        if ($validator->fails()) {
+            abort(404); // Or handle the error as desired
+        }
+
+        // Retrieve the post based on the provided parameters
+        $post = Post::where('season', $season)
+            ->where('week', $week)
+            ->whereDate('game_date', $game_date)
+            ->where('slug', $slug)
+            ->firstOrFail();
+
         return view('posts.show', compact('post'));
     }
 

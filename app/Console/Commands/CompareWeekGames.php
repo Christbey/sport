@@ -221,7 +221,7 @@ class CompareWeekGames extends Command
             );
 
             $this->info("Post created successfully: {$post->title}");
-            $this->info("View the post at: https://your-domain.com/posts/{$post->slug}");
+            $this->info("View the post at: https://{$APP_URL}/posts/{$post->slug}");
         } catch (Exception $e) {
             $this->error("Error analyzing matchup {$awayTeam} vs {$homeTeam}: {$e->getMessage()}");
             Log::error("Matchup Analysis Error: {$e->getMessage()}", ['exception' => $e]);

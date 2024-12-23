@@ -31,7 +31,6 @@ Route::get('/', function () {
     }
     return view('welcome'); // Uses guest.blade.php
 })->name('home');
-Route::view('/test/form', 'curbbliss');
 
 // Guest Routes
 Route::middleware('guest')->group(function () {
@@ -175,45 +174,6 @@ Route::controller(ChatGPTController::class)->group(function () {
         ->middleware('auth');
 });
 
-//Route::middleware(['auth'])->group(function () {
-//    // Subscription Routes
-//    Route::prefix('subscriptions')->name('subscription.')->group(function () {
-//        Route::get('/', [SubscriptionController::class, 'index'])->name('index');
-//        Route::post('checkout', [SubscriptionController::class, 'checkout'])->name('checkout');
-//        Route::get('success', [SubscriptionController::class, 'success'])->name('success');
-//        Route::get('cancel', [SubscriptionController::class, 'cancel'])->name('cancel');
-//        Route::get('manage', [SubscriptionController::class, 'manage'])->name('manage');
-//
-//        // Subscription Management Routes
-//        Route::post('cancel', [SubscriptionController::class, 'cancelSubscription'])->name('cancel-subscription');
-//        Route::post('resume', [SubscriptionController::class, 'resumeSubscription'])->name('resume');
-//        Route::post('update-plan', [SubscriptionController::class, 'updatePlan'])->name('update-plan');
-//        Route::get('change-plan/show', [SubscriptionController::class, 'showChangePlan'])->name('change-plan.show');
-//        Route::post('change-plan', [SubscriptionController::class, 'changePlan'])->name('change-plan');
-//
-//        // Additional Subscription Item Routes
-//        Route::post('add-item', [SubscriptionController::class, 'addItem'])->name('add-item');
-//        Route::post('remove-item', [SubscriptionController::class, 'removeItem'])->name('remove-item');
-//        Route::post('update-quantity', [SubscriptionController::class, 'updateItemQuantity'])->name('update-quantity');
-//
-//        // Payment and Billing Routes
-//        Route::get('billing-portal', [SubscriptionController::class, 'billingPortal'])->name('billing-portal');
-//        Route::post('preview-change', [SubscriptionController::class, 'previewPlanChange'])->name('preview-change');
-//        Route::post('add-payment-method', [SubscriptionController::class, 'addPaymentMethodAndChangePlan'])->name('add-payment-method');
-//        Route::post('add-payment-and-change-plan', [SubscriptionController::class, 'addPaymentMethodAndChangePlan'])->name('add-payment-and-change-plan');
-//        Route::post('confirm-payment', [SubscriptionController::class, 'confirmPayment'])->name('confirm-payment');
-//    });
-//
-//    // Payment Routes
-//    Route::prefix('stripe')->name('cashier.')->group(function () {
-//        Route::get('payment/{id}', [PaymentController::class, 'show'])->name('payment');
-//        Route::post('payment/process', [PaymentController::class, 'processPayment'])->name('payment.process');
-//    });
-//
-//    // Payment Outcome Routes
-//    Route::get('payment/success', [PaymentController::class, 'success'])->name('payment.success');
-//    Route::get('payment/failure', [PaymentController::class, 'failure'])->name('payment.failure');
-//});
 
 // Stripe Webhook
 Route::post('stripe/webhook', [StripeWebhookController::class, 'handleWebhook'])
@@ -305,16 +265,14 @@ Route::post('/chat', [ChatGPTController::class, 'chat'])
 Route::get('/nfl/predictions/table', [NflEloRatingController::class, 'showTable'])
     ->name('nfl.elo.table');
 
-Route::prefix('wbb')->group(function () {
-    Route::get('play-by-play/{gameId}', [WBBController::class, 'getPlayByPlay']);
-    Route::get('box-score/{gameId}', [WBBController::class, 'getBoxScore']);
-    Route::get('schedule', [WBBController::class, 'getSchedule']);
-    Route::get('standings', [WBBController::class, 'getStandings']);
-    Route::get('team/{teamId}', [WBBController::class, 'getTeamInfo']);
-    Route::get('team/{teamId}/players', [WBBController::class, 'getTeamPlayers']);
-    Route::get('team', [WBBController::class, 'getTeamList']);
-});
-
-Route::get('/wbb-data', [WbbDataController::class, 'index']);
 
 Route::resource('posts', PostController::class);
+
+Route::get('/posts/season={season}/week={week}/game-date={game_date}/{slug}', [PostController::class, 'show'])
+    ->name('posts.show')
+    ->where([
+        'season' => '\d{4}',                   // Four-digit year
+        'week' => '\d+',                      // One or more digits
+        'game_date' => '\d{4}-\d{2}-\d{2}',        // Date format YYYY-MM-DD
+        'slug' => '[A-Za-z0-9\-]+'           // Slug containing letters, numbers, and dashes
+    ]);

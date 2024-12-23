@@ -30,6 +30,14 @@ class Post extends Model
     ];
 
     /**
+     * Cast attributes to specific types.
+     */
+    protected $casts = [
+        'published' => 'boolean',
+        'game_date' => 'date',
+    ];
+
+    /**
      * Set the title and automatically set the slug.
      */
     public static function boot()
@@ -38,11 +46,19 @@ class Post extends Model
 
         static::creating(function ($post) {
             $post->slug = Str::slug($post->title);
+            $post->away_team = strtoupper($post->away_team);
+            $post->home_team = strtoupper($post->home_team);
         });
 
         static::updating(function ($post) {
             if ($post->isDirty('title')) {
                 $post->slug = Str::slug($post->title);
+            }
+            if ($post->isDirty('away_team')) {
+                $post->away_team = strtoupper($post->away_team);
+            }
+            if ($post->isDirty('home_team')) {
+                $post->home_team = strtoupper($post->home_team);
             }
         });
     }
@@ -55,8 +71,26 @@ class Post extends Model
         return $this->belongsTo(NflTeamSchedule::class, 'game_id');
     }
 
+    /**
+     * Override the route key name to use 'slug' for existing routes.
+     */
     public function getRouteKeyName()
     {
         return 'slug';
+    }
+
+    /**
+     * Generate the custom URL for the post based on season, week, game date, and slug.
+     *
+     * @return string
+     */
+    public function getCustomUrlAttribute()
+    {
+        return route('posts.show', [
+            'season' => $this->season,
+            'week' => $this->week,
+            'game_date' => $this->game_date->format('Y-m-d'),
+            'slug' => $this->slug
+        ]);
     }
 }
