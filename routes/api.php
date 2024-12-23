@@ -15,6 +15,7 @@ use App\Http\Controllers\Cfb\CollegeFootballDataController;
 use App\Http\Controllers\ForgeApiController;
 use App\Http\Controllers\Nfl\NflRapidApiController;
 use App\Http\Controllers\PickemController;
+use App\Http\Controllers\WbbDataController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -136,4 +137,6 @@ Route::prefix('nfl/stats')->group(function () {
     Route::get('/{queryType}/data', [TeamStatsController::class, 'getAnalysisData']);
     Route::get('/recent-games', [TeamStatsController::class, 'getRecentGames']);
 });
+
+
 

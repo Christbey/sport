@@ -47,78 +47,63 @@ class FetchCollegeBasketballScoreboardJob implements ShouldQueue
             $crawler->filter('.ScheduleTables.mb5.ScheduleTables--ncaam.ScheduleTables--basketball')->each(function (Crawler $table) {
                 $table->filter('tr.Table__TR')->each(function (Crawler $row) {
                     try {
-                        // Check if team elements exist before accessing
-                        $team1Data = $row->filter('.away a.AnchorLink');
-                        $team2Data = $row->filter('.colspan__col .Table__Team a.AnchorLink');
+                        // Extract team elements
+                        $team1Node = $row->filter('td.events__col .Table__Team a.AnchorLink');
+                        $team2Node = $row->filter('td.colspan__col .Table__Team a.AnchorLink');
 
-                        if (!$team1Data->count() || !$team2Data->count()) {
-                            Log::warning('Could not find team elements in row, skipping row.');
+                        if (!$team1Node->count() || !$team2Node->count()) {
+                            Log::warning('Could not find team elements in row, skipping row.', ['row_html' => $row->html()]);
                             return;
                         }
 
-                        // Extract team1 and team2 IDs and names
-                        $team1Url = $team1Data->first()->attr('href');
-                        $team1Id = $this->extractTeamIdFromUrl($team1Url);
-                        $team1Name = trim($team1Data->first()->text());
+                        $team1Name = trim($team1Node->text());
+                        $team2Name = trim($team2Node->text());
 
-                        $team2Url = $team2Data->first()->attr('href');
-                        $team2Id = $this->extractTeamIdFromUrl($team2Url);
-                        $team2Name = trim($team2Data->first()->text());
-
-                        // Match both teams by team_id in the database
-                        $team1 = CollegeBasketballTeam::where('team_id', $team1Id)->first();
-                        $team2 = CollegeBasketballTeam::where('team_id', $team2Id)->first();
+                        // Match both teams by name in the database
+                        $team1 = CollegeBasketballTeam::where('name', $team1Name)->first();
+                        $team2 = CollegeBasketballTeam::where('name', $team2Name)->first();
 
                         if (!$team1 || !$team2) {
-                            Log::warning("No database match for matchup: {$team1Name} (ID: $team1Id) vs. {$team2Name} (ID: $team2Id)");
+                            Log::warning("No database match for matchup: $team1Name vs. $team2Name");
                             return;
                         }
 
-                        // Check for rank if present in span.pr2
-                        $team1RankNode = $row->filter('.away .pr2');
-                        $team2RankNode = $row->filter('.colspan__col .pr2');
-
-                        $homeRank = $team2RankNode->count() ? (int)$team2RankNode->text() : null;
-                        $awayRank = $team1RankNode->count() ? (int)$team1RankNode->text() : null;
-
-                        // Extract game time from the relevant link
-                        $gameTimeNode = $row->filter('.date__col a.AnchorLink');
-                        $gameTime = $gameTimeNode->count() ? trim($gameTimeNode->text()) : null;
-                        $formattedGameTime = $gameTime ? Carbon::parse($gameTime)->format('H:i:s') : null;
-
-                        // Extract event_id from the link containing the gameId
-                        $eventLinkNode = $row->filter('.Schedule__liveLink');
+                        // Extract event_id from the teams__col
+                        $eventLinkNode = $row->filter('td.teams__col a.AnchorLink');
                         $eventId = null;
+
                         if ($eventLinkNode->count()) {
-                            preg_match('/gameId\/(\d+)/', $eventLinkNode->attr('href'), $eventIdMatches);
-                            $eventId = $eventIdMatches[1] ?? null;
+                            $href = $eventLinkNode->attr('href');
+                            Log::info('Extracted href', ['href' => $href]);
+
+                            if (preg_match('/gameId\/(\d+)/', $href, $eventIdMatches)) {
+                                $eventId = $eventIdMatches[1];
+                                Log::info('Extracted event_id', ['event_id' => $eventId]);
+                            } else {
+                                Log::warning('No gameId found in href', ['href' => $href]);
+                            }
+                        } else {
+                            Log::warning('Event link not found in teams__col.', ['row_html' => $row->html()]);
+                            return;
                         }
 
-                        // Format the game date
+                        // Format game date (assuming it's passed correctly in the constructor)
                         $formattedGameDate = Carbon::createFromFormat('Ymd', $this->dateInput)->toDateString();
 
-                        // Store game information in the CollegeBasketballGame model
+                        // Save game information
                         $game = CollegeBasketballGame::firstOrNew([
-                            'home_team_id' => $team2->id, // Assuming team2 is home based on '@' symbol in text
+                            'home_team_id' => $team2->id,
                             'away_team_id' => $team1->id,
                             'game_date' => $formattedGameDate,
                         ]);
 
                         $game->event_id = $eventId;
-                        $game->game_time = $formattedGameTime;
-                        $game->location = $row->filter('.venue__col div')->count() ? $row->filter('.venue__col div')->text() : 'Unknown Location';
-                        $game->matchup = "{$team1->name} vs. {$team2->name}";
-                        $game->home_team = $team2->name; // Using team name from database
-                        $game->away_team = $team1->name; // Using team name from database
-                        $game->home_rank = $homeRank;
-                        $game->away_rank = $awayRank;
-                        $game->is_completed = false;
-
+                        $game->is_completed = true;
                         $game->save();
 
-                        Log::info("Stored game: {$game->matchup} at {$game->location} on {$formattedGameDate} at {$formattedGameTime}");
+                        Log::info("Stored game: $team1Name vs. $team2Name, event_id: $eventId.");
                     } catch (Exception $e) {
-                        Log::error('Error processing row: ' . $e->getMessage());
+                        Log::error('Error processing row: ' . $e->getMessage(), ['row_html' => $row->html()]);
                     }
                 });
             });

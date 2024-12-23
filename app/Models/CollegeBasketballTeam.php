@@ -44,4 +44,15 @@ class CollegeBasketballTeam extends Model
     {
         return $this->hasMany(AdvancedGameStat::class, 'team_id');
     }
+
+    public function homeGames()
+    {
+        return $this->hasMany(CollegeBasketballHypothetical::class, 'home_id');
+    }
+
+    public function awayGames()
+    {
+        return $this->hasMany(CollegeBasketballHypothetical::class, 'away_id');
+    }
+
 }

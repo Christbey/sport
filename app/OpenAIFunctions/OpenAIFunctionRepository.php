@@ -1393,171 +1393,6 @@ class OpenAIFunctionRepository
                 ]
             ],
 
-            // College Basketball Functions
-            [
-                'name' => 'get_college_game_predictions',
-                'description' => 'Retrieve game predictions for college basketball based on game ID or team abbreviations.',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'game_id' => [
-                            'type' => 'string',
-                            'description' => 'The ID of the game to retrieve predictions for (optional).'
-                        ],
-                        'home_team_abv' => [
-                            'type' => 'string',
-                            'description' => 'Abbreviation of the home team (optional).'
-                        ],
-                        'away_team_abv' => [
-                            'type' => 'string',
-                            'description' => 'Abbreviation of the away team (optional).'
-                        ],
-                        'season' => [
-                            'type' => 'integer',
-                            'description' => 'The season year to filter predictions (optional).'
-                        ]
-                    ],
-                    'required' => [], // All fields are optional
-                    'additionalProperties' => false
-                ]
-            ],
-            [
-                'name' => 'analyze_team_performance',
-                'description' => 'Analyze the performance of a college basketball team based on various metrics.',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'team_abv' => [
-                            'type' => 'string',
-                            'description' => 'Abbreviation of the team to analyze.'
-                        ],
-                        'season' => [
-                            'type' => 'integer',
-                            'description' => 'The season year to analyze.'
-                        ],
-                        'metrics' => [
-                            'type' => 'array',
-                            'description' => 'List of performance metrics to analyze.',
-                            'items' => [
-                                'type' => 'string',
-                                'enum' => ['offense', 'defense', 'rebounds', 'assists', 'turnovers']
-                            ]
-                        ]
-                    ],
-                    'required' => ['team_abv', 'season'],
-                    'additionalProperties' => false
-                ]
-            ],
-            // Add more functions as needed...
-            // College Basketball Function: Get Predictions by Date
-            [
-                'name' => 'get_college_game_predictions_by_date',
-                'description' => 'Retrieve college basketball game predictions for today or this week based on game dates.',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'time_frame' => [
-                            'type' => 'string',
-                            'description' => 'The time frame for which to retrieve predictions. Options: "today", "this_week".',
-                            'enum' => ['today', 'this_week']
-                        ],
-                        'season' => [
-                            'type' => 'integer',
-                            'description' => 'The season year to filter predictions (optional).'
-                        ],
-                        'team_abv' => [
-                            'type' => 'string',
-                            'description' => 'Abbreviation of a specific team to filter predictions (optional).'
-                        ]
-                    ],
-                    'required' => ['time_frame'], // 'time_frame' is required
-                    'additionalProperties' => false
-                ]
-            ],
-
-            [
-                'name' => 'get_upcoming_games',
-                'description' => 'Retrieve a list of upcoming college basketball games based on date, team, or location filters.',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'time_frame' => [
-                            'type' => 'string',
-                            'description' => 'The time frame for which to retrieve upcoming games. Options: "today", "this_week", "next_week", "custom".',
-                            'enum' => ['today', 'this_week', 'next_week', 'custom']
-                        ],
-                        'start_date' => [
-                            'type' => 'string',
-                            'format' => 'date',
-                            'description' => 'The start date for custom time frame in YYYY-MM-DD format (required if time_frame is "custom").'
-                        ],
-                        'end_date' => [
-                            'type' => 'string',
-                            'format' => 'date',
-                            'description' => 'The end date for custom time frame in YYYY-MM-DD format (required if time_frame is "custom").'
-                        ],
-                        'team_abv' => [
-                            'type' => 'string',
-                            'description' => 'Abbreviation of a specific team to filter games (optional).'
-                        ],
-                        'location' => [
-                            'type' => 'string',
-                            'description' => 'Location to filter games (e.g., "Home", "Away", "Neutral") (optional).'
-                        ]
-                    ],
-                    'required' => ['time_frame'],
-                    'additionalProperties' => false
-                ]
-            ],
-            [
-                'name' => 'get_game_details',
-                'description' => 'Fetch detailed information about a specific college basketball game using game ID.',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'game_id' => [
-                            'type' => 'string',
-                            'description' => 'The unique identifier of the game.'
-                        ]
-                    ],
-                    'required' => ['game_id'],
-                    'additionalProperties' => false
-                ]
-            ],
-            [
-                'name' => 'get_completed_games',
-                'description' => 'Retrieve a list of completed college basketball games with their final scores and statistics.',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'time_frame' => [
-                            'type' => 'string',
-                            'description' => 'The time frame for which to retrieve completed games. Options: "today", "this_week", "last_week", "custom".',
-                            'enum' => ['today', 'this_week', 'last_week', 'custom']
-                        ],
-                        'start_date' => [
-                            'type' => 'string',
-                            'format' => 'date',
-                            'description' => 'The start date for custom time frame in YYYY-MM-DD format (required if time_frame is "custom").'
-                        ],
-                        'end_date' => [
-                            'type' => 'string',
-                            'format' => 'date',
-                            'description' => 'The end date for custom time frame in YYYY-MM-DD format (required if time_frame is "custom").'
-                        ],
-                        'team_abv' => [
-                            'type' => 'string',
-                            'description' => 'Abbreviation of a specific team to filter games (optional).'
-                        ],
-                        'location' => [
-                            'type' => 'string',
-                            'description' => 'Location to filter games (e.g., "Home", "Away", "Neutral") (optional).'
-                        ]
-                    ],
-                    'required' => ['time_frame'],
-                    'additionalProperties' => false
-                ]
-            ],
             [
                 'name' => 'analyze_team_performance',
                 'description' => 'Analyze the performance of a college basketball team based on various metrics over a season or specific games.',
@@ -1586,6 +1421,33 @@ class OpenAIFunctionRepository
                     'additionalProperties' => false
                 ]
             ],
+
+            [
+                'name' => 'get_recent_game_details',
+                'description' => 'Fetch detailed information about the most recent game played by a specific college basketball team.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'team_abv' => [
+                            'type' => 'string',
+                            'description' => 'The abbreviation, full name, or identifier of the college basketball team.',
+                        ],
+                        'include_scores' => [
+                            'type' => 'boolean',
+                            'description' => 'Whether to include the final scores in the response.',
+                            'default' => true,
+                        ],
+                        'include_opponent_details' => [
+                            'type' => 'boolean',
+                            'description' => 'Whether to include details of the opposing team.',
+                            'default' => true,
+                        ]
+                    ],
+                    'required' => ['team_abv'],
+                    'additionalProperties' => false
+                ]
+            ]
+
 
             // You can add more functions as needed...
 

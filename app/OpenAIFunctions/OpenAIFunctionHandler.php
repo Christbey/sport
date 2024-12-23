@@ -5,6 +5,7 @@ namespace App\OpenAIFunctions;
 use App\Helpers\OpenAI;
 use App\Models\CollegeBasketballGame;
 use App\Models\CollegeBasketballHypothetical;
+use App\Models\CollegeBasketballTeam;
 use App\Repositories\Nfl\NflBettingOddsRepository;
 use App\Repositories\Nfl\NflBoxScoreRepository;
 use App\Repositories\Nfl\NflEloPredictionRepository;
@@ -14,7 +15,6 @@ use App\Repositories\Nfl\NflTeamStatRepository;
 use App\Repositories\Nfl\TeamStatsRepository;
 use App\Repositories\NflTeamScheduleRepository;
 use Exception;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class OpenAIFunctionHandler
@@ -472,18 +472,11 @@ class OpenAIFunctionHandler
             case 'analyze_team_performance':
                 return $this->analyzeTeamPerformance($arguments);
 
+            case 'get_recent_game_details':
+                $arguments['team_identifier'] = $arguments['team_abv'] ?? null;
+                return $this->getRecentGameDetails($arguments);
+
             // College Basketball Game Function Handlers
-            case 'get_upcoming_games':
-                return $this->getUpcomingGames($arguments);
-
-            case 'get_game_details':
-                return $this->getGameDetails($arguments);
-
-            case 'get_completed_games':
-                return $this->getCompletedGames($arguments);
-
-            case 'get_college_game_predictions_by_date':
-                return $this->getCollegeGamePredictionsByDate($arguments);
 
 
             default:
@@ -518,27 +511,44 @@ class OpenAIFunctionHandler
         return $rawData['data'];
     }
 
-    private function getCollegeGamePredictions(array $arguments)
+    private function getCollegeGamePredictions(array $arguments): array
     {
-        $query = CollegeBasketballHypothetical::query();
-
-        if (!empty($arguments['game_id'])) {
-            $query->where('game_id', $arguments['game_id']);
+        // Validate season format
+        if (!empty($arguments['season']) && !preg_match('/^\d{4}$/', $arguments['season'])) {
+            return [
+                'success' => false,
+                'message' => 'Invalid season format. Please provide a valid year (e.g., 2024).'
+            ];
         }
 
-        if (!empty($arguments['home_team_abv'])) {
-            $query->where('home_team', $arguments['home_team_abv']);
+        // Ensure at least one filter is provided
+        if (empty($arguments['game_id']) && empty($arguments['home_team_abv']) && empty($arguments['away_team_abv']) && empty($arguments['season'])) {
+            return [
+                'success' => false,
+                'message' => 'No filters provided. Please specify at least one filter.'
+            ];
         }
 
-        if (!empty($arguments['away_team_abv'])) {
-            $query->where('away_team', $arguments['away_team_abv']);
-        }
+        // Build query with filters
+        $query = CollegeBasketballHypothetical::query()
+            ->when(!empty($arguments['game_id']), function ($q) use ($arguments) {
+                $q->where('game_id', $arguments['game_id']);
+            })
+            ->when(!empty($arguments['home_team_abv']), function ($q) use ($arguments) {
+                $q->where('home_team', $arguments['home_team_abv']);
+            })
+            ->when(!empty($arguments['away_team_abv']), function ($q) use ($arguments) {
+                $q->where('away_team', $arguments['away_team_abv']);
+            })
+            ->when(!empty($arguments['season']), function ($q) use ($arguments) {
+                $q->whereYear('game_date', $arguments['season']);
+            });
 
-        if (!empty($arguments['season'])) {
-            $query->whereYear('game_date', $arguments['season']);
-        }
+        // Log the query filters
+        Log::info('Fetching college game predictions', ['filters' => $arguments]);
 
-        $predictions = $query->get();
+        // Fetch and paginate results
+        $predictions = $query->paginate(10);
 
         if ($predictions->isEmpty()) {
             return [
@@ -547,9 +557,28 @@ class OpenAIFunctionHandler
             ];
         }
 
+        // Format predictions
+        $formattedPredictions = $predictions->map(function ($prediction) {
+            return [
+                'game_id' => $prediction->game_id,
+                'home_team' => $prediction->home_team,
+                'away_team' => $prediction->away_team,
+                'game_date' => $prediction->game_date,
+                'hypothetical_spread' => $prediction->hypothetical_spread,
+                'offense_difference' => $prediction->offense_difference,
+                'defense_difference' => $prediction->defense_difference,
+            ];
+        });
+
         return [
             'success' => true,
-            'data' => $predictions
+            'data' => $formattedPredictions,
+            'pagination' => [
+                'current_page' => $predictions->currentPage(),
+                'last_page' => $predictions->lastPage(),
+                'per_page' => $predictions->perPage(),
+                'total' => $predictions->total(),
+            ]
         ];
     }
 
@@ -565,7 +594,7 @@ class OpenAIFunctionHandler
         Log::info('Invoking analyzeTeamPerformance', ['arguments' => $arguments]);
 
         $teamAbv = $arguments['team_abv'];
-        $season = $arguments['season'] ?? Config('college_basketball.season');
+        $season = $arguments['season'] ?? config('college_basketball.season');
         $metrics = $arguments['metrics'] ?? [];
 
         // Validate metrics
@@ -654,279 +683,116 @@ class OpenAIFunctionHandler
         ];
     }
 
-    private function getUpcomingGames(array $arguments)
+    private function getRecentGameDetails(array $arguments)
     {
-        Log::info('Invoking getUpcomingGames', ['arguments' => $arguments]);
+        Log::info('Fetching recent game details', ['arguments' => $arguments]);
 
-        // Determine date range based on 'time_frame'
-        $timeFrame = $arguments['time_frame'];
-        $startDate = null;
-        $endDate = null;
-
-        switch ($timeFrame) {
-            case 'today':
-                $startDate = Carbon::today()->startOfDay();
-                $endDate = Carbon::today()->endOfDay();
-                break;
-
-            case 'this_week':
-                $startDate = Carbon::now()->startOfWeek(); // Typically Monday
-                $endDate = Carbon::now()->endOfWeek();     // Typically Sunday
-                break;
-
-            case 'next_week':
-                $startDate = Carbon::now()->addWeek()->startOfWeek();
-                $endDate = Carbon::now()->addWeek()->endOfWeek();
-                break;
-
-            case 'custom':
-                if (empty($arguments['start_date']) || empty($arguments['end_date'])) {
-                    Log::warning('Missing start_date or end_date for custom time_frame');
-                    return [
-                        'success' => false,
-                        'message' => 'Both start_date and end_date are required for custom time_frame.'
-                    ];
-                }
-                try {
-                    $startDate = Carbon::createFromFormat('Y-m-d', $arguments['start_date'])->startOfDay();
-                    $endDate = Carbon::createFromFormat('Y-m-d', $arguments['end_date'])->endOfDay();
-                } catch (Exception $e) {
-                    Log::error('Invalid date format for custom time_frame', ['error' => $e->getMessage()]);
-                    return [
-                        'success' => false,
-                        'message' => 'Invalid date format. Please use YYYY-MM-DD.'
-                    ];
-                }
-                break;
-
-            default:
-                Log::warning('Invalid time_frame provided', ['time_frame' => $timeFrame]);
-                return [
-                    'success' => false,
-                    'message' => 'Invalid time_frame provided.'
-                ];
-        }
-
-        // Build the query
-        $query = CollegeBasketballGame::query()
-            ->whereBetween('game_date', [$startDate, $endDate])
-            ->where('is_completed', false) // Fetch only upcoming games
-            ->with(['homeTeam', 'awayTeam']); // Eager load relationships
-
-        // Optional: Filter by team abbreviation if provided
-        if (!empty($arguments['team_abv'])) {
-            $teamAbv = $arguments['team_abv'];
-            $query->where(function ($q) use ($teamAbv) {
-                $q->where('home_team', $teamAbv)
-                    ->orWhere('away_team', $teamAbv);
-            });
-        }
-
-        // Optional: Filter by location if provided
-        if (!empty($arguments['location'])) {
-            $location = ucfirst(strtolower($arguments['location'])); // Normalize input
-            $query->where('location', $location);
-        }
-
-        // Pagination parameters
-        $page = isset($arguments['page']) ? (int)$arguments['page'] : 1;
-        $perPage = isset($arguments['per_page']) ? (int)$arguments['per_page'] : 10;
-
-        // Execute the query with pagination
-        $upcomingGames = $query->paginate($perPage, ['*'], 'page', $page);
-
-        // Handle no results
-        if ($upcomingGames->isEmpty()) {
-            Log::info('No upcoming games found for the specified criteria.');
+        // Validate the presence of the required 'team_identifier' key
+        if (empty($arguments['team_identifier'])) {
+            Log::error('Missing required parameter: team_identifier');
             return [
                 'success' => false,
-                'message' => 'No upcoming games found for the specified criteria.'
+                'message' => 'The team_identifier parameter is required to fetch recent game details.',
             ];
         }
 
-        // Format the games
-        $formattedGames = $upcomingGames->map(function ($game) {
-            // Debugging: Check the type of homeTeam and awayTeam
-            Log::info('Type of homeTeam', ['type' => gettype($game->homeTeam)]);
-            Log::info('homeTeam content', ['homeTeam' => $game->homeTeam]);
+        $teamIdentifier = $arguments['team_identifier'];
+        $limit = isset($arguments['limit']) ? (int)$arguments['limit'] : 1;
 
-            Log::info('Type of awayTeam', ['type' => gettype($game->awayTeam)]);
-            Log::info('awayTeam content', ['awayTeam' => $game->awayTeam]);
+        // Try to find the team by various columns using exact matches
+        $team = CollegeBasketballTeam::where('abbreviation', '=', $teamIdentifier)
+            ->orWhere('name', '=', $teamIdentifier)
+            ->orWhere('display_name', '=', $teamIdentifier)
+            ->orWhere('short_display_name', '=', $teamIdentifier)
+            ->orWhere('slug', '=', $teamIdentifier)
+            ->orWhere('nickname', '=', $teamIdentifier)
+            ->first();
 
+        if (!$team) {
+            Log::error('Team not found', ['team_identifier' => $teamIdentifier]);
             return [
-                'event_id' => $game->id,
-                'game_date' => $game->game_date->toDateString(), // Now works as Carbon
-                'game_time' => $game->game_time,
-                'location' => $game->location,
-                'home_team' => [
-                    'id' => $game->homeTeam->id, // Access via relationship
-                    'name' => $game->homeTeam->name,
-                    'abbreviation' => $game->homeTeam->abbreviation,
-                    'rank' => $game->home_rank,
-                ],
-                'away_team' => [
-                    'id' => $game->awayTeam->id, // Access via relationship
-                    'name' => $game->awayTeam->name,
-                    'abbreviation' => $game->awayTeam->abbreviation,
-                    'rank' => $game->away_rank,
-                ],
-                'hotness_score' => $game->hotness_score,
-                'matchup' => $game->matchup,
+                'success' => false,
+                'message' => "No team found matching identifier: $teamIdentifier",
             ];
+        }
+
+        // Fetch the most recent games involving the team with a limit
+        $games = CollegeBasketballGame::with(['homeTeam', 'awayTeam'])
+            ->where('home_team_id', $team->id)
+            ->orWhere('away_team_id', $team->id)
+            ->orderBy('game_date', 'desc')
+            ->take($limit)
+            ->get();
+
+        $retrievedCount = $games->count();
+
+        if ($retrievedCount === 0) {
+            Log::error('No recent games found for the team', ['team_id' => $team->id]);
+            return [
+                'success' => false,
+                'message' => 'No recent games found for the specified team.',
+            ];
+        }
+
+        if ($retrievedCount < $limit) {
+            Log::warning('Fewer games retrieved than requested', [
+                'requested_limit' => $limit,
+                'retrieved_count' => $retrievedCount,
+            ]);
+        }
+
+        // Format game details
+        $gameDetails = $games->map(function ($game) {
+            return $this->formatGameDetails($game);
         });
 
-        Log::info('Successfully retrieved upcoming games', ['count' => $upcomingGames->count()]);
+        Log::info('Game details retrieved successfully', ['game_details' => $gameDetails]);
 
         return [
             'success' => true,
-            'data' => $formattedGames,
-            'pagination' => [
-                'current_page' => $upcomingGames->currentPage(),
-                'last_page' => $upcomingGames->lastPage(),
-                'per_page' => $upcomingGames->perPage(),
-                'total' => $upcomingGames->total(),
-            ]
+            'games_retrieved' => $retrievedCount,
+            'games_requested' => $limit,
+            'games' => $gameDetails,
         ];
     }
 
     /**
-     * Handle get_game_details function.
+     * Format game details into an array.
+     *
+     * @param CollegeBasketballGame $game
+     * @return array
      */
-    private function getGameDetails(array $arguments)
+    private function formatGameDetails(?CollegeBasketballGame $game): array
     {
-        Log::info('Invoking getGameDetails', ['arguments' => $arguments]);
-
-        $gameId = $arguments['game_id'];
-
-        // Validate game_id
-        if (empty($gameId)) {
-            return [
-                'success' => false,
-                'message' => 'game_id is required.'
-            ];
-        }
-
-        // Fetch the game
-        $game = CollegeBasketballGame::with(['homeTeam', 'awayTeam'])
-            ->where('id', $gameId)
-            ->first();
-
         if (!$game) {
-            Log::warning('Game not found', ['game_id' => $gameId]);
             return [
-                'success' => false,
-                'message' => 'Game not found.'
+                'message' => 'Game details are not available.',
             ];
         }
 
-        // Format the game details
-        $gameDetails = [
+        return [
             'game_id' => $game->id,
-            'game_date' => $game->game_date->toDateString(),
+            'game_date' => $game->game_date ? $game->game_date->toDateString() : null,
             'game_time' => $game->game_time,
             'location' => $game->location,
-            'home_team' => [
-                'id' => $game->home_team->id,
-                'name' => $game->home_team->name,
-                'abbreviation' => $game->home_team->abbreviation,
+            'home_team' => $game->homeTeam ? [
+                'id' => $game->homeTeam->id,
+                'name' => $game->homeTeam->name,
+                'abbreviation' => $game->homeTeam->abbreviation,
                 'rank' => $game->home_rank,
                 'score' => $game->home_team_score,
-            ],
-            'away_team' => [
-                'id' => $game->away_team->id,
-                'name' => $game->away_team->name,
-                'abbreviation' => $game->away_team->abbreviation,
+            ] : null,
+            'away_team' => $game->awayTeam ? [
+                'id' => $game->awayTeam->id,
+                'name' => $game->awayTeam->name,
+                'abbreviation' => $game->awayTeam->abbreviation,
                 'rank' => $game->away_rank,
                 'score' => $game->away_team_score,
-            ],
+            ] : null,
             'hotness_score' => $game->hotness_score,
             'matchup' => $game->matchup,
             'is_completed' => $game->is_completed,
         ];
-
-        Log::info('Successfully retrieved game details', ['game_id' => $gameId]);
-
-        return [
-            'success' => true,
-            'data' => $gameDetails
-        ];
     }
 
-    /**
-     * Handle get_completed_games function.
-     */
-
-    private function getCollegeGamePredictionsByDate(array $arguments)
-    {
-        // Validate 'time_frame'
-        $timeFrame = $arguments['time_frame'];
-
-        // Initialize date range
-        $startDate = null;
-        $endDate = null;
-
-        // Determine date range based on 'time_frame'
-        switch ($timeFrame) {
-            case 'today':
-                $startDate = Carbon::today()->startOfDay();
-                $endDate = Carbon::today()->endOfDay();
-                break;
-
-            case 'this_week':
-                $startDate = Carbon::now()->startOfWeek(); // Monday
-                $endDate = Carbon::now()->endOfWeek();     // Sunday
-                break;
-
-            default:
-                throw new Exception("Invalid time_frame: $timeFrame");
-        }
-
-        // Build the query
-        $query = CollegeBasketballHypothetical::query()
-            ->whereBetween('game_date', [$startDate, $endDate]);
-
-        // Optional: Filter by season if provided
-        if (!empty($arguments['season'])) {
-            $query->whereYear('game_date', $arguments['season']);
-        }
-
-        // Optional: Filter by team abbreviation if provided
-        if (!empty($arguments['team_abv'])) {
-            $teamAbv = $arguments['team_abv'];
-            $query->where(function ($q) use ($teamAbv) {
-                $q->where('home_team', $teamAbv)
-                    ->orWhere('away_team', $teamAbv);
-            });
-        }
-
-        // Execute the query
-        $predictions = $query->get();
-
-        // Handle no results
-        if ($predictions->isEmpty()) {
-            return [
-                'success' => false,
-                'message' => 'No game predictions found for the specified criteria.'
-            ];
-        }
-
-        // Format the predictions (you can customize this as needed)
-        $formattedPredictions = $predictions->map(function ($game) {
-            return [
-                'game_id' => $game->game_id,
-                'game_date' => $game->game_date->toDateString(),
-                'home_team' => $game->home_team,
-                'away_team' => $game->away_team,
-                'hypothetical_spread' => $game->hypothetical_spread,
-                'offense_difference' => $game->offense_difference,
-                'defense_difference' => $game->defense_difference,
-                // Add more fields as necessary...
-            ];
-        });
-
-        return [
-            'success' => true,
-            'data' => $formattedPredictions
-        ];
-    }
 }

@@ -728,8 +728,6 @@ class TeamStatsRepository implements TeamStatsRepositoryInterface
         ];
     }
 
-    // ... Rest of your service methods (getChatCompletion, getModelMaxTokens, etc.)
-
     /**
      * Get score margins statistics
      *

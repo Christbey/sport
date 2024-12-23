@@ -49,7 +49,7 @@ class NflTrendsAnalyzer
         ]
     ];
 
-    private Collection $games;
+    public Collection $games;
     private Collection $bettingOdds;
     private string $teamName;
     private int $minOccurrences = 2;
@@ -79,11 +79,17 @@ class NflTrendsAnalyzer
         ];
     }
 
-    public function analyze(string $teamName, ?int $season, int $limit): array
+    public function analyze(string $teamName, ?int $season, int $week): array
     {
         $this->teamName = $teamName;
-        $this->games = $this->boxScoreRepository->getGamesByTeam($teamName, $season, $limit);
+
+        // Fetch games up to the specified week
+        $this->games = $this->boxScoreRepository->getGamesByTeam($teamName, $season, $week);
+
+        // Fetch betting odds for these games
         $this->bettingOdds = $this->bettingOddsRepository->getOddsByEventIds($this->games->pluck('game_id'));
+
+        // Generate trends based on the games played
         $this->trends = $this->generateTrends();
 
         return array_merge(
@@ -303,7 +309,7 @@ class NflTrendsAnalyzer
     {
         return collect(self::ANALYSES['scoring']['thresholds'])
             ->map(fn($threshold) => [
-                'count' => collect($this->trends['scoring'])->where('points', '>', $threshold)->count(),
+                'count' => collect($this->trends['scoring'])->where('teamScore', '>', $threshold)->count(),
                 'threshold' => $threshold
             ])
             ->filter(fn($data) => $data['count'] >= $this->minOccurrences)

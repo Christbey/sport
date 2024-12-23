@@ -8,6 +8,7 @@ use App\Http\Controllers\{AccessRequestController,
     PaymentController,
     PaymentMethodController,
     PickemController,
+    PostController,
     StripeWebhookController,
     SubscriptionController,
     UserRoleController};
@@ -303,3 +304,17 @@ Route::post('/chat', [ChatGPTController::class, 'chat'])
 
 Route::get('/nfl/predictions/table', [NflEloRatingController::class, 'showTable'])
     ->name('nfl.elo.table');
+
+Route::prefix('wbb')->group(function () {
+    Route::get('play-by-play/{gameId}', [WBBController::class, 'getPlayByPlay']);
+    Route::get('box-score/{gameId}', [WBBController::class, 'getBoxScore']);
+    Route::get('schedule', [WBBController::class, 'getSchedule']);
+    Route::get('standings', [WBBController::class, 'getStandings']);
+    Route::get('team/{teamId}', [WBBController::class, 'getTeamInfo']);
+    Route::get('team/{teamId}/players', [WBBController::class, 'getTeamPlayers']);
+    Route::get('team', [WBBController::class, 'getTeamList']);
+});
+
+Route::get('/wbb-data', [WbbDataController::class, 'index']);
+
+Route::resource('posts', PostController::class);

@@ -470,5 +470,91 @@ class NflTeamStatRepository
         }
     }
 
+    public function getSummedTeamStats(string $teamAbv, int $startWeek, int $endWeek, int $season): array
+    {
+        try {
+            $stats = DB::table('nfl_team_stats')
+                ->join('nfl_team_schedules', 'nfl_team_stats.game_id', '=', 'nfl_team_schedules.game_id')
+                ->where('nfl_team_stats.team_abv', strtoupper($teamAbv))
+                ->whereBetween('nfl_team_schedules.game_week', [$startWeek, $endWeek])
+                ->where('nfl_team_schedules.season', $season)
+                ->selectRaw('
+                SUM(total_yards) as total_yards,
+                SUM(rushing_yards) as rushing_yards,
+                SUM(passing_yards) as passing_yards,
+                SUM(points_allowed) as points_allowed,
+                SUM(rushing_attempts) as rushing_attempts,
+                SUM(fumbles_lost) as fumbles_lost,
+                SUM(penalties) as penalties,
+                SUM(total_plays) as total_plays,
+                SUM(possession) as possession,
+                SUM(safeties) as safeties,
+                SUM(pass_completions_and_attempts) as pass_completions_and_attempts,
+                SUM(passing_first_downs) as passing_first_downs,
+                SUM(interceptions_thrown) as interceptions_thrown,
+                SUM(sacks_and_yards_lost) as sacks_and_yards_lost,
+                SUM(third_down_efficiency) as third_down_efficiency,
+                SUM(yards_per_play) as yards_per_play,
+                SUM(red_zone_scored_and_attempted) as red_zone_scored_and_attempted,
+                SUM(defensive_interceptions) as defensive_interceptions,
+                SUM(defensive_or_special_teams_tds) as defensive_or_special_teams_tds,
+                SUM(total_drives) as total_drives,
+                SUM(rushing_first_downs) as rushing_first_downs,
+                SUM(first_downs) as first_downs,
+                SUM(first_downs_from_penalties) as first_downs_from_penalties,
+                SUM(fourth_down_efficiency) as fourth_down_efficiency,
+                SUM(yards_per_rush) as yards_per_rush,
+                SUM(turnovers) as turnovers,
+                SUM(yards_per_pass) as yards_per_pass
+            ')
+                ->first();
+
+            if (!$stats) {
+                return [
+                    'success' => false,
+                    'message' => 'No statistics found for the specified team and weeks.'
+                ];
+            }
+
+            return [
+                'success' => true,
+                'data' => [
+                    'total_yards' => $stats->total_yards ?? 0,
+                    'rushing_yards' => $stats->rushing_yards ?? 0,
+                    'passing_yards' => $stats->passing_yards ?? 0,
+                    'points_allowed' => $stats->points_allowed ?? 0,
+                    'rushing_attempts' => $stats->rushing_attempts ?? 0,
+                    'fumbles_lost' => $stats->fumbles_lost ?? 0,
+                    'penalties' => $stats->penalties ?? 0,
+                    'total_plays' => $stats->total_plays ?? 0,
+                    'possession' => $stats->possession ?? 0,
+                    'safeties' => $stats->safeties ?? 0,
+                    'pass_completions_and_attempts' => $stats->pass_completions_and_attempts ?? 0,
+                    'passing_first_downs' => $stats->passing_first_downs ?? 0,
+                    'interceptions_thrown' => $stats->interceptions_thrown ?? 0,
+                    'sacks_and_yards_lost' => $stats->sacks_and_yards_lost ?? 0,
+                    'third_down_efficiency' => $stats->third_down_efficiency ?? 0,
+                    'yards_per_play' => $stats->yards_per_play ?? 0,
+                    'red_zone_scored_and_attempted' => $stats->red_zone_scored_and_attempted ?? 0,
+                    'defensive_interceptions' => $stats->defensive_interceptions ?? 0,
+                    'defensive_or_special_teams_tds' => $stats->defensive_or_special_teams_tds ?? 0,
+                    'total_drives' => $stats->total_drives ?? 0,
+                    'rushing_first_downs' => $stats->rushing_first_downs ?? 0,
+                    'first_downs' => $stats->first_downs ?? 0,
+                    'first_downs_from_penalties' => $stats->first_downs_from_penalties ?? 0,
+                    'fourth_down_efficiency' => $stats->fourth_down_efficiency ?? 0,
+                    'yards_per_rush' => $stats->yards_per_rush ?? 0,
+                    'turnovers' => $stats->turnovers ?? 0,
+                    'yards_per_pass' => $stats->yards_per_pass ?? 0
+                ]
+            ];
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'error' => 'Error fetching summed team statistics: ' . $e->getMessage()
+            ];
+        }
+    }
+
 
 }

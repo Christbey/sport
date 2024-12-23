@@ -219,5 +219,47 @@ class ChatGPTController extends Controller
         ]);
     }
 
+    public function generateTweet(Request $request)
+    {
+        // Validate the input data
+        $request->validate([
+            'data' => 'required|array', // Ensure data is passed as an array
+        ]);
+
+        $data = $request->input('data'); // The data to base the tweet on
+
+        // Format the user prompt for the AI
+        $prompt = 'Based on the following data, generate a short and engaging tweet (under 280 characters): ' . json_encode($data);
+
+        $messages = [
+            [
+                'role' => 'system',
+                'content' => 'You are a social media assistant. Create concise and engaging tweets based on the provided data.'
+            ],
+            [
+                'role' => 'user',
+                'content' => $prompt
+            ]
+        ];
+
+        try {
+            // Call the chat service to get the tweet suggestion
+            $responseData = $this->chatService->getChatCompletion($messages, [
+                'temperature' => 0.8, // Higher creativity for tweets
+                'max_tokens' => 100, // Short output
+            ]);
+
+            $tweet = $responseData['choices'][0]['message']['content'] ?? 'Unable to generate tweet';
+
+            return response()->json([
+                'tweet' => $tweet,
+                'data' => $data
+            ]);
+        } catch (Exception $e) {
+            Log::error('Tweet generation error', ['error' => $e->getMessage()]);
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
 
 }
