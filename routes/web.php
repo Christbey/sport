@@ -266,7 +266,8 @@ Route::get('/nfl/predictions/table', [NflEloRatingController::class, 'showTable'
     ->name('nfl.elo.table');
 
 
-Route::resource('posts', PostController::class);
+Route::get('/posts', [PostController::class, 'index'])
+    ->name('posts.index');
 
 Route::get('/posts/season={season}/week={week}/game-date={game_date}/{slug}', [PostController::class, 'show'])
     ->name('posts.show')
