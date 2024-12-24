@@ -15,6 +15,8 @@
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
+
+    {!! $head ?? '' !!}
 </head>
 
 <body class="font-sans antialiased bg-gray-100 flex flex-col h-full">

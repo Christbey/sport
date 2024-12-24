@@ -11,9 +11,7 @@ class Post extends Model
 {
     use HasFactory;
 
-    /**
-     * The attributes that are mass assignable.
-     */
+    // Define fillable fields as needed
     protected $fillable = [
         'title',
         'slug',
@@ -27,8 +25,8 @@ class Post extends Model
         'game_id',        // New column
         'prediction',
         'published',
+        'user_id', // Foreign key to users table
     ];
-
     /**
      * Cast attributes to specific types.
      */
@@ -61,6 +59,14 @@ class Post extends Model
                 $post->home_team = strtoupper($post->home_team);
             }
         });
+    }
+
+    /**
+     * Get the author (user) that owns the post.
+     */
+    public function author()
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     /**

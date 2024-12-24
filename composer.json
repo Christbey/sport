@@ -19,6 +19,7 @@
         "livewire/livewire": "^3.0",
         "pusher/pusher-php-server": "^7.2",
         "spatie/laravel-permission": "^6.10",
+        "spatie/schema-org": "^3.23",
         "stripe/stripe-php": "^16.3",
         "symfony/css-selector": "^7.1",
         "symfony/dom-crawler": "^7.1"

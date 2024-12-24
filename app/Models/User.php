@@ -71,6 +71,7 @@ class User extends Authenticatable
      * @return array
      */
 
+
     public function stripeOptions()
     {
         return [
@@ -176,6 +177,11 @@ class User extends Authenticatable
     public function hasPermission(string $string)
     {
         return $this->hasPermissionTo($string);
+    }
+
+    public function posts()
+    {
+        return $this->hasMany(Post::class);
     }
 
     /**

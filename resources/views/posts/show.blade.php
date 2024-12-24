@@ -4,9 +4,14 @@
 @endphp
 
 <x-app-layout>
+    <!-- Inject Schema Markup into the head section -->
+    <x-slot name="head">
+        <x-schema-markup :schema="$schema"/>
+    </x-slot>
+
     <div class="container mx-auto px-4 py-8 flex flex-col lg:flex-row">
         <!-- Main Content -->
-        <div class="lg:w-2/3 lg:pr-8">
+        <div class="lg:w-full lg:pr-8">
             <!-- Post Title -->
             <h1 class="text-4xl font-bold mb-4">{{ $post->title }}</h1>
 
@@ -49,9 +54,9 @@
                 <span><strong>Week:</strong> {{ $post->week }}</span> |
                 <span><strong>Season:</strong> {{ $post->season }}</span> |
                 <span><strong>Away Team:</strong> {{ $post->away_team }}</span> |
-                <span><strong>Home Team:</strong> {{ $post->home_team }}</span> |
-                {{--                <span><strong>Prediction:</strong> {!! MarkdownHelper::convert($post->prediction) !!}--}}
-                {{--</span>--}}
+                <span><strong>Home Team:</strong> {{ $post->home_team }}</span>
+                {{-- Uncomment and adjust if you use predictions --}}
+                {{-- <span><strong>Prediction:</strong> {!! MarkdownHelper::convert($post->prediction) !!}</span> --}}
             </div>
 
             <!-- Divider -->
@@ -64,7 +69,7 @@
 
             <!-- Back Button -->
             <div class="mt-8">
-                <a href="{{ route('posts.index') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white 
+                <a href="{{ route('posts.index') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white
                     rounded hover:bg-blue-700 transition">
                     <!-- Arrow Left Icon -->
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none"
@@ -78,23 +83,26 @@
         </div>
 
         <!-- Sidebar -->
-        <div class="lg:w-1/3 mt-8 lg:mt-0">
-            <div class="bg-gray-100 p-6 rounded-lg shadow">
-                <h2 class="text-xl font-semibold mb-4">About the Author</h2>
-                <div class="flex items-center mb-4">
-                    <img src="https://via.placeholder.com/50" alt="Author" class="w-12 h-12 rounded-full mr-4">
-                    <div>
-                        <p class="font-semibold">PickSports</p>
-                        <p class="text-gray-600 text-sm">Sports Analyst</p>
-                    </div>
-                </div>
-                <p class="text-gray-700 text-sm">
-                    Passionate about NFL analysis and providing insightful predictions.
-                </p>
-
-
-            </div>
-        </div>
+        {{--        <div class="lg:w-1/3 mt-8 lg:mt-0">--}}
+        {{--            <div class="bg-gray-100 p-6 rounded-lg shadow">--}}
+        {{--                <h2 class="text-xl font-semibold mb-4">About the Author</h2>--}}
+        {{--                <div class="flex items-center mb-4">--}}
+        {{--                    @if($post->author->profile_photo_path)--}}
+        {{--                        <img src="{{ asset('storage/' . $post->author->profile_photo_path) }}"--}}
+        {{--                             alt="{{ $post->author->name }}" class="w-12 h-12 rounded-full mr-4">--}}
+        {{--                    @else--}}
+        {{--                        <img src="https://via.placeholder.com/50" alt="Author" class="w-12 h-12 rounded-full mr-4">--}}
+        {{--                    @endif--}}
+        {{--                    <div>--}}
+        {{--                        <p class="font-semibold">{{ $post->author->name }}</p>--}}
+        {{--                        <p class="text-gray-600 text-sm">{{ $post->author->role ?? 'Author' }}</p>--}}
+        {{--                    </div>--}}
+        {{--                </div>--}}
+        {{--                <p class="text-gray-700 text-sm">--}}
+        {{--                    {{ $post->author->bio ?? 'Passionate about NFL analysis and providing insightful predictions.' }}--}}
+        {{--                </p>--}}
+        {{--            </div>--}}
+        {{--        </div>--}}
     </div>
 
     <!-- Prism.js for Syntax Highlighting -->
