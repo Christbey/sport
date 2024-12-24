@@ -177,7 +177,7 @@ Schedule::command('college-basketball:scoreboard')
     ->runInBackground();
 
 Schedule::command('update:game-scores')
-    ->everyThirtyMinutes()
+    ->everyOddHour()
     ->withoutOverlapping()
     ->before(fn() => Log::info('Starting college basketball game scores update'))
     ->after(fn() => CollegeFootballCommandHelpers::sendNotification('College basketball game scores update completed successfully'))
@@ -257,8 +257,7 @@ Schedule::command('fetch:nfl-team-roster')
 
 // Schedule the nfl:test-sync command to run every 30 minutes on the specified days/times
 Schedule::command('nfl:test-sync',
-)->everyThirtyMinutes()
-    ->between('13:00', '22:00')
+)->everySixHours()
     ->mondays()
     ->thursdays()
     ->sundays()
