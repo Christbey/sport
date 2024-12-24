@@ -3,25 +3,24 @@
 namespace App\Console\Commands;
 
 use App\Models\Nfl\NflTeamSchedule;
-use App\Models\Post;
 use App\Repositories\Nfl\NflBettingOddsRepository;
 use App\Repositories\Nfl\NflPlayerDataRepository;
 use App\Repositories\Nfl\NflPlayerStatRepository;
 use App\Repositories\Nfl\NflTeamStatRepository;
 use App\Repositories\Nfl\TeamStatsRepository;
 use App\Services\NflTrendsAnalyzer;
-use App\Services\OpenAIBatchService;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
 
-class CompareWeekGames extends Command
+class SubmitBatchAnalysis extends Command
 {
-    protected $signature = 'compare:week {week : The NFL game week to analyze} {--season= : The season year to analyze}';
-    protected $description = 'Compare trends for all games in a given NFL game week.';
+    protected $signature = 'batch:submit {week} {--season=}';
+    protected $description = 'Submit a batch of NFL game analyses to OpenAI';
 
     private NflTrendsAnalyzer $trendsAnalyzer;
     private NflBettingOddsRepository $oddsRepository;
@@ -30,12 +29,8 @@ class CompareWeekGames extends Command
     private TeamStatsRepository $teamStatRepository;
     private NflPlayerDataRepository $nflPlayerRepository;
 
-    private OpenAIBatchService $batchService;  // Add this
-
-    // 4. Update the constructor to include the batch service
     public function __construct(
         NflTrendsAnalyzer        $trendsAnalyzer,
-        OpenAIBatchService       $batchService,  // Add this
         NflBettingOddsRepository $oddsRepository,
         NflTeamStatRepository    $nflTeamStatRepository,
         NflPlayerStatRepository  $playerStatRepository,
@@ -45,7 +40,6 @@ class CompareWeekGames extends Command
     {
         parent::__construct();
         $this->trendsAnalyzer = $trendsAnalyzer;
-        $this->batchService = $batchService;  // Add this
         $this->oddsRepository = $oddsRepository;
         $this->nflTeamStatRepository = $nflTeamStatRepository;
         $this->playerStatRepository = $playerStatRepository;
@@ -53,57 +47,117 @@ class CompareWeekGames extends Command
         $this->nflPlayerRepository = $nflPlayerRepository;
     }
 
-    public function handle(): void
+    public function handle(): int
     {
         $week = (int)$this->argument('week');
         $season = $this->option('season') ?? now()->year;
 
         $this->info("Fetching games for game_week {$week}, season {$season}...");
-        $games = $this->getGamesForWeek($week, $season);
+        $games = NflTeamSchedule::where('game_week', $week)
+            ->where('season', $season)
+            ->get();
 
         if ($games->isEmpty()) {
             $this->error("No games found for game_week {$week}, season {$season}.");
-            return;
+            return 1;
         }
 
         $this->info("Found {$games->count()} games. Preparing analysis requests...");
 
-        // Prepare all analysis requests in batch
-        $requests = [];
-        foreach ($games as $game) {
-            $request = $this->prepareAnalysisRequest($game, $week, $season);
-            if ($request) {
-                $requests[] = $request;
-            }
-        }
-
-        if (empty($requests)) {
-            $this->error('No valid analysis requests could be prepared.');
-            return;
-        }
-
-        // Process all requests in a batch
-        $this->info('Processing ' . count($requests) . ' analysis requests in batch...');
+        // Create JSONL file
         try {
-            $results = $this->batchService->processBatch($requests);
-            $this->processResults($results, $games, $week, $season);
+            $requests = [];
+            foreach ($games as $game) {
+                $request = $this->prepareAnalysisRequest($game, $week, $season);
+                if ($request) {
+                    // Format for OpenAI Batch API
+                    $batchRequest = [
+                        'custom_id' => $game->game_id,
+                        'method' => 'POST',
+                        'url' => '/v1/chat/completions',
+                        'body' => [
+                            'model' => 'gpt-3.5-turbo-0125',
+                            'messages' => $request['messages'],
+                            'temperature' => $request['options']['temperature'],
+                            'max_tokens' => $request['options']['max_tokens'],
+                            'presence_penalty' => $request['options']['presence_penalty'],
+                            'frequency_penalty' => $request['options']['frequency_penalty'],
+                        ]
+                    ];
+                    $requests[] = json_encode($batchRequest);
+                }
+            }
+
+            if (empty($requests)) {
+                $this->error('No valid analysis requests could be prepared.');
+                return 1;
+            }
+
+            // Save requests to JSONL file
+            $filePath = storage_path("app/batch_requests_{$week}_{$season}.jsonl");
+            file_put_contents($filePath, implode("\n", $requests));
+
+            // Upload file to OpenAI
+            $fileResponse = Http::withToken(config('services.openai.key'))
+                ->attach('file', fopen($filePath, 'r'), 'batch_requests.jsonl')
+                ->post('https://api.openai.com/v1/files', [
+                    'purpose' => 'batch'
+                ]);
+
+            if (!$fileResponse->successful()) {
+                $this->error('Failed to upload file: ' . $fileResponse->body());
+                return 1;
+            }
+
+            $fileId = $fileResponse->json('id');
+
+            // Submit batch
+            $batchResponse = Http::withToken(config('services.openai.key'))
+                ->post('https://api.openai.com/v1/batches', [
+                    'input_file_id' => $fileId,
+                    'endpoint' => '/v1/chat/completions',
+                    'completion_window' => '24h',
+                    'metadata' => [
+                        'week' => (string)$week, // Convert to string
+                        'season' => (string)$season, // Convert to string
+                        'description' => "NFL Week {$week} Analysis"
+                    ]
+                ]);
+
+            if (!$batchResponse->successful()) {
+                $this->error('Failed to create batch: ' . $batchResponse->body());
+                return 1;
+            }
+
+            $batchId = $batchResponse->json('id');
+
+            // Store batch information for later retrieval
+            Storage::put(
+                "batch_info_{$week}_{$season}.json",
+                json_encode([
+                    'batch_id' => $batchId,
+                    'file_id' => $fileId,
+                    'week' => $week,
+                    'season' => $season,
+                    'created_at' => now(),
+                    'game_count' => count($requests)
+                ])
+            );
+
+            $this->info("Batch submitted successfully. Batch ID: {$batchId}");
+            return 0;
+
         } catch (Exception $e) {
-            $this->error("Batch processing failed: {$e->getMessage()}");
-            Log::error('Batch Processing Error', [
+            $this->error("Error submitting batch: {$e->getMessage()}");
+            Log::error('Batch Submission Error', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
+            return 1;
         }
     }
 
-    private function getGamesForWeek(int $week, int $season)
-    {
-        return NflTeamSchedule::where('game_week', $week)
-            ->where('season', $season)
-            ->get();
-    }
-
-// Method 1: Prepare the request data
+    // Reuse your existing methods
     private function prepareAnalysisRequest($game, int $week, int $season): ?array
     {
         $awayTeam = $game->away_team;
@@ -248,14 +302,8 @@ class CompareWeekGames extends Command
         }
     }
 
-// Method 2: Process the results and create posts
 
-    /**
-     * Generate a betting summary based on odds data.
-     *
-     * @param mixed $odds Betting odds data.
-     * @return string The formatted betting summary.
-     */
+    // All other helper methods stay the same
     private function generateBettingSummary($odds): string
     {
         if (!$odds) {
@@ -265,6 +313,7 @@ class CompareWeekGames extends Command
         return "Betting Line: Home spread ({$odds->spread_home}), Away spread ({$odds->spread_away}), " .
             "Over/Under ({$odds->total_over}). Moneylines: Home ({$odds->moneyline_home}), Away ({$odds->moneyline_away}).";
     }
+
 
     /**
      * Generate a textual statistical comparison analysis between two NFL teams.
@@ -471,12 +520,6 @@ class CompareWeekGames extends Command
         return $analysis;
     }
 
-    /**
-     * Format impact players data into markdown.
-     *
-     * @param array $impactPlayers Array of impact players.
-     * @return string The formatted impact players section.
-     */
     private function formatImpactPlayers(array $impactPlayers): string
     {
         if (empty($impactPlayers)) {
@@ -496,6 +539,7 @@ class CompareWeekGames extends Command
 
         return $formatted;
     }
+
 
     private function getImpactPlayers(string $teamAbv, int $startWeek, int $endWeek, int $season): array
     {
@@ -569,6 +613,7 @@ class CompareWeekGames extends Command
         return $impactPlayers;
     }
 
+
     private function formatInjuryReport(string $team, Collection $injuries): string
     {
         if ($injuries->isEmpty()) {
@@ -607,6 +652,7 @@ class CompareWeekGames extends Command
         return implode("\n\n", $report);
     }
 
+
     private function generateSummary(string $team, array $trends, string $record, array $stats): string
     {
         $totalGames = $this->trendsAnalyzer->games->count();
@@ -626,6 +672,7 @@ class CompareWeekGames extends Command
         return implode("\n", $summary);
     }
 
+
     private function formatStatsForSummary(array $stats): string
     {
         $statLines = [];
@@ -634,6 +681,7 @@ class CompareWeekGames extends Command
         }
         return implode(', ', $statLines);
     }
+
 
     /**
      * Generate the comparison analysis using OpenAI ChatGPT.
@@ -661,8 +709,12 @@ class CompareWeekGames extends Command
         string $homeInjuryReport
     ): string
     {
-        $prompt = <<<PROMPT
-You are an experienced sports journalist with expertise in statistical analysis and betting trends. Write a compelling, data-driven article comparing {$team1} and {$team2}. Structure your analysis to create an engaging narrative that both casual fans and sophisticated analysts will appreciate.
+        $week = (int)$this->argument('week');
+
+        return <<<PROMPT
+You are an experienced sports journalist with expertise in statistical analysis and betting trends. 
+Write a compelling, data-driven article comparing {$team1} and {$team2}. 
+Structure your analysis to create an engaging narrative that both casual fans and sophisticated analysts will appreciate.
 
 System Context:
 - Use a professional journalistic tone
@@ -671,6 +723,8 @@ System Context:
 - Format key statistics and comparisons in an easily digestible way
 
 Team Analysis Required Sections:
+
+Title: **Picksports Playbook Week {$week} Analysis: {$team1} vs {$team2}**
 
 1. **Opening Hook**
    - Create an attention-grabbing introduction highlighting the key narrative
@@ -733,78 +787,5 @@ Additional Requirements:
 - Use bullet points sparingly for emphasis
 - Conclude with a clear, justified prediction
 PROMPT;
-
-        return $prompt;
-    }
-
-    private function processResults(array $results, $games, int $week, int $season): void
-    {
-        foreach ($games as $game) {
-            $gameId = $game->game_id;
-
-            if (!isset($results[$gameId])) {
-                $this->error("No results found for game ID: {$gameId}");
-                continue;
-            }
-
-            $result = $results[$gameId];
-
-            if (isset($result['error'])) {
-                $this->error("Error processing game {$gameId}: " . json_encode($result['error']));
-                continue;
-            }
-
-            try {
-                $analysis = $result['response']['body']['choices'][0]['message']['content']
-                    ?? 'Unable to generate analysis.';
-                $prediction = $this->extractPrediction($analysis);
-
-                // Create or update the post
-                $post = Post::updateOrCreate(
-                    ['game_id' => $gameId],
-                    [
-                        'title' => "NFL Week {$week} Showdown: {$game->away_team} vs {$game->home_team}",
-                        'slug' => Str::slug("NFL Week {$week} Showdown: {$game->away_team} vs {$game->home_team}"),
-                        'content' => $analysis,
-                        'week' => $week,
-                        'season' => $season,
-                        'away_team' => $game->away_team,
-                        'home_team' => $game->home_team,
-                        'game_date' => $game->game_date,
-                        'game_time' => $game->game_time,
-                        'prediction' => $prediction,
-                        'published' => false,
-                    ]
-                );
-
-                $this->info("Post created successfully: {$post->title}");
-            } catch (Exception $e) {
-                $this->error("Error saving results for game {$gameId}: {$e->getMessage()}");
-                Log::error('Result Processing Error', [
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
-                    'game_id' => $gameId
-                ]);
-            }
-        }
-    }
-
-    /**
-     * Extract the prediction from the generated analysis.
-     *
-     * @param string $analysis The full analysis content.
-     * @return string The extracted prediction.
-     */
-    private function extractPrediction(string $analysis): string
-    {
-        // Extract the prediction from the analysis
-        // Assumes the prediction section starts with "#### Prediction" or similar
-        $pattern = '/#### Prediction\s*\n([\s\S]+)/i';
-        if (preg_match($pattern, $analysis, $matches)) {
-            return trim($matches[1]);
-        }
-
-        // Fallback: Return a default message if prediction section not found
-        return 'No prediction available.';
     }
 }
