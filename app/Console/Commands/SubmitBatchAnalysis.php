@@ -721,7 +721,7 @@ You are a seasoned sports journalist with extensive expertise in statistical ana
 
 ## Team Analysis: Required Sections
 
-### 1. **Picksports Playbook Week {$week} Analysis: {$team1} vs {$team2}**
+### **Picksports Playbook Week {$week} Analysis: {$team1} vs {$team2}**
 Craft a compelling introduction that:
 - **Immediately engages bettors** by citing the **spread** and **over/under**.
 - **Highlights rivalry tensions**, hot streaks, or playoff implications.
@@ -740,15 +740,15 @@ Craft a compelling introduction that:
 
 ---
 
-### 2. **Head-to-Head Battle Analysis**
+### **Head-to-Head Battle Analysis**
 Deliver a gripping statistical narrative that delves deep into the matchup:
 
-#### A) **Team Overview**
+#### **Team Overview**
 - **Season narrative** and current momentum for each team.
 - Highlight **ATS records** and significant **betting trends**.
 - Summarize **key statistical trends** that either support or challenge the spread.
 
-#### B) **Statistical Showdown**
+#### **Statistical Showdown**
 - Present **key stats** as direct advantages or disadvantages, linking them to **betting implications**.
 - Focus on **stats that correlate with covering the spread** or affecting totals.
 - Emphasize **dramatic statistical disparities** that could influence the game.
@@ -765,21 +765,22 @@ Deliver a gripping statistical narrative that delves deep into the matchup:
 - Consider **weather, venue, and recency** over full-season averages when relevant.
 
 **Include:**
+- **{$bettingSummary}**
 - **{$team1Summary}**
 - **{$team2Summary}**
 - **{$statComparisonAnalysis}**
 
 ---
 
-### 3. **Critical Matchup Breakdown**
+### **Critical Matchup Breakdown**
 Analyze the key on-field battles that could sway the game and betting outcomes:
 
-#### A) **Game-Breaking Matchups**
+#### **Game-Breaking Matchups**
 - Identify **2-3 crucial one-on-one or positional clashes**.
 - Highlight **player props** influenced by these matchups.
 - Incorporate **historical performance data** that adds a controversial or unexpected angle.
 
-#### B) **Prop Bet Spotlight**
+#### **Prop Bet Spotlight**
 - Focus on **individual matchups** that present **undervalued prop opportunities**.
 - Link these to **team totals** and broader betting markets.
 - Address any **weather or venue impacts** on player performance.
@@ -806,15 +807,15 @@ Analyze the key on-field battles that could sway the game and betting outcomes:
 
 ---
 
-### 4. **Sharp Money Guide**
+### **Sharp Money Guide**
 Provide bettors with advanced insights based on sharp money trends:
 
-#### A) **Line Evolution & Sharp Action**
+#### **Line Evolution & Sharp Action**
 - Track **opening lines**, **notable movements**, and **key numbers**.
 - Compare **Public vs. Sharp** money splits.
 - Identify **reverse line movement** or **steam moves** that could indicate sharp action.
 
-#### B) **Situational Trends & Edges**
+#### **Situational Trends & Edges**
 **{$bettingSummary}**
 - **Division/Conference trends** that defy expectations.
 - **Time slot performances** and their betting implications.
@@ -828,14 +829,14 @@ Provide bettors with advanced insights based on sharp money trends:
 > - **Sharp Action:** 70% sharp vs. 30% public money indicates professional confidence in NE covering the spread.
 > 
 > **PROFITABLE ANGLES:**
-> 1. **Situational Edge**
+> **Situational Edge**
 >    - **NE** is **6-4 ATS** in divisional games.
 >    - **Trend:** NE performs well under high-pressure playoff-like scenarios.
 > 
-> 2. **Total Analysis**
+> **Total Analysis**
 >    - **Impact:** Clear weather supports the over, as both teams can fully execute their offensive plays.
 > 
-> 3. **Live Betting Strategy**
+> **Live Betting Strategy**
 >    - **Potential Angles:** Early first-quarter momentum could set the tone for the spread movement.
 
 **Guidelines:**
@@ -846,10 +847,10 @@ Provide bettors with advanced insights based on sharp money trends:
 
 ---
 
-### 5. **Strategic Intelligence Report**
+### **Strategic Intelligence Report**
 Unveil hidden edges and strategic elements that influence betting outcomes:
 
-#### A) **Critical Strategic Factors**
+####  **Critical Strategic Factors**
 - **Market-Moving Injuries** and their impact on schemes.
 - **Scheme mismatches** that could tilt the game.
 - **Weather/travel impacts** affecting team performance.
@@ -925,12 +926,12 @@ Outline **1-2 sentences** about potential variables that could alter the outcome
 ### **Style Guidelines:**
 - **Clear Topic Sentences:** Start each paragraph with concise, informative topic sentences.
 - **Narrative-Driven Statistics:** Present statistical comparisons within a narrative framework, avoiding tables.
-- **Digestible Insights:** Break down complex statistics into easily understandable insights using clear prose.
+- **Digestible Insights:** Break down complex statistics into easily understandable insights in paragraph format using clear prose.
 - **Balanced Analysis:** Maintain a balance between statistical depth and narrative flow.
 - **Smooth Transitions:** Use transitional phrases between sections for seamless reading.
 - **Engaging Elements:** Incorporate direct quotes or insights from team personnel when available.
 - **Emphasized Highlights:** Bold key statistics and insights to highlight important information.
-- **Selective Bullet Points:** Use bullet points sparingly for emphasis without disrupting the narrative.
+- **Selective Bullet Points:** Use bullet points rarely for emphasis without disrupting the narrative, choose text paragraphs for most content.
 - **Conclusive Prediction:** End with a clear, justified (and slightly controversial if applicable) prediction that leaves room for discussion.
 
 ### **Additional Requirements:**

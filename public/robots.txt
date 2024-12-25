@@ -1,2 +1,6 @@
 User-agent: *
+Disallow: /admin/
+Allow: /admin/public/
+
+User-agent: Googlebot
 Disallow:
