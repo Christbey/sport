@@ -9,14 +9,14 @@
         <x-schema-markup :schema="$schema"/>
     </x-slot>
 
-    <div class="container mx-auto px-4 py-8 flex flex-col lg:flex-row">
+    <div class="container mx-auto max-w-5xl px-4 py-8 flex flex-col lg:flex-row">
         <!-- Main Content -->
         <div class="lg:w-full lg:pr-8">
             <!-- Post Title -->
             <h1 class="text-4xl font-bold mb-4">{{ $post->title }}</h1>
 
             <!-- Post Meta Information -->
-            <div class="flex items-center text-gray-500 text-sm mb-6 space-x-4">
+            <div class="flex items-center text-gray-500 text-xs mb-6 space-x-4">
                 <!-- Calendar Icon -->
                 <div class="flex items-center">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1 text-gray-400" fill="none"
@@ -50,7 +50,7 @@
             </div>
 
             <!-- Post Details -->
-            <div class="text-gray-700 text-sm mb-6">
+            <div class="text-gray-700 text-xs mb-6">
                 <span><strong>Week:</strong> {{ $post->week }}</span> |
                 <span><strong>Season:</strong> {{ $post->season }}</span> |
                 <span><strong>Away Team:</strong> {{ $post->away_team }}</span> |

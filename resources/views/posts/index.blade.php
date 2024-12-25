@@ -1,5 +1,5 @@
 <x-app-layout>
-    <div class="space-y-4">
+    <div class="space-y-4 max-w-5xl mx-auto my-4">
 
         @foreach($posts as $post)
             <a href="{{ $post->custom_url }}"
@@ -19,7 +19,7 @@
 
     <!-- Pagination Links -->
     <div class="mt-6 flex justify-center">
-        {{ $posts->links() }}
+        {{ $posts->links()  }}
     </div>
 
     @if($posts->isEmpty())
