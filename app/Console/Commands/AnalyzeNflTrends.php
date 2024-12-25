@@ -55,10 +55,12 @@ class AnalyzeNflTrends extends Command
     ];
 
     protected $signature = 'analyze:nfl-trends 
-                            {team : Team abbreviation or name}
-                            {--season= : Specific season to analyze}
-                            {--min-occurrences=2 : Minimum occurrences for a trend}
-                            {--games=20 : Number of games to analyze}';
+                        {team : Team abbreviation or name}
+                        {--season= : Specific season to analyze}
+                        {--week= : Analyze trends up to this week (exclusive)}
+                        {--min-occurrences=2 : Minimum occurrences for a trend}
+                        {--games=20 : Number of games to analyze}';
+
 
     protected $description = 'Analyze NFL betting trends for a specific team';
 
@@ -528,7 +530,21 @@ class AnalyzeNflTrends extends Command
             $query->whereYear('nfl_box_scores.game_date', $season);
         }
 
-        return $query->take($this->option('games'))->get();
+        // Filter games prior to the specified week
+        if ($week = $this->option('week')) {
+            if (!is_numeric($week) || $week < 1 || $week > 17) { // Adjust max week as needed
+                throw new Exception("Invalid week number '{$week}'. Please provide a week between 1 and 17.");
+            }
+            // Cast game_week to unsigned integer for accurate comparison
+            $query->whereRaw('CAST(nfl_team_schedules.game_week AS UNSIGNED) < ?', [$week]);
+        }
+
+        // Limit the number of games if 'week' is not provided
+        if (!$this->option('week')) {
+            $query->take($this->option('games'));
+        }
+
+        return $query->get();
     }
 
     private function fetchBettingOdds(): Collection

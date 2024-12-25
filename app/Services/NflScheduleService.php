@@ -46,19 +46,105 @@ class NflScheduleService
                 $boxScoreData = $this->fetchBoxScore($game['gameID']);
                 $mergedData = array_merge($game, $boxScoreData);
 
+                // Check if both teamStats and DST data are present
+                if (isset($boxScoreData['teamStats']) && isset($boxScoreData['DST'])) {
+                    // Initialize an array to store points_allowed for both teams
+                    $pointsAllowedMap = [];
+
+                    foreach (['away', 'home'] as $key) {
+                        if (isset($boxScoreData['teamStats'][$key])) {
+                            $teamAbv = $boxScoreData['teamStats'][$key]['teamAbv'];
+                            $teamID = $boxScoreData['teamStats'][$key]['teamID'];
+
+                            // Extract ptsAllowed from DST
+                            if (isset($boxScoreData['DST'][$key]['ptsAllowed'])) {
+                                $pointsAllowed = (int)$boxScoreData['DST'][$key]['ptsAllowed'];
+                                $boxScoreData['teamStats'][$key]['points_allowed'] = $pointsAllowed;
+                                $pointsAllowedMap[$key] = $pointsAllowed;
+                                Log::debug("Set points_allowed for team {$teamAbv} (ID: {$teamID}) to {$pointsAllowed}");
+                            } else {
+                                // Fallback: Use opponent's totalPts, homePts, or awayPts
+                                $oppositeKey = $key === 'away' ? 'home' : 'away';
+                                $opponentTotalPts = $boxScoreData['teamStats'][$oppositeKey]['totalPts'] ?? null;
+                                $opponentHomePts = $game['homePts'] ?? null;
+                                $opponentAwayPts = $game['awayPts'] ?? null;
+
+                                if ($opponentTotalPts) {
+                                    $pointsAllowed = (int)$opponentTotalPts;
+                                    $boxScoreData['teamStats'][$key]['points_allowed'] = $pointsAllowed;
+                                    $pointsAllowedMap[$key] = $pointsAllowed;
+                                    Log::debug("Set points_allowed for team {$teamAbv} (ID: {$teamID}) from opponent's totalPts ({$opponentTotalPts})");
+                                } elseif ($key === 'away' && $opponentHomePts) {
+                                    $pointsAllowed = (int)$opponentHomePts;
+                                    $boxScoreData['teamStats'][$key]['points_allowed'] = $pointsAllowed;
+                                    $pointsAllowedMap[$key] = $pointsAllowed;
+                                    Log::debug("Set points_allowed for team {$teamAbv} (ID: {$teamID}) from homePts ({$opponentHomePts})");
+                                } elseif ($key === 'home' && $opponentAwayPts) {
+                                    $pointsAllowed = (int)$opponentAwayPts;
+                                    $boxScoreData['teamStats'][$key]['points_allowed'] = $pointsAllowed;
+                                    $pointsAllowedMap[$key] = $pointsAllowed;
+                                    Log::debug("Set points_allowed for team {$teamAbv} (ID: {$teamID}) from awayPts ({$opponentAwayPts})");
+                                } else {
+                                    // If all methods fail, set points_allowed to 0 and log a warning
+                                    $boxScoreData['teamStats'][$key]['points_allowed'] = 0;
+                                    $pointsAllowedMap[$key] = 0;
+                                    Log::warning("points_allowed not found for team {$teamAbv} (ID: {$teamID}) in game {$game['gameID']}. Defaulting to 0.");
+                                }
+                            }
+                        }
+                    }
+
+                    // Determine the result based on points_allowed comparison
+                    if (count($pointsAllowedMap) == 2) { // Ensure both teams have points_allowed
+                        $awayAllowed = $pointsAllowedMap['away'];
+                        $homeAllowed = $pointsAllowedMap['home'];
+
+                        if ($awayAllowed < $homeAllowed) {
+                            $resultAway = 'W';
+                            $resultHome = 'L';
+                        } elseif ($awayAllowed > $homeAllowed) {
+                            $resultAway = 'L';
+                            $resultHome = 'W';
+                        } else {
+                            $resultAway = 'T';
+                            $resultHome = 'T';
+                        }
+
+                        // Assign results to teamStats
+                        $boxScoreData['teamStats']['away']['result'] = $resultAway;
+                        $boxScoreData['teamStats']['home']['result'] = $resultHome;
+
+                        Log::debug("Game {$game['gameID']}: Away team allowed {$awayAllowed} points, Home team allowed {$homeAllowed} points.");
+                        Log::debug("Assigned results - Away: {$resultAway}, Home: {$resultHome}");
+                    } else {
+                        Log::warning("Insufficient points_allowed data for game {$game['gameID']}. Unable to determine result.");
+                    }
+                } else {
+                    Log::warning("Missing teamStats or DST data for game {$game['gameID']}");
+                }
+
+                // Update/Create Schedule and Box Score
                 $this->scheduleRepository->updateOrCreateFromRapidApi($mergedData, $season);
                 $this->boxScoreRepository->updateOrCreateFromRapidApi($mergedData);
 
+                // Update/Create Player Stats
                 if (isset($boxScoreData['playerStats'])) {
                     $this->playerStatRepository->updateOrCreateFromApi($boxScoreData['playerStats']);
                 }
-                // Save team stats
+
+                // Update/Create Team Stats with points_allowed and result now included
                 if (isset($boxScoreData['teamStats'])) {
                     $this->teamStatRepository->updateOrCreateFromApi($game['gameID'], $boxScoreData['teamStats']);
                 }
             }
         } catch (Exception $e) {
-            Log::error("Error processing Week {$weekNumber}, Season {$season}: {$e->getMessage()}");
+            Log::error('Error updating schedule for week', [
+                'season' => $season,
+                'week' => $weekNumber,
+                'seasonType' => $seasonType,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             throw $e;
         }
     }

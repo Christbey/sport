@@ -12,6 +12,8 @@ class NflPlayerDataRepository implements NflPlayerDataRepositoryInterface
     private const DEFAULT_COLUMNS = [
         'playerID',
         'espnName',
+        'team',
+
         'pos',
         'teamID',
         'injury_return_date',
@@ -149,5 +151,18 @@ class NflPlayerDataRepository implements NflPlayerDataRepositoryInterface
     {
         // TODO: Implement findByPlayerId() method.
         return null;
+    }
+
+    public function getTeamRoster(string $teamFilter): Collection
+    {
+        return NflPlayerData::where('team', $teamFilter)
+            ->get('espnName');
+    }
+
+    public function getTeamQBs(string $teamFilter): Collection
+    {
+        return NflPlayerData::where('team', $teamFilter)
+            ->where('pos', 'QB')
+            ->get(self::DEFAULT_COLUMNS);
     }
 }

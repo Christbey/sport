@@ -4,16 +4,17 @@ namespace App\Console\Commands;
 
 use App\Models\Nfl\NflTeamSchedule;
 use App\Repositories\Nfl\NflBettingOddsRepository;
+use App\Repositories\Nfl\NflEloPredictionRepository;
 use App\Repositories\Nfl\NflPlayerDataRepository;
 use App\Repositories\Nfl\NflPlayerStatRepository;
 use App\Repositories\Nfl\NflTeamStatRepository;
 use App\Repositories\Nfl\TeamStatsRepository;
 use App\Services\NflTrendsAnalyzer;
+use App\Services\OpenAIBatchService;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
@@ -29,13 +30,19 @@ class SubmitBatchAnalysis extends Command
     private TeamStatsRepository $teamStatRepository;
     private NflPlayerDataRepository $nflPlayerRepository;
 
+    private NflEloPredictionRepository $eloPredictionRepository;
+
+    private OpenAIBatchService $openAIBatchService;
+
     public function __construct(
-        NflTrendsAnalyzer        $trendsAnalyzer,
-        NflBettingOddsRepository $oddsRepository,
-        NflTeamStatRepository    $nflTeamStatRepository,
-        NflPlayerStatRepository  $playerStatRepository,
-        TeamStatsRepository      $teamStatRepository,
-        NflPlayerDataRepository  $nflPlayerRepository
+        NflTrendsAnalyzer          $trendsAnalyzer,
+        NflBettingOddsRepository   $oddsRepository,
+        NflTeamStatRepository      $nflTeamStatRepository,
+        NflPlayerStatRepository    $playerStatRepository,
+        TeamStatsRepository        $teamStatRepository,
+        NflPlayerDataRepository    $nflPlayerRepository,
+        NflEloPredictionRepository $eloPredictionRepository,
+        OpenAIBatchService         $openAIBatchService
     )
     {
         parent::__construct();
@@ -45,46 +52,34 @@ class SubmitBatchAnalysis extends Command
         $this->playerStatRepository = $playerStatRepository;
         $this->teamStatRepository = $teamStatRepository;
         $this->nflPlayerRepository = $nflPlayerRepository;
+        $this->eloPredictionRepository = $eloPredictionRepository;
+        $this->openAIBatchService = $openAIBatchService;
     }
 
     public function handle(): int
     {
-        $week = (int)$this->argument('week');
-        $season = $this->option('season') ?? now()->year;
-
-        $this->info("Fetching games for game_week {$week}, season {$season}...");
-        $games = NflTeamSchedule::where('game_week', $week)
-            ->where('season', $season)
-            ->get();
-
-        if ($games->isEmpty()) {
-            $this->error("No games found for game_week {$week}, season {$season}.");
-            return 1;
-        }
-
-        $this->info("Found {$games->count()} games. Preparing analysis requests...");
-
-        // Create JSONL file
         try {
+            $week = (int)$this->argument('week');
+            $season = $this->option('season') ?? now()->year;
+
+            $this->info("Fetching games for game_week {$week}, season {$season}...");
+            $games = NflTeamSchedule::where('game_week', $week)
+                ->where('season', $season)
+                ->get();
+
+            if ($games->isEmpty()) {
+                $this->error("No games found for game_week {$week}, season {$season}.");
+                return 1;
+            }
+
+            $this->info("Found {$games->count()} games. Preparing analysis requests...");
+
+            // Prepare requests
             $requests = [];
             foreach ($games as $game) {
                 $request = $this->prepareAnalysisRequest($game, $week, $season);
                 if ($request) {
-                    // Format for OpenAI Batch API
-                    $batchRequest = [
-                        'custom_id' => $game->game_id,
-                        'method' => 'POST',
-                        'url' => '/v1/chat/completions',
-                        'body' => [
-                            'model' => 'gpt-3.5-turbo-0125',
-                            'messages' => $request['messages'],
-                            'temperature' => $request['options']['temperature'],
-                            'max_tokens' => $request['options']['max_tokens'],
-                            'presence_penalty' => $request['options']['presence_penalty'],
-                            'frequency_penalty' => $request['options']['frequency_penalty'],
-                        ]
-                    ];
-                    $requests[] = json_encode($batchRequest);
+                    $requests[] = $request;
                 }
             }
 
@@ -93,63 +88,27 @@ class SubmitBatchAnalysis extends Command
                 return 1;
             }
 
-            // Save requests to JSONL file
-            $filePath = storage_path("app/batch_requests_{$week}_{$season}.jsonl");
-            file_put_contents($filePath, implode("\n", $requests));
+            // Process batch using the service
+            $results = $this->openAIBatchService->submitBatch($requests);
 
-            // Upload file to OpenAI
-            $fileResponse = Http::withToken(config('services.openai.key'))
-                ->attach('file', fopen($filePath, 'r'), 'batch_requests.jsonl')
-                ->post('https://api.openai.com/v1/files', [
-                    'purpose' => 'batch'
-                ]);
-
-            if (!$fileResponse->successful()) {
-                $this->error('Failed to upload file: ' . $fileResponse->body());
-                return 1;
-            }
-
-            $fileId = $fileResponse->json('id');
-
-            // Submit batch
-            $batchResponse = Http::withToken(config('services.openai.key'))
-                ->post('https://api.openai.com/v1/batches', [
-                    'input_file_id' => $fileId,
-                    'endpoint' => '/v1/chat/completions',
-                    'completion_window' => '24h',
-                    'metadata' => [
-                        'week' => (string)$week, // Convert to string
-                        'season' => (string)$season, // Convert to string
-                        'description' => "NFL Week {$week} Analysis"
-                    ]
-                ]);
-
-            if (!$batchResponse->successful()) {
-                $this->error('Failed to create batch: ' . $batchResponse->body());
-                return 1;
-            }
-
-            $batchId = $batchResponse->json('id');
-
-            // Store batch information for later retrieval
+// Store batch information for later retrieval
             Storage::put(
                 "batch_info_{$week}_{$season}.json",
                 json_encode([
-                    'batch_id' => $batchId,
-                    'file_id' => $fileId,
+                    'batch_id' => $results['batch_id'],
+                    'file_id' => $results['file_id'],
                     'week' => $week,
                     'season' => $season,
-                    'created_at' => now(),
-                    'game_count' => count($requests)
+                    'created_at' => $results['created_at'],
+                    'game_count' => $results['request_count']
                 ])
             );
 
-            $this->info("Batch submitted successfully. Batch ID: {$batchId}");
             return 0;
 
         } catch (Exception $e) {
-            $this->error("Error submitting batch: {$e->getMessage()}");
-            Log::error('Batch Submission Error', [
+            $this->error("Error processing batch: {$e->getMessage()}");
+            Log::error('Batch Processing Error', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -254,6 +213,13 @@ class SubmitBatchAnalysis extends Command
             $awaySummary = $this->generateSummary($awayTeam, $awayTrends, $awayRecord, $awayStats);
             $homeSummary = $this->generateSummary($homeTeam, $homeTrends, $homeRecord, $homeStats);
 
+            // Get ELO prediction
+            $eloPrediction = $this->eloPredictionRepository->getTeamPrediction(
+                teamAbv: $homeTeam,
+                week: $week,
+                includeStats: true
+            );
+
             // Return the prepared request data
             return [
                 'messages' => [
@@ -273,7 +239,8 @@ class SubmitBatchAnalysis extends Command
                             $awayImpactPlayers,
                             $homeImpactPlayers,
                             $awayInjuryReport,
-                            $homeInjuryReport
+                            $homeInjuryReport,
+                            $eloPrediction
                         )
                     ]
                 ],
@@ -289,6 +256,7 @@ class SubmitBatchAnalysis extends Command
                     'home_team' => $homeTeam,
                     'game_date' => $game->game_date,
                     'game_time' => $game->game_time,
+                    'elo_prediction' => $eloPrediction // Store ELO prediction in metadata
                 ]
             ];
 
@@ -706,86 +674,275 @@ class SubmitBatchAnalysis extends Command
         string $team1ImpactPlayers,
         string $team2ImpactPlayers,
         string $awayInjuryReport,
-        string $homeInjuryReport
+        string $homeInjuryReport,
+        array  $eloPrediction
     ): string
     {
         $week = (int)$this->argument('week');
 
-        return <<<PROMPT
-You are an experienced sports journalist with expertise in statistical analysis and betting trends. 
-Write a compelling, data-driven article comparing {$team1} and {$team2}. 
-Structure your analysis to create an engaging narrative that both casual fans and sophisticated analysts will appreciate.
+        // Prepare ELO section
+        $eloSection = '';
+        if (!empty($eloPrediction) && isset($eloPrediction['prediction'])) {
+            $pred = $eloPrediction['prediction'];
+            $winProb = $pred['win_probability'] ?? 'N/A';
+            $pointDiff = $pred['point_differential'] ?? 'N/A';
+            $confidence = $pred['confidence_level'] ?? 'N/A';
+            $team1Score = $pred['predicted_score'][$team1] ?? 'N/A';
+            $team2Score = $pred['predicted_score'][$team2] ?? 'N/A';
 
-System Context:
-- Use a professional journalistic tone
-- Support all claims with specific data points
-- Maintain objectivity while providing expert insights
-- Format key statistics and comparisons in an easily digestible way
+            $eloSection = '';
+            if (!empty($eloPrediction) && isset($eloPrediction['prediction'])) {
+                $pred = $eloPrediction['prediction'];
+                $winProb = $pred['win_probability'] ?? 'N/A';
+                $pointDiff = $pred['point_differential'] ?? 'N/A';
+                $confidence = $pred['confidence_level'] ?? 'N/A';
+                $team1Score = $pred['predicted_score'][$team1] ?? 'N/A';
+                $team2Score = $pred['predicted_score'][$team2] ?? 'N/A';
 
-Team Analysis Required Sections:
+                $eloSection = "ELO Model Prediction:
+- Win Probability: {$winProb}%
+- Projected Point Differential: {$pointDiff} points
+- Model Confidence: {$confidence}
+- Projected Score: {$team1} {$team1Score} - {$team2} {$team2Score}\n";
+            }
 
-Title: **Picksports Playbook Week {$week} Analysis: {$team1} vs {$team2}**
+            // Create the full prompt
+            return <<<PROMPT
+You are a seasoned sports journalist with extensive expertise in statistical analysis, betting trends, and uncovering the underlying narratives that shape NFL games. Craft a **comprehensive**, **data-driven** article comparing **{$team1}** and **{$team2}**. Your analysis should appeal to both casual fans and seasoned bettors, blending insightful statistics with an engaging narrative that includes a slight edge of controversy to spark reader interest and debate.
 
-1. **Opening Hook**
-   - Create an attention-grabbing introduction highlighting the key narrative
-   - Mention any notable streaks, rivalries, or circumstances that make this matchup significant
+### System Context:
+- **Professional, journalistic tone**—maintain objectivity while allowing for bold or provocative insights where appropriate.
+- Use **specific data points** to support all claims.
+- **No emojis**—ensure the content remains professional and text-focused.
+- Present key statistics and comparisons in a manner that is **insightful and easily digestible**.
+- **Word Count**: Aim for **1000-1500 words** to ensure depth and thorough coverage.
 
-2. **Head-to-Head Comparison**
-   {$team1} Recent Performance:
-   {$team1Summary}
+---
 
-   {$team2} Recent Performance:
-   {$team2Summary}
+## Team Analysis: Required Sections
 
-   {$statComparisonAnalysis}
-
-3. **Key Matchups Analysis**
-   {$team1} Impact Players:
-   {$team1ImpactPlayers}
-
-   {$team2} Impact Players:
-   {$team2ImpactPlayers}
-
-4. **Betting Landscape**
-   Current Lines and Movements:
-   {$bettingSummary}
-
-   Historical Betting Patterns:
-   - Address home/away performance against the spread
-   - Analyze over/under trends
-   - Discuss line movement implications
-
-5. **Expert Analysis Focus Points:**
-   - Identify statistical mismatches that could influence the outcome
-   - Analyze pace of play and style compatibility
-   - Evaluate injury impacts and roster depth advantages {$homeInjuryReport}, {$awayInjuryReport}
-   - Consider environmental factors (home/away, rest days, travel)
-   - Examine historical matchup patterns
-
-6. **Prediction Section**
-   Provide a detailed prediction including:
-   - Projected score
-   - Key factors supporting the prediction
-   - Confidence level in the prediction
-   - Potential upset scenarios
-   - Recommended betting angles (if applicable)
-
-Style Guidelines:
-- Use clear topic sentences to start each paragraph
-- Present all statistical comparisons in narrative form, avoiding tables
-- Break down complex statistics into digestible insights using clear prose
-- Maintain a balance between statistical analysis and narrative flow
-- Use transitional phrases between sections for smooth reading
-- Incorporate direct quotes or insights from team personnel when available
-- When presenting multiple statistics, use semicolons or natural language transitions rather than tabular formats
+### 1. **Picksports Playbook Week {$week} Analysis: {$team1} vs {$team2}**
+Craft a compelling introduction that:
+- **Immediately engages bettors** by citing the **spread** and **over/under**.
+- **Highlights rivalry tensions**, hot streaks, or playoff implications.
+- Introduces a **controversial or buzzworthy angle** (e.g., “Are the Patriots’ defensive stats overrated?”).
+- **Sets the stage** with a strong narrative hook that questions prevailing opinions or betting lines.
 
 
-Additional Requirements:
-- Article length: 800-1200 words
-- Include subheadings for easy navigation
-- Bold key statistics and insights
-- Use bullet points sparingly for emphasis
-- Conclude with a clear, justified prediction
+**Key Elements to Cover:**
+- **Current betting line** and significant **line movements**.
+- Recent **ATS (Against The Spread) performance** for both teams.
+- **Head-to-head betting history** and notable trends.
+- **Injury updates** affecting the spread.
+- **Weather conditions** impacting the over/under.
+- **Public vs. sharp money splits** (if relevant).
+- Any **controversial betting trends** or **market anomalies**.
+
+---
+
+### 2. **Head-to-Head Battle Analysis**
+Deliver a gripping statistical narrative that delves deep into the matchup:
+
+#### A) **Team Overview**
+- **Season narrative** and current momentum for each team.
+- Highlight **ATS records** and significant **betting trends**.
+- Summarize **key statistical trends** that either support or challenge the spread.
+
+#### B) **Statistical Showdown**
+- Present **key stats** as direct advantages or disadvantages, linking them to **betting implications**.
+- Focus on **stats that correlate with covering the spread** or affecting totals.
+- Emphasize **dramatic statistical disparities** that could influence the game.
+
+**Instructions for Presenting Stats:**
+- **Transform statistical data into analytical paragraphs** rather than listing them.
+- **Omit any statistics** that have a value of **0**.
+- Provide **contextual analysis** to explain the significance of each relevant statistic.
+
+**Guidelines:**
+- **Connect statistics** to betting implications seamlessly.
+- **Narrative-driven insights** over mere number presentation.
+- Prioritize **matchups within the matchup** and **hidden advantages**.
+- Consider **weather, venue, and recency** over full-season averages when relevant.
+
+**Include:**
+- **{$team1Summary}**
+- **{$team2Summary}**
+- **{$statComparisonAnalysis}**
+
+---
+
+### 3. **Critical Matchup Breakdown**
+Analyze the key on-field battles that could sway the game and betting outcomes:
+
+#### A) **Game-Breaking Matchups**
+- Identify **2-3 crucial one-on-one or positional clashes**.
+- Highlight **player props** influenced by these matchups.
+- Incorporate **historical performance data** that adds a controversial or unexpected angle.
+
+#### B) **Prop Bet Spotlight**
+- Focus on **individual matchups** that present **undervalued prop opportunities**.
+- Link these to **team totals** and broader betting markets.
+- Address any **weather or venue impacts** on player performance.
+
+**Instructions for Impact Players:**
+- Present **impact players' statistics as comprehensive paragraphs** with analysis.
+- **Exclude any statistics** that are **0**.
+- Provide **insights based on the stats**, explaining their relevance to the game's outcome and betting implications.
+
+**Example Format:**
+> **LAR Impact Players:**
+> Kyren Williams has been a pivotal force in **{$team1}**'s rushing game, accumulating **304 total rushing yards** on **81 attempts**, averaging **3.75 yards per attempt**, and scoring **2 rushing touchdowns**. Despite a solid performance, his average yards per attempt suggests that while he is effective in gaining short-yardage situations, there is room for explosive plays that could challenge **{$team2}**'s defense.
+
+> Cooper Kupp has been instrumental in **{$team1}**'s passing game, amassing **681 total receiving yards** with an **average of 61.91 yards per game**. His ability to stretch the field and consistently find open receivers makes him a key target for deep passes, posing significant challenges for **{$team2}**'s secondary.
+
+**Prop Betting Opportunities:**
+- **Kyren Williams Rushing Yards:** Consider betting under due to Maye’s strong defense.
+- **Cooper Kupp Receiving Yards:** Bet over based on matchup advantages.
+
+**Include:**
+- **{$team1ImpactPlayers}**
+- **{$team2ImpactPlayers}**
+- **Prop Betting Opportunities** with narrative-driven insights.
+
+---
+
+### 4. **Sharp Money Guide**
+Provide bettors with advanced insights based on sharp money trends:
+
+#### A) **Line Evolution & Sharp Action**
+- Track **opening lines**, **notable movements**, and **key numbers**.
+- Compare **Public vs. Sharp** money splits.
+- Identify **reverse line movement** or **steam moves** that could indicate sharp action.
+
+#### B) **Situational Trends & Edges**
+**{$bettingSummary}**
+- **Division/Conference trends** that defy expectations.
+- **Time slot performances** and their betting implications.
+- **Weather impacts** on scoring and totals.
+- **Rest advantages** or **disadvantages** influencing outcomes.
+- **Historical precedents** that challenge conventional betting wisdom.
+
+**Example Format:**
+> **BETTING BREAKDOWN**
+> - **Opening Line:** NE -4 → **Movement:** NE remains favored as sharp money flows their way.
+> - **Sharp Action:** 70% sharp vs. 30% public money indicates professional confidence in NE covering the spread.
+> 
+> **PROFITABLE ANGLES:**
+> 1. **Situational Edge**
+>    - **NE** is **6-4 ATS** in divisional games.
+>    - **Trend:** NE performs well under high-pressure playoff-like scenarios.
+> 
+> 2. **Total Analysis**
+>    - **Impact:** Clear weather supports the over, as both teams can fully execute their offensive plays.
+> 
+> 3. **Live Betting Strategy**
+>    - **Potential Angles:** Early first-quarter momentum could set the tone for the spread movement.
+
+**Guidelines:**
+- Focus on **actionable betting angles** grounded in data.
+- Highlight **historically profitable situations** and **key numbers**.
+- Emphasize **sharp vs. public money** dynamics.
+- Identify **live betting opportunities** connected to matchup analysis.
+
+---
+
+### 5. **Strategic Intelligence Report**
+Unveil hidden edges and strategic elements that influence betting outcomes:
+
+#### A) **Critical Strategic Factors**
+- **Market-Moving Injuries** and their impact on schemes.
+- **Scheme mismatches** that could tilt the game.
+- **Weather/travel impacts** affecting team performance.
+- **Rest advantages** or **short-week disadvantages**.
+- **Depth chart changes** that alter game plans.
+
+**Example Format:**
+> **STRATEGIC EDGE ANALYSIS**
+> 
+> **INJURY IMPACT MATRIX**
+> - **{$team1} Key Losses:**
+>    - **Joey Porter Jr.:** His absence weakens the Rams' secondary significantly.
+>    - **Ripple Effect:** Opposing teams can exploit weaker cornerback coverage.
+>    - **Betting Impact:** Potential undervaluation of NE covering due to Rams' defensive vulnerabilities.
+> 
+> - **{$team2} Health Report:**
+>    - **Chris Jones:** Out with a calf strain, limiting their defensive pressure.
+>    - **Scheme Advantages:** Without Jones, NE might adjust their defensive schemes, potentially affecting their run defense.
+> 
+> **SCHEME WARFARE**
+> - **Offensive Gameplan:** NE’s conservative play-calling vs. LA’s aggressive passing.
+> - **Defensive Counter Moves:** NE’s blitz-heavy defense could pressure LA’s QB, reducing third-down efficiency.
+> 
+> **EXTERNAL FACTORS**
+> - **Weather Impact:** Clear conditions favor LA’s aerial attack, but NE’s defense is equipped to handle it.
+> - **Travel/Rest Dynamics:** NE has home-field advantage with minimal travel fatigue, enhancing their defensive performance.
+
+**Include:**
+- **{$homeInjuryReport}**
+- **{$awayInjuryReport}**
+
+**Guidelines:**
+- Tie each strategic factor to **specific betting implications**.
+- Analyze **coordinator adjustments** and **psychological elements**.
+- Reference **historical precedents** that add depth to the analysis.
+
+---
+
+### 6. **Prediction Section**
+Leverage both **statistical analysis** and **ELO model predictions** to forecast the game outcome:
+
+**{$eloSection}**
+
+**Final Prediction Structure:**
+
+#### Game Prediction
+- **Winner:** }
+- **Final Score:** 
+- **Spread:** [Cover/Not Cover]
+- **Over/Under:** [Over/Under]
+- **Confidence:** [High/Medium/Low]
+
+**Supporting Analysis:**
+Provide **2-3 sentences** explaining the key factors behind the prediction, including alignment or deviation from the **ELO model**.
+
+**Risk Factors:**
+Outline **1-2 sentences** about potential variables that could alter the outcome, such as **injuries**, **turnovers**, or **unexpected performances**.
+
+**Example:**
+> **#### Game Prediction**
+> - **Winner:** NE
+> - **Final Score:** LAR 24 - NE 27
+> - **Spread:** Cover
+> - **Over/Under:** Over
+> - **Confidence:** Medium
+> 
+> **Supporting Analysis:** The New England Patriots' defensive prowess and ability to control possession could stifle the Rams' high-powered offense, leading to a close victory for New England. This aligns with the ELO model, which slightly favors NE based on recent performance metrics.
+> 
+> **Risk Factors:** Injuries on either side could significantly impact the game's outcome, and turnovers might swing momentum in favor of either team.
+
+---
+
+### **Style Guidelines:**
+- **Clear Topic Sentences:** Start each paragraph with concise, informative topic sentences.
+- **Narrative-Driven Statistics:** Present statistical comparisons within a narrative framework, avoiding tables.
+- **Digestible Insights:** Break down complex statistics into easily understandable insights using clear prose.
+- **Balanced Analysis:** Maintain a balance between statistical depth and narrative flow.
+- **Smooth Transitions:** Use transitional phrases between sections for seamless reading.
+- **Engaging Elements:** Incorporate direct quotes or insights from team personnel when available.
+- **Emphasized Highlights:** Bold key statistics and insights to highlight important information.
+- **Selective Bullet Points:** Use bullet points sparingly for emphasis without disrupting the narrative.
+- **Conclusive Prediction:** End with a clear, justified (and slightly controversial if applicable) prediction that leaves room for discussion.
+
+### **Additional Requirements:**
+- **Article Length:** 1000-1500 words to ensure comprehensive coverage.
+- **Subheadings:** Utilize clear subheadings for easy navigation and to guide the reader through the analysis.
+- **Visual Emphasis:** Bold key statistics and insights to highlight important information.
+- **Conclusion:** Conclude with a strong, justified prediction that ties together the analysis and encourages reader engagement or debate.
+
+---
+
 PROMPT;
+        }
+        return 0;
     }
 }

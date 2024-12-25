@@ -69,7 +69,7 @@ class OpenAIBatchService
                     'model' => $model,
                     'messages' => $request['messages'],
                     'temperature' => $request['options']['temperature'] ?? 0.7,
-                    'max_tokens' => $request['options']['max_tokens'] ?? 2000,
+                    'max_tokens' => $request['options']['max_tokens'] ?? 4000,
                     'presence_penalty' => $request['options']['presence_penalty'] ?? 0.3,
                     'frequency_penalty' => $request['options']['frequency_penalty'] ?? 0.3,
                 ]
@@ -202,6 +202,44 @@ class OpenAIBatchService
         return $results;
     }
 
+    public function submitBatch(array $requests, string $model = 'gpt-4o-mini'): array
+    {
+        try {
+            // Create and upload JSONL file
+            $inputFilePath = $this->createBatchFile($requests, $model);
+            $fileId = $this->uploadFile($inputFilePath);
+
+            // Create batch processing job
+            $batchResponse = Http::withToken($this->apiKey)
+                ->post("{$this->baseUrl}/batches", [
+                    'input_file_id' => $fileId,
+                    'endpoint' => '/v1/chat/completions',
+                    'completion_window' => '24h'
+                ]);
+
+            if (!$batchResponse->successful()) {
+                throw new Exception('Failed to create batch: ' . $batchResponse->body());
+            }
+
+            $batch = $batchResponse->json();
+
+            return [
+                'batch_id' => $batch['id'],
+                'file_id' => $fileId,
+                'status' => $batch['status'],
+                'created_at' => now(),
+                'request_count' => count($requests)
+            ];
+
+        } catch (Exception $e) {
+            Log::error('Batch submission failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
+    }
+
     /**
      * Set the maximum number of retries for batch monitoring
      */
@@ -219,4 +257,85 @@ class OpenAIBatchService
         $this->retryDelay = $seconds;
         return $this;
     }
+
+    /**
+     * Retrieve results for a previously submitted batch
+     *
+     * @param string $batchId The ID of the batch to retrieve
+     * @return array Contains batch status and results if completed
+     */
+    public function retrieveBatchResults(string $batchId): array
+    {
+        try {
+            // Check batch status
+            $response = Http::withToken($this->apiKey)
+                ->get("{$this->baseUrl}/batches/{$batchId}");
+
+            if (!$response->successful()) {
+                throw new Exception('Failed to check batch status: ' . $response->body());
+            }
+
+            $batch = $response->json();
+            $status = $batch['status'];
+
+            // Return early if not completed
+            if ($status !== 'completed') {
+                return [
+                    'status' => $status,
+                    'request_counts' => $batch['request_counts'] ?? [],
+                    'results' => null
+                ];
+            }
+
+            // Download results if completed
+            $results = [];
+
+            // Get successful results
+            if (isset($batch['output_file_id'])) {
+                $outputResponse = Http::withToken($this->apiKey)
+                    ->get("{$this->baseUrl}/files/{$batch['output_file_id']}/content");
+
+                if ($outputResponse->successful()) {
+                    $lines = explode("\n", trim($outputResponse->body()));
+                    foreach ($lines as $line) {
+                        $result = json_decode($line, true);
+                        if ($result) {
+                            $results[$result['custom_id']] = $result;
+                        }
+                    }
+                }
+            }
+
+            // Get any errors
+            if (isset($batch['error_file_id'])) {
+                $errorResponse = Http::withToken($this->apiKey)
+                    ->get("{$this->baseUrl}/files/{$batch['error_file_id']}/content");
+
+                if ($errorResponse->successful()) {
+                    $errorLines = explode("\n", trim($errorResponse->body()));
+                    foreach ($errorLines as $line) {
+                        $error = json_decode($line, true);
+                        if ($error) {
+                            $results[$error['custom_id']]['error'] = $error['error'];
+                        }
+                    }
+                }
+            }
+
+            return [
+                'status' => $status,
+                'request_counts' => $batch['request_counts'] ?? [],
+                'results' => $results
+            ];
+
+        } catch (Exception $e) {
+            Log::error('Batch retrieval failed', [
+                'batch_id' => $batchId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
+    }
+
 }

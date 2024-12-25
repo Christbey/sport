@@ -5,30 +5,45 @@ namespace App\Repositories\Nfl;
 use App\Models\Nfl\NflTeamStat;
 use DB;
 use Exception;
+use Log;
 
 class NflTeamStatRepository
 {
     /**
-     * Update or create team stats from the API data.
+     * Update or create team statistics based on API data.
      *
-     * @param string $gameId The game ID.
-     * @param array $teamStats The team stats data (away/home).
+     * @param string $gameId The unique identifier for the game.
+     * @param array $teamStats The statistics for each team.
+     * @return void
      */
     public function updateOrCreateFromApi(string $gameId, array $teamStats): void
     {
         foreach (['away', 'home'] as $key) {
             if (isset($teamStats[$key])) {
                 $teamData = $teamStats[$key];
+                $teamID = $teamData['teamID'] ?? null;
+                $teamAbv = $teamData['teamAbv'] ?? null;
+                $result = $teamData['result'] ?? null; // 'W', 'L', or 'T'
 
+                // Extract points_allowed
+                $pointsAllowed = isset($teamData['points_allowed']) ? (int)$teamData['points_allowed'] : null;
+
+                if (is_null($pointsAllowed)) {
+                    Log::warning("points_allowed not set for team {$teamAbv} (ID: {$teamID}) in game {$gameId}. Defaulting to 0.");
+                    $pointsAllowed = 0;
+                }
+
+                // Prepare the data array for updating/creating the record
                 $data = [
                     'game_id' => $gameId,
-                    'team_id' => $teamData['teamID'],
-                    'team_abv' => $teamData['teamAbv'],
+                    'team_id' => $teamID,
+                    'team_abv' => $teamAbv,
                     'total_yards' => isset($teamData['totalYards']) ? (int)$teamData['totalYards'] : null,
                     'rushing_yards' => isset($teamData['rushingYards']) ? (int)$teamData['rushingYards'] : null,
                     'passing_yards' => isset($teamData['passingYards']) ? (int)$teamData['passingYards'] : null,
-                    'points_allowed' => isset($teamStats[$key === 'away' ? 'home' : 'away']['totalPts']) ? (int)$teamStats[$key === 'away' ? 'home' : 'away']['totalPts'] : null,
-                    // New fields
+                    'points_allowed' => $pointsAllowed,
+                    'result' => $result, // 'W', 'L', or 'T'
+
                     'rushing_attempts' => isset($teamData['rushingAttempts']) ? (int)$teamData['rushingAttempts'] : null,
                     'fumbles_lost' => isset($teamData['fumblesLost']) ? (int)$teamData['fumblesLost'] : null,
                     'penalties' => $teamData['penalties'] ?? null,
@@ -54,14 +69,18 @@ class NflTeamStatRepository
                     'yards_per_pass' => isset($teamData['yardsPerPass']) ? (float)$teamData['yardsPerPass'] : null,
                 ];
 
-                // Save or update the record
+                // Log the data being saved or updated
+                Log::info("Data for team {$teamAbv} in game {$gameId}: " . json_encode($data));
+
+                // Save or update the record in the database
                 NflTeamStat::updateOrCreate(
-                    ['game_id' => $gameId, 'team_id' => $teamData['teamID']],
+                    ['game_id' => $gameId, 'team_id' => $teamID],
                     $data
                 );
             }
         }
     }
+
 
     /**
      * Retrieve statistics for a specific team and week.
@@ -470,8 +489,9 @@ class NflTeamStatRepository
         }
     }
 
-    public function getSummedTeamStats(string $teamAbv, int $startWeek, int $endWeek, int $season): array
+    public function getSummedTeamStats(string $teamAbv, int $startWeek, int $endWeek, int $season = 2024): array
     {
+
         try {
             $stats = DB::table('nfl_team_stats')
                 ->join('nfl_team_schedules', 'nfl_team_stats.game_id', '=', 'nfl_team_schedules.game_id')

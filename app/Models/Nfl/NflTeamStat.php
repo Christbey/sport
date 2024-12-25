@@ -44,7 +44,9 @@ class NflTeamStat extends Model
         'yards_per_rush',
         'turnovers',
         'yards_per_pass',
-        
+        'result', // Newly added
+
+
     ];
 
     // Relationships

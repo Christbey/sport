@@ -26,6 +26,11 @@ class Post extends Model
         'prediction',
         'published',
         'user_id', // Foreign key to users table
+        'predicted_winner',
+        'predicted_score',
+        'predicted_spread',
+        'predicted_over_under',
+        'prediction_confidence',
     ];
     /**
      * Cast attributes to specific types.

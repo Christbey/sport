@@ -9,6 +9,7 @@ use App\Http\Controllers\{AccessRequestController,
     PaymentMethodController,
     PickemController,
     PostController,
+    SitemapController,
     StripeWebhookController,
     SubscriptionController,
     UserRoleController};
@@ -277,3 +278,8 @@ Route::get('/posts/season={season}/week={week}/game-date={game_date}/{slug}', [P
         'game_date' => '\d{4}-\d{2}-\d{2}',        // Date format YYYY-MM-DD
         'slug' => '[A-Za-z0-9\-]+'           // Slug containing letters, numbers, and dashes
     ]);
+
+Route::get('/sitemap.xml', [App\Http\Controllers\SitemapController::class, 'index']);
+Route::get('/generate-sitemap', [SitemapController::class, 'generate']);
+
+
