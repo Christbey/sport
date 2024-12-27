@@ -24,3 +24,5 @@ Homestead.json
 /public/build/
 /.idea/
 public/build/manifest.json
+
+sitemap.xml
