@@ -15,7 +15,7 @@ class EloRatingService
 {
     private const GAME_STATUS_COMPLETED = 'Completed';
     private const SEASON_TYPE_REGULAR = 'Regular Season';
-    private const MAX_SPREAD = 19.5;
+    private const MAX_SPREAD = 24.5;
     const POINTS_PER_ELO = 25;
 
     private array $settings;

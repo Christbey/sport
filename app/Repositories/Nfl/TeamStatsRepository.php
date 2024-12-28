@@ -1271,116 +1271,107 @@ class TeamStatsRepository implements TeamStatsRepositoryInterface
         $cacheKey = 'nfl_team_stats_' . ($teamFilter ?? 'all');
 
         $data = Cache::remember($cacheKey, self::CACHE_DURATION, function () use ($teamFilter) {
-            $sql = "
-                WITH team_game_stats AS (
-                    SELECT 
-                        ts.team_id,
-                        ts.team_abv,
-                        ts.game_id,
-                        ts.total_yards,
-                        ts.rushing_yards,
-                        ts.passing_yards,
-                        ts.points_allowed,
-                        ROW_NUMBER() OVER (PARTITION BY ts.team_id ORDER BY ts.created_at DESC) as game_number
-                    FROM nfl_team_stats ts
-                    WHERE (ts.team_id = ? OR ? IS NULL)
-                ),
-                team_metrics AS (
-                    SELECT 
-                        team_id,
-                        team_abv,
-                        COUNT(*) as games_analyzed,
-                        ROUND(AVG(total_yards), 1) as avg_total_yards,
-                        ROUND(AVG(rushing_yards), 1) as avg_rushing_yards,
-                        ROUND(AVG(passing_yards), 1) as avg_passing_yards,
-                        ROUND(STDDEV(total_yards), 1) as total_yards_stddev,
-                        ROUND(STDDEV(rushing_yards), 1) as rushing_yards_stddev,
-                        ROUND(STDDEV(passing_yards), 1) as passing_yards_stddev,
-                        MIN(total_yards) as min_total_yards,
-                        MAX(total_yards) as max_total_yards,
-                        MIN(rushing_yards) as min_rushing_yards,
-                        MAX(rushing_yards) as max_rushing_yards,
-                        MIN(passing_yards) as min_passing_yards,
-                        MAX(passing_yards) as max_passing_yards,
-                        GROUP_CONCAT(
-                            CONCAT_WS(':', 
-                                game_number,
-                                total_yards,
-                                rushing_yards,
-                                passing_yards
-                            )
-                            ORDER BY game_number ASC
-                        ) as recent_games,
-                        ROUND(
-                            (SUM(CASE WHEN total_yards >= 350 THEN 1 ELSE 0 END) * 100.0) / COUNT(*),
-                            1
-                        ) as pct_games_over_350,
-                        ROUND(
-                            (SUM(CASE WHEN rushing_yards >= 150 THEN 1 ELSE 0 END) * 100.0) / COUNT(*),
-                            1
-                        ) as pct_games_rush_150,
-                        ROUND(
-                            (SUM(CASE WHEN passing_yards >= 250 THEN 1 ELSE 0 END) * 100.0) / COUNT(*),
-                            1
-                        ) as pct_games_pass_250
-                    FROM team_game_stats
-                    WHERE game_number <= 10
-                    GROUP BY team_id, team_abv
-                ),
-                trend_analysis AS (
-                    SELECT
-                        tm.*,
-                        ROUND((total_yards_stddev / avg_total_yards) * 100, 1) as total_yards_cv,
-                        ROUND((rushing_yards_stddev / avg_rushing_yards) * 100, 1) as rushing_yards_cv,
-                        ROUND((passing_yards_stddev / avg_passing_yards) * 100, 1) as passing_yards_cv,
-                        ROUND((avg_rushing_yards / avg_total_yards) * 100, 1) as rushing_yards_pct,
-                        ROUND((avg_passing_yards / avg_total_yards) * 100, 1) as passing_yards_pct,
-                        CASE 
-                            WHEN avg_total_yards >= 350 AND total_yards_stddev <= 50 THEN 'ELITE'
-                            WHEN avg_total_yards >= 300 AND total_yards_stddev <= 60 THEN 'STRONG'
-                            WHEN avg_total_yards >= 250 AND total_yards_stddev <= 70 THEN 'ABOVE_AVERAGE'
-                            WHEN avg_total_yards >= 200 THEN 'AVERAGE'
-                            ELSE 'BELOW_AVERAGE'
-                        END as performance_rating,
-                        CASE 
-                            WHEN SUBSTRING_INDEX(recent_games, ',', 1) > SUBSTRING_INDEX(recent_games, ',', -1) 
-                            THEN 'IMPROVING'
-                            WHEN SUBSTRING_INDEX(recent_games, ',', 1) < SUBSTRING_INDEX(recent_games, ',', -1) 
-                            THEN 'DECLINING'
-                            ELSE 'STABLE'
-                        END as trend_direction
-                    FROM team_metrics tm
+            // Step 1: Get team game stats with row numbers
+            $teamGameStats = DB::table('nfl_team_stats as ts')
+                ->select(
+                    'ts.team_id',
+                    'ts.team_abv',
+                    'ts.game_id',
+                    'ts.total_yards',
+                    'ts.rushing_yards',
+                    'ts.passing_yards',
+                    'ts.points_allowed',
+                    DB::raw('ROW_NUMBER() OVER (PARTITION BY ts.team_id ORDER BY ts.created_at DESC) as game_number')
                 )
-                SELECT 
-                    team_id,
-                    team_abv,
-                    games_analyzed,
-                    avg_total_yards,
-                    avg_rushing_yards,
-                    avg_passing_yards,
-                    rushing_yards_pct,
-                    passing_yards_pct,
-                    total_yards_cv as consistency_score,
-                    rushing_yards_cv as rushing_consistency,
-                    passing_yards_cv as passing_consistency,
-                    max_total_yards as best_game,
-                    min_total_yards as worst_game,
-                    pct_games_over_350 as explosive_offense_pct,
-                    max_rushing_yards as best_rushing,
-                    min_rushing_yards as worst_rushing,
-                    pct_games_rush_150 as strong_rush_pct,
-                    max_passing_yards as best_passing,
-                    min_passing_yards as worst_passing,
-                    pct_games_pass_250 as strong_pass_pct,
-                    performance_rating,
-                    trend_direction
-                FROM trend_analysis
-                ORDER BY avg_total_yards DESC;
-            ";
+                ->when($teamFilter, function ($query, $teamFilter) {
+                    return $query->where('ts.team_id', $teamFilter);
+                });
 
-            return DB::select($sql, [$teamFilter, $teamFilter]);
+            // Step 2: Calculate team metrics
+            $teamMetrics = DB::table(DB::raw("({$teamGameStats->toSql()}) as team_game_stats"))
+                ->mergeBindings($teamGameStats)
+                ->select(
+                    'team_id',
+                    'team_abv',
+                    DB::raw('COUNT(*) as games_analyzed'),
+                    DB::raw('ROUND(AVG(total_yards), 1) as avg_total_yards'),
+                    DB::raw('ROUND(AVG(rushing_yards), 1) as avg_rushing_yards'),
+                    DB::raw('ROUND(AVG(passing_yards), 1) as avg_passing_yards'),
+                    DB::raw('ROUND(STDDEV(total_yards), 1) as total_yards_stddev'),
+                    DB::raw('ROUND(STDDEV(rushing_yards), 1) as rushing_yards_stddev'),
+                    DB::raw('ROUND(STDDEV(passing_yards), 1) as passing_yards_stddev'),
+                    DB::raw('MIN(total_yards) as min_total_yards'),
+                    DB::raw('MAX(total_yards) as max_total_yards'),
+                    DB::raw('MIN(rushing_yards) as min_rushing_yards'),
+                    DB::raw('MAX(rushing_yards) as max_rushing_yards'),
+                    DB::raw('MIN(passing_yards) as min_passing_yards'),
+                    DB::raw('MAX(passing_yards) as max_passing_yards'),
+                    DB::raw('GROUP_CONCAT(CONCAT_WS(":", game_number, total_yards, rushing_yards, passing_yards) ORDER BY game_number ASC) as recent_games'),
+                    DB::raw('ROUND((SUM(CASE WHEN total_yards >= 350 THEN 1 ELSE 0 END) * 100.0) / COUNT(*), 1) as pct_games_over_350'),
+                    DB::raw('ROUND((SUM(CASE WHEN rushing_yards >= 150 THEN 1 ELSE 0 END) * 100.0) / COUNT(*), 1) as pct_games_rush_150'),
+                    DB::raw('ROUND((SUM(CASE WHEN passing_yards >= 250 THEN 1 ELSE 0 END) * 100.0) / COUNT(*), 1) as pct_games_pass_250')
+                )
+                ->where('game_number', '<=', 10)
+                ->groupBy('team_id', 'team_abv');
+
+            // Step 3: Trend analysis
+            $trendAnalysis = DB::table(DB::raw("({$teamMetrics->toSql()}) as team_metrics"))
+                ->mergeBindings($teamMetrics)
+                ->select(
+                    '*',
+                    DB::raw('ROUND((total_yards_stddev / avg_total_yards) * 100, 1) as total_yards_cv'),
+                    DB::raw('ROUND((rushing_yards_stddev / avg_rushing_yards) * 100, 1) as rushing_yards_cv'),
+                    DB::raw('ROUND((passing_yards_stddev / avg_passing_yards) * 100, 1) as passing_yards_cv'),
+                    DB::raw('ROUND((avg_rushing_yards / avg_total_yards) * 100, 1) as rushing_yards_pct'),
+                    DB::raw('ROUND((avg_passing_yards / avg_total_yards) * 100, 1) as passing_yards_pct'),
+                    DB::raw("
+                CASE 
+                    WHEN avg_total_yards >= 350 AND total_yards_stddev <= 50 THEN 'ELITE'
+                    WHEN avg_total_yards >= 300 AND total_yards_stddev <= 60 THEN 'STRONG'
+                    WHEN avg_total_yards >= 250 AND total_yards_stddev <= 70 THEN 'ABOVE_AVERAGE'
+                    WHEN avg_total_yards >= 200 THEN 'AVERAGE'
+                    ELSE 'BELOW_AVERAGE'
+                END as performance_rating
+            "),
+                    DB::raw("
+                CASE 
+                    WHEN SUBSTRING_INDEX(recent_games, ',', 1) > SUBSTRING_INDEX(recent_games, ',', -1) THEN 'IMPROVING'
+                    WHEN SUBSTRING_INDEX(recent_games, ',', 1) < SUBSTRING_INDEX(recent_games, ',', -1) THEN 'DECLINING'
+                    ELSE 'STABLE'
+                END as trend_direction
+            ")
+                );
+
+            // Step 4: Final query
+            return DB::table(DB::raw("({$trendAnalysis->toSql()}) as trend_analysis"))
+                ->mergeBindings($trendAnalysis)
+                ->select(
+                    'team_id',
+                    'team_abv',
+                    'games_analyzed',
+                    'avg_total_yards',
+                    'avg_rushing_yards',
+                    'avg_passing_yards',
+                    'rushing_yards_pct',
+                    'passing_yards_pct',
+                    DB::raw('total_yards_cv as consistency_score'),
+                    DB::raw('rushing_yards_cv as rushing_consistency'),
+                    DB::raw('passing_yards_cv as passing_consistency'),
+                    DB::raw('max_total_yards as best_game'),
+                    DB::raw('min_total_yards as worst_game'),
+                    DB::raw('pct_games_over_350 as explosive_offense_pct'),
+                    DB::raw('max_rushing_yards as best_rushing'),
+                    DB::raw('min_rushing_yards as worst_rushing'),
+                    DB::raw('pct_games_rush_150 as strong_rush_pct'),
+                    DB::raw('max_passing_yards as best_passing'),
+                    DB::raw('min_passing_yards as worst_passing'),
+                    DB::raw('pct_games_pass_250 as strong_pass_pct'),
+                    'performance_rating',
+                    'trend_direction'
+                )
+                ->orderByDesc('avg_total_yards')
+                ->get();
         });
-
         return [
             'data' => $data,
             'headings' => [

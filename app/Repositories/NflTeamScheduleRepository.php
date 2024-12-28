@@ -358,7 +358,7 @@ class NflTeamScheduleRepository implements NflTeamScheduleRepositoryInterface
         })
             ->where('game_id', '<', $currentGameId)
             ->orderBy('game_date', 'desc')
-            ->limit(3)
+            ->limit(5)
             ->get();
     }
 

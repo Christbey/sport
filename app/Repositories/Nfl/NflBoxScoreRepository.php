@@ -6,7 +6,6 @@ use App\Models\Nfl\NflBoxScore;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use InvalidArgumentException;
-use LaravelIdea\Helper\App\Models\Nfl\_IH_NflBoxScore_C;
 
 class NflBoxScoreRepository
 {
@@ -46,16 +45,26 @@ class NflBoxScoreRepository
     }
 
 
-    public function getGamesByTeam(string $teamName, ?int $season, int $limit = 20): array|Collection|_IH_NflBoxScore_C
+    public function getGamesByTeam(string $teamName, ?int $season, ?int $week = null, int $limit = 20): array|Collection
     {
         return NflBoxScore::query()
             ->join('nfl_team_schedules', function ($join) {
                 $join->on('nfl_box_scores.game_id', '=', 'nfl_team_schedules.game_id')
                     ->where('nfl_team_schedules.season_type', 'Regular Season');
             })
-            ->where(fn($q) => $q->where('nfl_box_scores.home_team', $teamName)
-                ->orWhere('nfl_box_scores.away_team', $teamName))
-            ->when($season, fn($q) => $q->whereYear('nfl_box_scores.game_date', $season))
+            ->where(function ($query) use ($teamName) {
+                $query->where('nfl_box_scores.home_team', $teamName)
+                    ->orWhere('nfl_box_scores.away_team', $teamName);
+            })
+            ->when($season, function ($query) use ($season) {
+                $query->whereYear('nfl_box_scores.game_date', $season);
+            })
+            ->when($week, function ($query) use ($week) {
+                if (!is_numeric($week) || $week < 1 || $week > 17) {
+                    throw new InvalidArgumentException("Invalid week number '{$week}'. Week must be between 1 and 17.");
+                }
+                $query->whereRaw('CAST(nfl_team_schedules.game_week AS UNSIGNED) < ?', [$week]);
+            })
             ->with('teamStats')
             ->orderBy('nfl_box_scores.game_date', 'desc')
             ->take($limit)

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\{AccessRequestController,
+    AnalyzeNflTrendsController,
     ChatGPTController,
     ForgeApiController,
     NflNewsController,
@@ -8,6 +9,7 @@ use App\Http\Controllers\{AccessRequestController,
     PaymentController,
     PaymentMethodController,
     PickemController,
+    PlayerTrendsController,
     PostController,
     SitemapController,
     StripeWebhookController,
@@ -21,6 +23,7 @@ use App\Http\Controllers\Api\{CollegeBasketballHypotheticalController,
     TeamStatsController};
 use App\Http\Controllers\Api\Espn\EspnQbrController;
 use App\Http\Controllers\Nfl\{NflEloRatingController, NflSheetController,};
+use App\Http\Controllers\PlayerStatsController;
 use App\Http\Middleware\{TrackUserSession};
 use Illuminate\Support\Facades\Route;
 use Laravel\Cashier\Http\Middleware\VerifyWebhookSignature;
@@ -281,5 +284,14 @@ Route::get('/posts/season={season}/week={week}/game-date={game_date}/{slug}', [P
 
 Route::get('/sitemap.xml', [App\Http\Controllers\SitemapController::class, 'index']);
 Route::get('/generate-sitemap', [SitemapController::class, 'generate']);
+
+Route::get('/analyze-nfl-trends', [AnalyzeNflTrendsController::class, 'analyze']);
+Route::get('/nfl-trends/filter', [AnalyzeNflTrendsController::class, 'filter'])->name('nfl.trends.filter');
+Route::get('/nfl-trends/compare', [AnalyzeNflTrendsController::class, 'compareTeams'])->name('nfl.trends.compare');
+Route::get('/nfl/team-prediction', [NflEloRatingController::class, 'getTeamPrediction'])->name('nfl.team_prediction');
+
+Route::get('/player-stats', [PlayerStatsController::class, 'index'])->name('nfl.player-stats');
+
+Route::get('/player-trends', [PlayerTrendsController::class, 'index'])->name('player.trends.index');
 
 

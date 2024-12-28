@@ -67,53 +67,66 @@ class NflPlayerStatRepository
 
     }
 
-    public function getReceivingStats(?string $longName = null, ?string $teamAbv = null): array
+    public function getReceivingStats(?string $longName = null, ?string $teamAbv = null, ?int $year = null): array
     {
         try {
+            // Get the default year if no year is provided
+            $year = $year ?? config('nfl.seasonYear');
+
             $stats = DB::table('nfl_player_stats')
+                ->join('nfl_team_schedules', 'nfl_player_stats.game_id', '=', 'nfl_team_schedules.game_id') // Join with schedules
                 ->select([
-                    'long_name',
-                    'team_abv',
+                    'nfl_player_stats.long_name',
+                    'nfl_player_stats.team_abv',
                     DB::raw('AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.recYds")) AS UNSIGNED)) as avg_yards'),
                     DB::raw('MAX(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.recYds")) AS UNSIGNED)) as max_yards'),
                     DB::raw('MIN(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.recYds")) AS UNSIGNED)) as min_yards'),
                     DB::raw('AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.recTD")) AS UNSIGNED)) as avg_touchdowns'),
                     DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.recTD")) AS UNSIGNED)) as total_touchdowns'),
-                    DB::raw('AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.rec")) AS UNSIGNED)) as avg_receptions'),
-                    DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.rec")) AS UNSIGNED)) as total_receptions'),
+                    DB::raw('AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.receptions")) AS UNSIGNED)) as avg_receptions'),
+                    DB::raw('SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(receiving, "$.receptions")) AS UNSIGNED)) as total_receptions'),
                 ])
                 ->when($longName, function ($query) use ($longName) {
-                    $query->where('long_name', $longName);
+                    $query->where('nfl_player_stats.long_name', $longName);
                 })
                 ->when($teamAbv, function ($query) use ($teamAbv) {
-                    $query->where('team_abv', $teamAbv);
+                    $query->where('nfl_player_stats.team_abv', $teamAbv);
+                })
+                ->when($year, function ($query) use ($year) {
+                    $query->where('nfl_team_schedules.season', $year); // Match records with the specified season
                 })
                 ->whereNotNull('receiving')
-                ->groupBy('long_name', 'team_abv')
-                ->first();
+                ->groupBy('nfl_player_stats.long_name', 'nfl_player_stats.team_abv')
+                ->get();
 
             // Check if no stats are returned
-            if (!$stats) {
+            if ($stats->isEmpty()) {
                 return [
                     'success' => false,
-                    'message' => 'No receiving stats found for the specified player and team.',
+                    'message' => 'No receiving stats found.',
                 ];
             }
 
-            // Return formatted results
+            // Format the results
+            $formattedStats = $stats->map(function ($stat) {
+                return [
+                    'name' => $stat->long_name,
+                    'team' => $stat->team_abv,
+                    'receiving_stats' => [
+                        'avg_yards' => round($stat->avg_yards, 2),
+                        'max_yards' => $stat->max_yards,
+                        'min_yards' => $stat->min_yards,
+                        'avg_touchdowns' => round($stat->avg_touchdowns, 2),
+                        'total_touchdowns' => $stat->total_touchdowns,
+                        'avg_receptions' => round($stat->avg_receptions, 2),
+                        'total_receptions' => $stat->total_receptions,
+                    ],
+                ];
+            });
+
             return [
                 'success' => true,
-                'name' => $stats->long_name,
-                'team' => $stats->team_abv,
-                'receiving_stats' => [
-                    'avg_yards' => round($stats->avg_yards, 2),
-                    'max_yards' => $stats->max_yards,
-                    'min_yards' => $stats->min_yards,
-                    'avg_touchdowns' => round($stats->avg_touchdowns, 2),
-                    'total_touchdowns' => $stats->total_touchdowns,
-                    'avg_receptions' => round($stats->avg_receptions, 2),
-                    'total_receptions' => $stats->total_receptions,
-                ],
+                'data' => $formattedStats,
             ];
         } catch (Exception $e) {
             // Log the exception

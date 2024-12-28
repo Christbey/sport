@@ -439,6 +439,7 @@ class NflTrendsAnalyzer
         })->count();
     }
 
+
     private function formatTotalsTrends(int $totalGames): array
     {
         $trends = [];

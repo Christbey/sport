@@ -15,21 +15,19 @@
                             ['label' => 'Leaderboard', 'route' => 'pickem.leaderboard', 'permission' => 'view leaderboard']
                         ],
                         'NFL' => [
-                            ['label' => 'NFL Sheet', 'route' => 'nfl.detail', 'permission' => 'view nfl sheet'],
+                            ['label' => 'NFL Sheet', 'route' => 'nfl.detail', 'permission' => 'api tokens'],
                             ['label' => 'NFL News', 'route' => 'nfl.news.index', 'permission' => 'view nfl news'],
                             ['label' => 'Analytics', 'route' => 'nfl.stats.index', 'permission' => 'view nfl analytics'],
                             ['label' => 'Offense Defense', 'route' => 'team_rankings.scoring', 'permission' => 'api tokens'],
                             ['label' => 'Covers Games', 'route' => 'covers.games', 'permission' => 'api tokens'],
                             ['label' => 'ESPN QBR', 'route' => 'nfl.qbr', 'params' => ['week' => 1], 'permission' => 'api tokens'],
-                            ['label' => 'Elo Predictions', 'route' => 'nfl.elo.index', 'role' => 'admin'],
-                            ['label' => 'Trends Analysis', 'route' => 'nfl.trends.config','permission' => 'view analytics'],
+//                            ['label' => 'Elo Predictions', 'route' => 'nfl.elo.index', '' => ''],
                         ],
                         'Predictions' => [
                             ['label' => 'College Football', 'route' => 'cfb.index'],
                             ['label' => 'College Basketball', 'route' => 'cbb.index'],
-                            ['label' => 'NFL', 'route' => 'nfl.elo.table'],
-
-
+                            ['label' => 'National Football League', 'route' => 'nfl.elo.table'],
+                       ['label' => 'NFL Trends', 'route' => 'nfl.trends.config'],
                         ],
                     ];
 

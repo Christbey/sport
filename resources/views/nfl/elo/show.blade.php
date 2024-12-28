@@ -1,22 +1,15 @@
 <x-app-layout>
-    
+
     <x-nfl.game-layout>
 
         @if($predictions->isNotEmpty())
             <x-nfl.matchup-card :awayTeam="$predictions->first()->opponent" :homeTeam="$predictions->first()->team">
                 <x-nfl.stat-card
-                        bgColor="bg-blue-50"
-                        textColor="text-blue-800"
-                        title="Win Probability"
-                        :value="number_format($predictions->first()->expected_outcome * 100, 1) . '%'"
-                />
-                <x-nfl.stat-card
-                        bgColor="bg-green-50"
-                        textColor="text-green-800"
-                        title="Predicted Spread"
-                        :value="number_format($predictions->first()->predicted_spread, 1)*-1"
-                        :subtitle="$predictions->first()->predicted_spread >0 ? 'Home Favored' : 'Away Favored'"
-                />
+                        bgColor="bg-red-50"
+                        textColor="text-red-800"
+                        title="Game Prediction | Confidence: {{ $teamPrediction['confidence_level'] }}"
+                        :value="$summary"/>
+
                 <x-nfl.stat-card
                         bgColor="bg-purple-50"
                         textColor="text-purple-800"
@@ -30,6 +23,7 @@
                         title="Over/Under"
                         :value="$totalPoints ?? 'N/A'"
                         :subtitle="$overUnderResult . ' (Total: ' . ($totalOver ?? 'N/A') . ')'"
+                        :subtitle="($bettingOdds->spread_home ?? 'N/A')"
                 />
             </x-nfl.matchup-card>
 
@@ -109,5 +103,6 @@
         @else
             <x-nfl.empty-state/>
         @endif
+
     </x-nfl.game-layout>
 </x-app-layout>

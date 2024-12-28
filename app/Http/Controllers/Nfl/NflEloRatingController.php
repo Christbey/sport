@@ -37,17 +37,49 @@ class NflEloRatingController extends Controller
         $enrichedPredictions = $this->eloRepo->enrichPredictionsWithGameData($eloPredictions, $schedules);
         $sortedPredictions = $this->gameEnrichmentService->sortAndGroupPredictions($enrichedPredictions);
 
+        // Example of adding team predictions
+        $teamAbv = $request->input('teamAbv', null);
+        $teamPrediction = $teamAbv
+            ? $this->eloRepo->getTeamPrediction($teamAbv, $week)
+            : null;
+
         return view('nfl.elo.index', [
             'eloPredictions' => $sortedPredictions,
             'weeks' => $this->eloRepo->getDistinctWeeks(),
             'week' => $week,
             'gameTime' => $schedules->pluck('game_time'),
-            'nflBettingOdds' => $odds
+            'nflBettingOdds' => $odds,
+            'teamPrediction' => $teamPrediction,
+        ]);
+    }
+
+    public function getTeamPrediction(Request $request)
+    {
+        $teamAbv = $request->input('teamAbv');
+        $week = $request->input('week');
+        $includeStats = $request->boolean('includeStats', false);
+        $includeFactors = $request->boolean('includeFactors', false);
+
+        $response = $this->eloRepo->getTeamPrediction(
+            teamAbv: $teamAbv,
+            week: $week,
+            includeStats: $includeStats,
+            includeFactors: $includeFactors
+        );
+
+        if (!$response['found']) {
+            return redirect()->back()->with('error', $response['message']);
+        }
+
+        return view('nfl.elo.team_prediction', [
+            'teamPrediction' => $response['prediction'],
+            'summary' => $response['summary']
         ]);
     }
 
     public function show(string $gameId)
     {
+        // Fetch the schedule for the specified game
         $schedule = $this->scheduleRepo->findByGameId($gameId) ?? $this->getDefaultSchedule();
         $odds = $this->oddsRepo->findByGameId($gameId);
         $predictions = $this->eloRepo->getPredictions(null)->where('game_id', $gameId);
@@ -60,11 +92,27 @@ class NflEloRatingController extends Controller
             $schedule = $this->gameEnrichmentService->enrichWithBettingData($schedule, $odds);
         }
 
+        // Fetch recent games for both teams
         $homeTeamLastGames = $this->getTeamRecentGames($schedule->home_team_id, $gameId);
         $awayTeamLastGames = $this->getTeamRecentGames($schedule->away_team_id, $gameId);
 
+        // Fetch injuries for both teams
         $homeTeamInjuries = $schedule->home_team_id ? $this->playerRepo->getTeamInjuries($schedule->home_team_id) : collect();
         $awayTeamInjuries = $schedule->away_team_id ? $this->playerRepo->getTeamInjuries($schedule->away_team_id) : collect();
+
+        // Fetch team-specific prediction for the event
+        $teamAbv = $schedule->home_team; // Default to home team abbreviation
+        $week = $schedule->week; // Extract week from schedule
+
+        $response = $this->eloRepo->getTeamPrediction(
+            teamAbv: $teamAbv,
+            week: $week,
+            includeStats: true,
+            includeFactors: true
+        );
+
+        $teamPrediction = $response['found'] ? $response['prediction'] : null;
+        $summary = $response['summary'] ?? null;
 
         return view('nfl.elo.show', [
             'predictions' => $predictions,
@@ -79,7 +127,9 @@ class NflEloRatingController extends Controller
             'totalPoints' => $schedule->totalPoints ?? 'N/A',
             'overUnderResult' => $schedule->overUnderResult ?? 'N/A',
             'totalOver' => $schedule->totalOver ?? 'N/A',
-            'totalUnder' => $schedule->totalUnder ?? 'N/A'
+            'totalUnder' => $schedule->totalUnder ?? 'N/A',
+            'teamPrediction' => $teamPrediction,
+            'summary' => $summary,
         ]);
     }
 
@@ -151,4 +201,5 @@ class NflEloRatingController extends Controller
             'nflBettingOdds' => $odds
         ]);
     }
+
 }
