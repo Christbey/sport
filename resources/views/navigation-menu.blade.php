@@ -3,9 +3,13 @@
         <div class="flex justify-between h-16">
             <div class="flex items-center">
                 <!-- Logo -->
-                <a href="{{ route('dashboard') }}" class="shrink-0 flex items-center">
-                    Picksports
+                <a href="{{ route('dashboard') }}" class="shrink-0 flex flex-col items-center">
+                    <span class="text-lg font-bold">Picksports</span>
+                    <span class="mt-1 inline-flex items-center rounded-full bg-blue-100 px-3 py-0.5 text-xs font-medium text-blue-800">
+        Beta
+    </span>
                 </a>
+
 
                 <!-- Navigation Menu -->
                 @php

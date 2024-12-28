@@ -1,5 +1,7 @@
 <section>
     <div class="container mx-auto px-4 lg:px-0 py-12">
+
+
         <div class="grid h-full items-start lg:grid-cols-12 lg:gap-8">
             <!-- Left Column - Main Content -->
             <div class="lg:col-span-7 xl:col-span-8 space-y-8 max-w-3xl">

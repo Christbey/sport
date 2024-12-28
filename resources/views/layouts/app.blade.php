@@ -20,6 +20,9 @@
 </head>
 
 <body class="font-sans antialiased bg-gray-100 flex flex-col h-full">
+<!-- Beta Pre-Launch Badge -->
+
+
 <x-banner/>
 @livewire('navigation-menu')
 
