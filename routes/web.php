@@ -108,8 +108,7 @@ Route::middleware(['role:admin'])->prefix('nfl')->name('nfl.')->group(function (
 
     Route::get('/qbr/{week}', [EspnQbrController::class, 'fetchQbrData'])->name('qbr');
     Route::get('/news', [NflNewsController::class, 'index'])->name('news.index');
-    Route::get('/trends', [NflTrendsController::class, 'show'])->name('trends.config');
-    Route::get('/trends/compare', [NflTrendsController::class, 'compare'])->name('trends.compare');
+
 
     // NFL Elo Routes
     Route::prefix('elo')->name('elo.')->controller(NflEloRatingController::class)->group(function () {
@@ -118,6 +117,9 @@ Route::middleware(['role:admin'])->prefix('nfl')->name('nfl.')->group(function (
         Route::get('/show/{gameId}', 'show')->name('show');
     });
 });
+
+Route::get('/nfl/trends', [NflTrendsController::class, 'show'])->name('nfl.trends.config');
+Route::get('/trends/compare', [NflTrendsController::class, 'compare'])->name('trends.compare');
 
 // Public Sports Data Routes
 Route::prefix('team-rankings')->name('team_rankings.')->controller(TeamRankingController::class)->group(function () {

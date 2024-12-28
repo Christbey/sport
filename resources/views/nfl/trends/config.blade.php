@@ -28,8 +28,8 @@
                         </select>
                     </div>
 
-                    <div class="sm:col-span-1">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Season</label>
+                    <div class="sm:col-span-1 hidden">
+                        <label class="block text-sm font-medium text-gray-700 mb-2 ">Season</label>
                         <select name="season"
                                 class="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                             <option value="">All Seasons</option>
@@ -42,12 +42,12 @@
                     </div>
 
                     <div class="sm:col-span-1">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Games to Analyze</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Week</label>
                         <input type="number"
                                name="games"
-                               value="{{ $games ?? 20 }}"
+                               value="{{ $games ?? 17 }}"
                                min="1"
-                               max="100"
+                               max="18"
                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                     </div>
 
