@@ -3,6 +3,7 @@
 namespace App\Jobs\CollegeBasketball;
 
 use App\Models\CollegeBasketballGame;
+use App\Models\CollegeBasketballGameStatistic;
 use App\Models\CollegeBasketballTeam;
 use Carbon\Carbon;
 use Exception;
@@ -13,7 +14,6 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Log;
-use Symfony\Component\DomCrawler\Crawler;
 
 class FetchCollegeBasketballScoreboardJob implements ShouldQueue
 {
@@ -24,102 +24,149 @@ class FetchCollegeBasketballScoreboardJob implements ShouldQueue
     public function __construct($dateInput)
     {
         $this->dateInput = $dateInput;
-        Log::info("Job initialized for date: $dateInput.");
+        Log::info("Job initialized for date: {$dateInput}.");
     }
 
     public function handle()
     {
-        $client = new Client();
-        $url = "https://www.espn.com/mens-college-basketball/schedule/_/date/{$this->dateInput}";
+        $url = "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?dates={$this->dateInput}";
 
         try {
-            Log::info("Fetching schedule data from URL: $url.");
-            $response = $client->get($url, [
-                'headers' => ['User-Agent' => 'Mozilla/5.0'],
-            ]);
+            Log::info("Fetching schedule data from URL: {$url}.");
+            $data = $this->fetchData($url);
 
-            $html = $response->getBody()->getContents();
-            Log::info('Fetched HTML content.');
-
-            $crawler = new Crawler($html);
-
-            // Locate the schedule table with the specified class names
-            $crawler->filter('.ScheduleTables.mb5.ScheduleTables--ncaam.ScheduleTables--basketball')->each(function (Crawler $table) {
-                $table->filter('tr.Table__TR')->each(function (Crawler $row) {
-                    try {
-                        // Extract team elements
-                        $team1Node = $row->filter('td.events__col .Table__Team a.AnchorLink');
-                        $team2Node = $row->filter('td.colspan__col .Table__Team a.AnchorLink');
-
-                        if (!$team1Node->count() || !$team2Node->count()) {
-                            Log::warning('Could not find team elements in row, skipping row.', ['row_html' => $row->html()]);
-                            return;
-                        }
-
-                        $team1Name = trim($team1Node->text());
-                        $team2Name = trim($team2Node->text());
-
-                        // Match both teams by name in the database
-                        $team1 = CollegeBasketballTeam::where('name', $team1Name)->first();
-                        $team2 = CollegeBasketballTeam::where('name', $team2Name)->first();
-
-                        if (!$team1 || !$team2) {
-                            Log::warning("No database match for matchup: $team1Name vs. $team2Name");
-                            return;
-                        }
-
-                        // Extract event_id from the teams__col
-                        $eventLinkNode = $row->filter('td.teams__col a.AnchorLink');
-                        $eventId = null;
-
-                        if ($eventLinkNode->count()) {
-                            $href = $eventLinkNode->attr('href');
-                            Log::info('Extracted href', ['href' => $href]);
-
-                            if (preg_match('/gameId\/(\d+)/', $href, $eventIdMatches)) {
-                                $eventId = $eventIdMatches[1];
-                                Log::info('Extracted event_id', ['event_id' => $eventId]);
-                            } else {
-                                Log::warning('No gameId found in href', ['href' => $href]);
-                            }
-                        } else {
-                            Log::warning('Event link not found in teams__col.', ['row_html' => $row->html()]);
-                            return;
-                        }
-
-                        // Format game date (assuming it's passed correctly in the constructor)
-                        $formattedGameDate = Carbon::createFromFormat('Ymd', $this->dateInput)->toDateString();
-
-                        // Save game information
-                        $game = CollegeBasketballGame::firstOrNew([
-                            'home_team_id' => $team2->id,
-                            'away_team_id' => $team1->id,
-                            'game_date' => $formattedGameDate,
-                        ]);
-
-                        $game->event_id = $eventId;
-                        $game->is_completed = true;
-                        $game->save();
-
-                        Log::info("Stored game: $team1Name vs. $team2Name, event_id: $eventId.");
-                    } catch (Exception $e) {
-                        Log::error('Error processing row: ' . $e->getMessage(), ['row_html' => $row->html()]);
-                    }
-                });
-            });
+            foreach ($data['events'] as $event) {
+                $this->processEvent($event);
+            }
 
             Log::info('Schedule data processed successfully.');
         } catch (Exception $e) {
-            Log::error('Error fetching schedule data: ' . $e->getMessage());
+            Log::error("Error fetching or processing schedule data: {$e->getMessage()}");
         }
     }
 
-    /**
-     * Extracts team_id from the team URL.
-     */
-    private function extractTeamIdFromUrl($url)
+    protected function fetchData($url)
     {
-        preg_match('/\/id\/(\d+)\//', $url, $matches);
-        return $matches[1] ?? null;
+        $client = new Client();
+        $response = $client->get($url, [
+            'headers' => ['User-Agent' => 'Mozilla/5.0'],
+        ]);
+
+        return json_decode($response->getBody(), true);
+    }
+
+    protected function processEvent(array $event)
+    {
+        try {
+            $eventId = $event['id'];
+            $eventUid = $event['uid'] ?? null;
+            $venueName = $event['competitions'][0]['venue']['fullName'] ?? null;
+            $attendance = $event['competitions'][0]['attendance'] ?? null;
+            $gameTime = $event['date'] ?? null;
+            $isCompleted = $event['status']['type']['completed'] ?? false;
+
+            $competitors = collect($event['competitions'][0]['competitors']);
+            $homeTeamData = $competitors->firstWhere('homeAway', 'home');
+            $awayTeamData = $competitors->firstWhere('homeAway', 'away');
+
+            if (!$homeTeamData || !$awayTeamData) {
+                Log::warning("Home or away team data missing for event: {$eventId}");
+                return;
+            }
+
+            $homeTeam = $this->findOrCreateTeam($homeTeamData['team']);
+            $awayTeam = $this->findOrCreateTeam($awayTeamData['team']);
+
+            if (!$homeTeam || !$awayTeam) {
+                Log::warning("Teams not found or created: {$homeTeamData['team']['displayName']} vs. {$awayTeamData['team']['displayName']}");
+                return;
+            }
+
+            $game = $this->saveGame($event, $homeTeam, $awayTeam, $venueName, $attendance, $gameTime, $isCompleted);
+
+            $this->saveStatistics($game, 'home', $homeTeamData['statistics'] ?? []);
+            $this->saveStatistics($game, 'away', $awayTeamData['statistics'] ?? []);
+        } catch (Exception $e) {
+            Log::error("Error processing event: {$e->getMessage()}", ['event_id' => $event['id'] ?? 'unknown']);
+        }
+    }
+
+    protected function findOrCreateTeam(array $teamData)
+    {
+        return CollegeBasketballTeam::firstOrCreate(
+            ['display_name' => $teamData['displayName']],
+            [
+                'name' => $teamData['name'] ?? null,
+                'abbreviation' => $teamData['abbreviation'] ?? null,
+                'location' => $teamData['location'] ?? null,
+                'conference_id' => $teamData['conferenceId'] ?? null,
+            ]
+        );
+    }
+
+    protected function saveGame($event, $homeTeam, $awayTeam, $venueName, $attendance, $gameTime, $isCompleted)
+    {
+        $formattedGameDate = Carbon::createFromFormat('Ymd', $this->dateInput)->toDateString();
+        $homeTeamData = collect($event['competitions'][0]['competitors'])->firstWhere('homeAway', 'home');
+        $awayTeamData = collect($event['competitions'][0]['competitors'])->firstWhere('homeAway', 'away');
+
+        return CollegeBasketballGame::updateOrCreate(
+            [
+                'event_id' => $event['id'],
+                'game_date' => $formattedGameDate,
+            ],
+            [
+                'event_uid' => $event['uid'] ?? null,
+                'matchup' => "{$awayTeam->display_name} vs. {$homeTeam->display_name}",
+                'home_team_id' => $homeTeam->id,
+                'away_team_id' => $awayTeam->id,
+                'home_team' => $homeTeam->display_name,
+                'away_team' => $awayTeam->display_name,
+                'location' => $venueName,
+                'attendance' => $attendance,
+                'home_team_score' => $homeTeamData['score'] ?? null,
+                'away_team_score' => $awayTeamData['score'] ?? null,
+                'home_rank' => $homeTeamData['curatedRank']['current'] ?? null,
+                'away_rank' => $awayTeamData['curatedRank']['current'] ?? null,
+                'game_time' => $gameTime ? Carbon::parse($gameTime)->toDateTimeString() : null,
+                'is_completed' => $isCompleted,
+                'short_name' => $event['shortName'] ?? null,
+                'season_year' => $event['season']['year'] ?? null,
+                'season_type' => $event['season']['type'] ?? null,
+                'season_slug' => $event['season']['slug'] ?? null,
+            ]
+        );
+    }
+
+    protected function saveStatistics($game, $teamType, $statistics)
+    {
+        $stats = [
+            'rebounds' => $this->getStatValue($statistics, 'rebounds'),
+            'assists' => $this->getStatValue($statistics, 'assists'),
+            'field_goals_attempted' => $this->getStatValue($statistics, 'fieldGoalsAttempted'),
+            'field_goals_made' => $this->getStatValue($statistics, 'fieldGoalsMade'),
+            'field_goal_percentage' => $this->getStatValue($statistics, 'fieldGoalPct'),
+            'free_throw_percentage' => $this->getStatValue($statistics, 'freeThrowPct'),
+            'free_throws_attempted' => $this->getStatValue($statistics, 'freeThrowsAttempted'),
+            'free_throws_made' => $this->getStatValue($statistics, 'freeThrowsMade'),
+            'points' => $this->getStatValue($statistics, 'points'),
+            'three_point_field_goals_attempted' => $this->getStatValue($statistics, 'threePointFieldGoalsAttempted'),
+            'three_point_field_goals_made' => $this->getStatValue($statistics, 'threePointFieldGoalsMade'),
+            'three_point_field_goal_percentage' => $this->getStatValue($statistics, 'threePointFieldGoalPct'),
+        ];
+
+        CollegeBasketballGameStatistic::updateOrCreate(
+            [
+                'game_id' => $game->id,
+                'team_type' => $teamType,
+            ],
+            $stats
+        );
+    }
+
+    protected function getStatValue($statistics, $name)
+    {
+        $stat = collect($statistics)->firstWhere('name', $name);
+        return $stat['displayValue'] ?? null;
     }
 }

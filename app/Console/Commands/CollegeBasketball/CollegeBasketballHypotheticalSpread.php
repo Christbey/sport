@@ -6,6 +6,7 @@ use App\Models\CollegeBasketballGame;
 use App\Models\CollegeBasketballHypothetical;
 use App\Models\CollegeBasketballRankings;
 use Illuminate\Console\Command;
+use Symfony\Component\DomCrawler\Crawler;
 
 class CollegeBasketballHypotheticalSpread extends Command
 {
@@ -55,6 +56,17 @@ class CollegeBasketballHypotheticalSpread extends Command
             $this->info("Stored hypothetical spread for game {$game->matchup}: Spread = {$hypotheticalSpread}");
         }
 
-        $this->info('College basketball hypothetical spread calculation completed.');
+        // Scrape additional data from the provided CSS selector
+        $htmlContent = file_get_contents('https://www.espn.com/mens-college-basketball/'); // Example URL
+        $crawler = new Crawler($htmlContent);
+
+        $crawler->filter('#fittPageContainer > div.pageContent > div.page-container.cf > div > div > div:nth-child(1) > section > div > div:nth-child(4) > div > div > div:nth-child(2) > div > div > div.Table__Scroller > table > tbody > tr:nth-child(1) > td.teams__col.Table__TD > a')->each(function ($node) {
+            $linkText = $node->text();
+            $href = $node->attr('href');
+
+            $this->info("Scraped data: {$linkText} ({$href})");
+        });
+
+        $this->info('College basketball hypothetical spread calculation and data scraping completed.');
     }
 }

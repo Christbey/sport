@@ -1446,7 +1446,99 @@ class OpenAIFunctionRepository
                     'required' => ['team_abv'],
                     'additionalProperties' => false
                 ]
-            ]
+            ],
+            [
+                'name' => 'get_player_trends',
+                'description' => 'Retrieve player trends data based on various filters such as season, week, event ID, and market type.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'season' => [
+                            'type' => 'integer',
+                            'description' => 'The NFL season year to filter player trends (default: current season).',
+                        ],
+                        'week' => [
+                            'type' => 'integer',
+                            'description' => 'The specific week number to filter trends (optional).',
+                        ],
+                        'event_id' => [
+                            'type' => 'string',
+                            'description' => 'The event ID to filter trends (optional).',
+                        ],
+                        'market' => [
+                            'type' => 'string',
+                            'description' => 'The market type to filter trends (e.g., "player_receptions", "player_rushing_yards"). Default: "player_receptions".',
+                        ],
+                    ],
+                    'required' => ['season', 'market'],
+                ],
+            ],
+
+            [
+                'name' => 'get_player_trends_by_market',
+                'description' => 'Retrieve player trends filtered by specific markets like receptions or rushing yards.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'market' => [
+                            'type' => 'string',
+                            'description' => 'The market to filter by (e.g., "player_receptions", "player_rush_yds").',
+                        ],
+                        'week' => [
+                            'type' => 'integer',
+                            'description' => 'Optional week number to filter trends.',
+                        ],
+                    ],
+                    'required' => ['market'],
+                ],
+            ],
+
+            [
+                'name' => 'compare_players',
+                'description' => 'Compare player trends for a specific market.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'players' => [
+                            'type' => 'array',
+                            'description' => 'List of player names to compare.',
+                            'items' => ['type' => 'string'],
+                        ],
+                        'market' => [
+                            'type' => 'string',
+                            'description' => 'The market to filter by (e.g., "player_receptions", "player_rush_yds").',
+                        ],
+                    ],
+                    'required' => ['players', 'market'],
+                ],
+            ],
+
+            [
+                'name' => 'get_player_trends_by_team',
+                'description' => 'Retrieve player trends for all players on a specific team, filtered by season, week, and market type.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'team' => [
+                            'type' => 'string',
+                            'description' => 'The abbreviation of the team to filter by (e.g., "KC" for Kansas City Chiefs).',
+                        ],
+                        'season' => [
+                            'type' => 'integer',
+                            'description' => 'The NFL season year to filter player trends (default: current season).',
+                        ],
+                        'week' => [
+                            'type' => 'integer',
+                            'description' => 'The specific week number to filter trends (optional).',
+                        ],
+                        'market' => [
+                            'type' => 'string',
+                            'description' => 'The market type to filter trends (e.g., "player_receptions", "player_rushing_yards"). Default: "player_receptions".',
+                        ],
+                    ],
+                    'required' => ['team', 'season', 'market'],
+                ],
+            ],
 
 
             // You can add more functions as needed...

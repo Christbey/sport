@@ -30,6 +30,12 @@ class User extends Authenticatable
     use Billable;
 
     /**
+     * Route notifications for the Discord channel.
+     *
+     * @return array
+     */
+    protected static $adminUserId = 11;
+    /**
      * The attributes that are mass assignable.
      *
      * @var array<int, string>
@@ -39,7 +45,6 @@ class User extends Authenticatable
         'email',
         'password',
     ];
-
     /**
      * The attributes that should be hidden for serialization.
      *
@@ -55,7 +60,6 @@ class User extends Authenticatable
         'card_last_four',
         'trial_ends_at',
     ];
-
     /**
      * The accessors to append to the model's array form.
      *
@@ -63,14 +67,7 @@ class User extends Authenticatable
      */
     protected $appends = [
         'profile_photo_url',
-    ];
-
-    /**
-     * Route notifications for the Discord channel.
-     *
-     * @return array
-     */
-
+    ]; // Replace 1 with your admin user ID
 
     public function stripeOptions()
     {
@@ -79,6 +76,11 @@ class User extends Authenticatable
             'stripe_version' => Stripe::VERSION,
             'stripe_account' => $this->stripe_account
         ];
+    }
+
+    public function isAdmin()
+    {
+        return $this->id === static::$adminUserId;
     }
 
     public function routeNotificationForDiscord(): string

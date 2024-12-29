@@ -108,10 +108,10 @@ class PostController extends Controller
     {
         // Helper function to convert time format
         $formatGameTime = function ($timeStr) {
-            // Handle "1:00p" format by adding 'm' to make it "1:00pm"
-            $formattedTime = str_replace('p', 'pm', str_replace('a', 'am', $timeStr));
-            return Carbon::createFromFormat('g:ia', $formattedTime)->format('H:i:s');
+            // Carbon tries to guess the format
+            return Carbon::parse($timeStr)->format('H:i:s');
         };
+
 
         // Parse the game date and time together
         $startDateTime = Carbon::parse($post->game_date)

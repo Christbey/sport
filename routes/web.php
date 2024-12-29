@@ -297,3 +297,6 @@ Route::get('/player-stats', [PlayerStatsController::class, 'index'])->name('nfl.
 Route::get('/player-trends', [PlayerTrendsController::class, 'index'])->name('player.trends.index');
 
 
+Route::post('/player-trends/fetch-odds', [PlayerTrendsController::class, 'fetchPlayerOdds'])
+    ->name('player-trends.fetch-odds');
+

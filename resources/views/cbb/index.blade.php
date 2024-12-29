@@ -67,16 +67,16 @@
                         </th>
                         <th scope="col"
                             class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Spread
+                            Prediction
                         </th>
-                        <th scope="col"
-                            class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Offensive Edge
-                        </th>
-                        <th scope="col"
-                            class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Defensive Edge
-                        </th>
+                        {{--                        <th scope="col"--}}
+                        {{--                            class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">--}}
+                        {{--                            Offensive Edge--}}
+                        {{--                        </th>--}}
+                        {{--                        <th scope="col"--}}
+                        {{--                            class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">--}}
+                        {{--                            Defensive Edge--}}
+                        {{--                        </th>--}}
                     </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
@@ -99,16 +99,16 @@
                                         {{ $hypothetical->hypothetical_spread > 0 ? '+' : '' }}{{ $hypothetical->hypothetical_spread }}
                                     </span>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-center">
-                                    <span class="{{ $hypothetical->offense_difference > 0 ? 'text-green-600' : 'text-red-600' }}">
-                                        {{ $hypothetical->offense_difference > 0 ? '+' : '' }}{{ number_format($hypothetical->offense_difference, 1) }}
-                                    </span>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-center">
-                                    <span class="{{ $hypothetical->defense_difference > 0 ? 'text-green-600' : 'text-red-600' }}">
-                                        {{ $hypothetical->defense_difference > 0 ? '+' : '' }}{{ number_format($hypothetical->defense_difference, 1) }}
-                                    </span>
-                            </td>
+                            {{--                            <td class="px-6 py-4 whitespace-nowrap text-center">--}}
+                            {{--                                    <span class="{{ $hypothetical->offense_difference > 0 ? 'text-green-600' : 'text-red-600' }}">--}}
+                            {{--                                        {{ $hypothetical->offense_difference > 0 ? '+' : '' }}{{ number_format($hypothetical->offense_difference, 1) }}--}}
+                            {{--                                    </span>--}}
+                            {{--                            </td>--}}
+                            {{--                            <td class="px-6 py-4 whitespace-nowrap text-center">--}}
+                            {{--                                    <span class="{{ $hypothetical->defense_difference > 0 ? 'text-green-600' : 'text-red-600' }}">--}}
+                            {{--                                        {{ $hypothetical->defense_difference > 0 ? '+' : '' }}{{ number_format($hypothetical->defense_difference, 1) }}--}}
+                            {{--                                    </span>--}}
+                            {{--                            </td>--}}
                         </tr>
                     @empty
                         <tr>

@@ -205,4 +205,98 @@ return [
             'description' => 'Game location'
         ],
     ],
+
+    'markets' => [
+        'player_assists' => [
+            'label' => 'Assists (Over/Under)',
+            'column' => 'defense',
+            'key' => 'assists',
+        ],
+        'player_defensive_interceptions' => [
+            'label' => 'Defensive Interceptions (Over/Under)',
+            'column' => 'defense',
+            'key' => 'interceptions',
+        ],
+        'player_field_goals' => [
+            'label' => 'Field Goals (Over/Under)',
+            'column' => 'kicking',
+            'key' => 'field_goals',
+        ],
+        'player_kicking_points' => [
+            'label' => 'Kicking Points (Over/Under)',
+            'column' => 'kicking',
+            'key' => 'points',
+        ],
+//        'player_pass_attempts' => [
+//            'label' => 'Pass Attempts (Over/Under)',
+//            'column' => 'passing',
+//            'key' => 'attempts',
+//        ],
+//        'player_pass_completions' => [
+//            'label' => 'Pass Completions (Over/Under)',
+//            'column' => 'passing',
+//            'key' => 'completions',
+//        ],
+//        'player_pass_interceptions' => [
+//            'label' => 'Pass Interceptions (Over/Under)',
+//            'column' => 'passing',
+//            'key' => 'interceptions',
+//        ],
+//        'player_pass_longest_completion' => [
+//            'label' => 'Longest Pass Completion (Over/Under)',
+//            'column' => 'passing',
+//            'key' => 'longest_completion',
+//        ],
+//        'player_pass_rush_reception_tds' => [
+//            'label' => 'Pass + Rush + Reception Touchdowns (Over/Under)',
+//            'column' => null, // Requires a calculated stat
+//            'key' => null,    // Composite stat
+//        ],
+//        'player_pass_tds' => [
+//            'label' => 'Pass Touchdowns (Over/Under)',
+//            'column' => 'passing',
+//            'key' => 'touchdowns',
+//        ],
+//        'player_pass_yds' => [
+//            'label' => 'Pass Yards (Over/Under)',
+//            'column' => 'passing',
+//            'key' => 'yards',
+//        ],
+        'player_receptions' => [
+            'label' => 'Receptions (Over/Under)',
+            'column' => 'receiving',
+            'key' => 'receptions',
+        ],
+        'player_reception_longest' => [
+            'label' => 'Longest Reception (Over/Under)',
+            'column' => 'receiving',
+            'key' => 'longRec',
+        ],
+        'player_reception_yds' => [
+            'label' => 'Reception Yards (Over/Under)',
+            'column' => 'receiving',
+            'key' => 'recYds',
+        ],
+        'player_rush_attempts' => [
+            'label' => 'Rush Attempts (Over/Under)',
+            'column' => 'rushing',
+            'key' => 'carries',
+        ],
+        'player_rush_yds' => [
+            'label' => 'Rush Yards (Over/Under)',
+            'column' => 'rushing',
+            'key' => 'rushYds',
+        ],
+        'player_tackles_assists' => [
+            'label' => 'Tackles + Assists (Over/Under)',
+            'column' => 'defense',
+            'key' => 'tackles_assists',
+        ],
+        'player_sacks' => [
+            'label' => 'Sacks (Over/Under)',
+            'column' => 'defense',
+            'key' => 'sacks',
+        ],
+        // Add more mappings as needed
+    ],
 ];

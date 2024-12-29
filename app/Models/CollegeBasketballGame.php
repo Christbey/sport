@@ -10,6 +10,7 @@ class CollegeBasketballGame extends Model
     use HasFactory;
 
     protected $fillable = [
+        'event_id',
         'home_team_id',
         'away_team_id',
         'game_date',
@@ -24,6 +25,10 @@ class CollegeBasketballGame extends Model
         'is_completed',
         'home_team',
         'away_team',
+        'short_name',
+        'season_year',
+        'season_type',
+        'season_slug',
     ];
     protected $casts = [
         'game_date' => 'date', // Ensures game_date is treated as a Carbon instance
@@ -50,4 +55,13 @@ class CollegeBasketballGame extends Model
     {
         return $this->belongsTo(CollegeBasketballTeam::class, 'away_team_id');
     }
+
+    /**
+     * Get the statistics for the game.
+     */
+    public function statistics()
+    {
+        return $this->hasMany(CollegeBasketballGameStatistic::class, 'game_id');
+    }
+
 }

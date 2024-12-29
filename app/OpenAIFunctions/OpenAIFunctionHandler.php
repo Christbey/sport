@@ -6,6 +6,7 @@ use App\Helpers\OpenAI;
 use App\Models\CollegeBasketballGame;
 use App\Models\CollegeBasketballHypothetical;
 use App\Models\CollegeBasketballTeam;
+use App\Models\Nfl\PlayerTrend;
 use App\Repositories\Nfl\NflBettingOddsRepository;
 use App\Repositories\Nfl\NflBoxScoreRepository;
 use App\Repositories\Nfl\NflEloPredictionRepository;
@@ -15,6 +16,7 @@ use App\Repositories\Nfl\NflTeamStatRepository;
 use App\Repositories\Nfl\TeamStatsRepository;
 use App\Repositories\NflTeamScheduleRepository;
 use Exception;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class OpenAIFunctionHandler
@@ -477,6 +479,32 @@ class OpenAIFunctionHandler
                 return $this->getRecentGameDetails($arguments);
 
             // College Basketball Game Function Handlers
+            case 'get_player_trends':
+                return $this->getPlayerTrends($arguments);
+
+            case 'get_player_trends_by_market':
+                $market = $arguments['market'];
+                $week = $arguments['week'] ?? null;
+
+                // Retrieve player trends
+                return $this->getPlayerTrendsByMarket($market, $week);
+
+            case 'compare_players':
+                $players = $arguments['players'];
+                $market = $arguments['market'];
+
+                return $this->comparePlayerTrends($players, $market);
+            case 'get_player_trends_by_team':
+                $team = $arguments['team'] ?? null;
+                $season = $arguments['season'] ?? now()->year; // Default to current year
+                $week = $arguments['week'] ?? null;
+                $market = $arguments['market'] ?? 'player_receptions'; // Default market
+
+                if (!$team || !$season || !$market) {
+                    throw new Exception('Missing required parameters: team, season, or market.');
+                }
+
+                return $this->getPlayerTrendsByTeam($team, $season, $week, $market);
 
 
             default:
@@ -484,12 +512,6 @@ class OpenAIFunctionHandler
         }
     }
 
-    // Ensure these methods exist if you call them:
-    // formatSchedule($scheduleResult)
-    // handleGetNflTeamStats($arguments)
-    // handleCompareTeamsStats($arguments)
-    // handleGetTopTeamsByStat($arguments)
-    // handleGetLeagueAverages($arguments)
     private function formatSchedule(array $scheduleResult)
     {
         // Implement the logic to format the schedule data
@@ -585,10 +607,7 @@ class OpenAIFunctionHandler
     /**
      * Handle analyze_team_performance function.
      */
-
-    /**
-     * Handle analyze_team_performance function.
-     */
+    
     private function analyzeTeamPerformance(array $arguments)
     {
         Log::info('Invoking analyzeTeamPerformance', ['arguments' => $arguments]);
@@ -794,5 +813,155 @@ class OpenAIFunctionHandler
             'is_completed' => $game->is_completed,
         ];
     }
+
+    protected function getPlayerTrends(array $arguments): array
+    {
+        $season = $arguments['season'] ?? now()->year;
+        $week = $arguments['week'] ?? null;
+        $eventId = $arguments['event_id'] ?? null;
+        $market = $arguments['market'] ?? 'player_receptions';
+
+        // Fetch player trends from the PlayerTrend model
+        $playerTrends = PlayerTrend::select([
+            'player',
+            'point',
+            DB::raw('SUM(over_count) as total_over_count'),
+            DB::raw('SUM(under_count) as total_under_count'),
+        ])
+            ->when($season, fn($query) => $query->where('season', $season))
+            ->when($week && is_numeric($week), fn($query) => $query->where('week', '<', $week))
+            ->when($eventId, fn($query) => $query->where('odds_api_id', $eventId))
+            ->when($market, fn($query) => $query->where('market', $market))
+            ->groupBy('player', 'point')
+            ->orderBy('player')
+            ->get();
+
+        // Apply additional calculations and adjustments
+        $playerTrends = $playerTrends->map(function ($trend) use ($week, $season, $market) {
+            $this->calculateOverPercentage($trend);
+            $this->applyRecentPerformanceAdjustment($trend, $week, $season, $market);
+            $this->determineAction($trend);
+            return $trend;
+        });
+
+        return $playerTrends->toArray();
+
+
+// Helper methods from the controller
+    }
+
+    protected function calculateOverPercentage(&$trend)
+    {
+        $totalAttempts = $trend->total_over_count + $trend->total_under_count;
+        $trend->over_percentage = $totalAttempts > 0
+            ? round(($trend->total_over_count / $totalAttempts) * 100, 2)
+            : 0;
+
+        Log::info("Over percentage for {$trend->player}: {$trend->over_percentage}%");
+    }
+
+    protected function applyRecentPerformanceAdjustment(&$trend, $week, $season, $market)
+    {
+
+
+        $marketConfig = config("nfl.markets.{$market}");
+        $column = $marketConfig['column'] ?? null;
+        $key = $marketConfig['key'] ?? null;
+
+        if (!$column || !$key) {
+            $trend->adjustment = 0;
+            return;
+        }
+
+        $lastThreeStats = DB::table('nfl_player_stats')
+            ->join('nfl_team_schedules', 'nfl_player_stats.game_id', '=', 'nfl_team_schedules.game_id')
+            ->where('nfl_player_stats.long_name', 'like', "%{$trend->player}%")
+            ->where('nfl_team_schedules.season', $season)
+            ->orderByDesc('nfl_team_schedules.game_week')
+            ->limit(3)
+            ->pluck("nfl_player_stats.{$column}");
+
+        Log::info("Last three stats for {$trend->player}: ", $lastThreeStats->toArray());
+
+        $recentPerformanceCount = $lastThreeStats
+            ->filter(fn($stat) => isset($stat) && $stat > $trend->point)
+            ->count();
+
+        Log::info("Recent Performance Count for {$trend->player}: {$recentPerformanceCount}");
+
+        $adjustment = match ($recentPerformanceCount) {
+            3 => 25,
+            0 => -10,
+            default => 0,
+        };
+
+        $trend->over_percentage += $adjustment;
+        $trend->adjustment = $adjustment;
+
+        Log::info("Adjustment for {$trend->player}: {$adjustment}");
+    }
+
+
+    protected function determineAction(&$trend)
+    {
+        $trend->action = match (true) {
+            $trend->over_percentage >= 70 => 'Bet',
+            $trend->over_percentage >= 50 => 'Consider',
+            default => 'Stay Away',
+        };
+
+        Log::info("Action for {$trend->player}: {$trend->action}");
+    }
+
+    protected function getPlayerTrendsByMarket(string $market, ?int $week): array
+    {
+        // Fetch trends based on the market
+        $trends = PlayerTrend::where('market', $market)
+            ->when($week, fn($q) => $q->where('week', $week))
+            ->get();
+
+        return $trends->toArray();
+    }
+
+    protected function comparePlayerTrends(array $players, string $market): array
+    {
+        // Fetch trends for the specified players
+        $trends = PlayerTrend::whereIn('player', $players)
+            ->where('market', $market)
+            ->get();
+
+        // Format for comparison
+        $comparison = $trends->map(function ($trend) {
+            return [
+                'player' => $trend->player,
+                'point' => $trend->point,
+                'over' => $trend->total_over_count,
+                'under' => $trend->total_under_count,
+                'hit_percentage' => $trend->over_percentage,
+                'action' => $trend->action,
+            ];
+        });
+
+        return $comparison->toArray();
+    }
+
+    protected function getPlayerTrendsByTeam($team, $season, $week = null, $market = 'player_receptions')
+    {
+        $query = PlayerTrend::select([
+            'player',
+            'point',
+            DB::raw('SUM(over_count) as total_over_count'),
+            DB::raw('SUM(under_count) as total_under_count'),
+        ])
+            ->where('team', $team)
+            ->where('season', $season)
+            ->when($week, fn($query) => $query->where('week', '<=', $week))
+            ->when($market, fn($query) => $query->where('market', $market))
+            ->groupBy('player', 'point')
+            ->orderBy('player');
+
+        return $query->get();
+    }
+
 
 }
