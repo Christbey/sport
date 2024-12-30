@@ -9,6 +9,7 @@ use App\Http\Controllers\{AccessRequestController,
     PaymentController,
     PaymentMethodController,
     PickemController,
+    PlayerPropBetController,
     PlayerTrendsController,
     PostController,
     SitemapController,
@@ -300,3 +301,4 @@ Route::get('/player-trends', [PlayerTrendsController::class, 'index'])->name('pl
 Route::post('/player-trends/fetch-odds', [PlayerTrendsController::class, 'fetchPlayerOdds'])
     ->name('player-trends.fetch-odds');
 
+Route::get('/nba/player-prop-bets', [PlayerPropBetController::class, 'index'])->name('player-prop-bets.index');
