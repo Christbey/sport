@@ -27,9 +27,10 @@ class CollegeFootballHypotheticalController extends Controller
     public function index(Request $request)
     {
         $week = $request->input('week', $this->getCurrentWeek());
-        $seasonType = $request->input('season_type', 'regular');
+        $seasonType = $request->input('season_type', 'postseason');
         $weeks = $this->getWeeks($seasonType);
-        $hypotheticals = $this->getHypotheticals($week, $seasonType);
+        $hypotheticals = $this->getHypotheticals($week, $seasonType)
+            ->where('completed', 0);
 
         // Get prediction accuracy stats
         $weeklyStats = $this->getWeeklyPredictionStats($week, $seasonType);
@@ -70,14 +71,13 @@ class CollegeFootballHypotheticalController extends Controller
 
     private function getWeeks($seasonType)
     {
-        $cacheKey = "cfb_weeks_{$seasonType}";
-        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($seasonType) {
-            return CollegeFootballHypothetical::select('week')
-                ->where('season_type', $seasonType)
-                ->distinct()
-                ->orderBy('week', 'asc')
-                ->get();
-        });
+
+        return CollegeFootballHypothetical::select('week')
+            ->where('season_type', $seasonType)
+            ->distinct()
+            ->orderBy('week', 'asc')
+            ->get();
+
     }
 
     private function getHypotheticals($week, $seasonType)
@@ -124,12 +124,16 @@ class CollegeFootballHypotheticalController extends Controller
 
     private function getWeeklyPredictionStats($week, $seasonType): array
     {
-        $stats = CollegeFootballHypothetical::where('week', $week)
-            ->where('season_type', $seasonType)
+        $stats = CollegeFootballHypothetical::join('college_football_games', function ($join) {
+            $join->on('college_football_hypotheticals.game_id', '=', 'college_football_games.id')
+                ->where('college_football_games.completed', '=', 1);
+        })
+            ->where('college_football_hypotheticals.week', $week)
+            ->where('college_football_hypotheticals.season_type', $seasonType)
             ->selectRaw('
             COUNT(*) as total_predictions,
-            SUM(CASE WHEN correct = 1 THEN 1 ELSE 0 END) as correct_predictions,
-            SUM(CASE WHEN correct = 0 THEN 1 ELSE 0 END) as incorrect_predictions
+            SUM(CASE WHEN college_football_hypotheticals.correct = 1 THEN 1 ELSE 0 END) as correct_predictions,
+            SUM(CASE WHEN college_football_hypotheticals.correct = 0 THEN 1 ELSE 0 END) as incorrect_predictions
         ')
             ->first();
 
@@ -157,66 +161,64 @@ class CollegeFootballHypotheticalController extends Controller
 
     private function getGameData($gameId)
     {
-        $cacheKey = "game_data_{$gameId}";
 
-        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($gameId) {
-            $hypothetical = CollegeFootballHypothetical::with(['game', 'homeTeam', 'awayTeam'])
-                ->where('game_id', $gameId)
-                ->firstOrFail();
+        $hypothetical = CollegeFootballHypothetical::with(['game', 'homeTeam', 'awayTeam'])
+            ->where('game_id', $gameId)
+            ->firstOrFail();
 
-            $homeTeam = $hypothetical->homeTeam;
-            $awayTeam = $hypothetical->awayTeam;
+        $homeTeam = $hypothetical->homeTeam;
+        $awayTeam = $hypothetical->awayTeam;
 
-            // Fetch stats
-            $homeStats = $this->fetchAdvancedStats($homeTeam->id);
-            $awayStats = $this->fetchAdvancedStats($awayTeam->id);
+        // Fetch stats
+        $homeStats = $this->fetchAdvancedStats($homeTeam->id);
+        $awayStats = $this->fetchAdvancedStats($awayTeam->id);
 
-            // Calculate efficiency metrics
-            $efficiencyMetrics = $this->analytics->calculateEfficiencyMetrics($homeStats, $awayStats);
+        // Calculate efficiency metrics
+        $efficiencyMetrics = $this->analytics->calculateEfficiencyMetrics($homeStats, $awayStats);
 
-            // Calculate win probability
-            $winningPercentage = $this->calculateHomeWinningPercentage(
-                $hypothetical->home_elo,
-                $hypothetical->away_elo,
-                $hypothetical->home_fpi,
-                $hypothetical->away_fpi
-            );
+        // Calculate win probability
+        $winningPercentage = $this->calculateHomeWinningPercentage(
+            $hypothetical->home_elo,
+            $hypothetical->away_elo,
+            $hypothetical->home_fpi,
+            $hypothetical->away_fpi
+        );
 
-            // Return complete data array
-            return [
-                'hypothetical' => $hypothetical,
-                'game' => $hypothetical->game,
-                'homeTeam' => $homeTeam,
-                'awayTeam' => $awayTeam,
-                'homeStats' => $homeStats,
-                'awayStats' => $awayStats,
-                'homeWinningPercentage' => $winningPercentage,
-                'winnerTeam' => $winningPercentage > 0.5 ? $homeTeam : $awayTeam,
-                'homeSpRating' => SpRating::firstWhere('team', $homeTeam->school),
-                'awaySpRating' => SpRating::firstWhere('team', $awayTeam->school),
-                'homeTeamNotes' => CollegeFootballNote::where('team_id', $homeTeam->id)->get(),
-                'awayTeamNotes' => CollegeFootballNote::where('team_id', $awayTeam->id)->get(),
-                'efficiencyMetrics' => $efficiencyMetrics,  // Added this line
-                'matchupAdvantages' => $this->analytics->calculateMatchupAdvantages($homeStats, $awayStats),
-                'scoringPrediction' => [
-                    'home_predicted_range' => [
-                        'low' => $this->calculateScoringRange($homeStats, $awayStats, 'home', 'low'),
-                        'high' => $this->calculateScoringRange($homeStats, $awayStats, 'home', 'high')
-                    ],
-                    'away_predicted_range' => [
-                        'low' => $this->calculateScoringRange($homeStats, $awayStats, 'away', 'low'),
-                        'high' => $this->calculateScoringRange($homeStats, $awayStats, 'away', 'high')
-                    ]
+        // Return complete data array
+        return [
+            'hypothetical' => $hypothetical,
+            'game' => $hypothetical->game,
+            'homeTeam' => $homeTeam,
+            'awayTeam' => $awayTeam,
+            'homeStats' => $homeStats,
+            'awayStats' => $awayStats,
+            'homeWinningPercentage' => $winningPercentage,
+            'winnerTeam' => $winningPercentage > 0.5 ? $homeTeam : $awayTeam,
+            'homeSpRating' => SpRating::firstWhere('team', $homeTeam->school),
+            'awaySpRating' => SpRating::firstWhere('team', $awayTeam->school),
+            'homeTeamNotes' => CollegeFootballNote::where('team_id', $homeTeam->id)->get(),
+            'awayTeamNotes' => CollegeFootballNote::where('team_id', $awayTeam->id)->get(),
+            'efficiencyMetrics' => $efficiencyMetrics,  // Added this line
+            'matchupAdvantages' => $this->analytics->calculateMatchupAdvantages($homeStats, $awayStats),
+            'scoringPrediction' => [
+                'home_predicted_range' => [
+                    'low' => $this->calculateScoringRange($homeStats, $awayStats, 'home', 'low'),
+                    'high' => $this->calculateScoringRange($homeStats, $awayStats, 'home', 'high')
                 ],
-                'driveMetrics' => $this->analytics->calculateDriveMetrics($homeStats, $awayStats),
-                'mismatches' => $this->calculateMismatches($homeStats, $awayStats),
-                'trends' => $this->getTeamTrends($hypothetical),
-                'gameHistory' => $this->getGameHistory($hypothetical),
-                'homeTeamLast3Games' => $this->fetchLastThreeGames($homeTeam->id, $hypothetical->game->start_date),
-                'awayTeamLast3Games' => $this->fetchLastThreeGames($awayTeam->id, $hypothetical->game->start_date),
-                'previousResults' => $this->fetchRecentMatchups($homeTeam, $awayTeam)
-            ];
-        });
+                'away_predicted_range' => [
+                    'low' => $this->calculateScoringRange($homeStats, $awayStats, 'away', 'low'),
+                    'high' => $this->calculateScoringRange($homeStats, $awayStats, 'away', 'high')
+                ]
+            ],
+            'driveMetrics' => $this->analytics->calculateDriveMetrics($homeStats, $awayStats),
+            'mismatches' => $this->calculateMismatches($homeStats, $awayStats),
+            'trends' => $this->getTeamTrends($hypothetical),
+            'gameHistory' => $this->getGameHistory($hypothetical),
+            'homeTeamLast3Games' => $this->fetchLastThreeGames($homeTeam->id, $hypothetical->game->start_date),
+            'awayTeamLast3Games' => $this->fetchLastThreeGames($awayTeam->id, $hypothetical->game->start_date),
+            'previousResults' => $this->fetchRecentMatchups($homeTeam, $awayTeam)
+        ];
+
     }
 
     private function fetchAdvancedStats($teamId)

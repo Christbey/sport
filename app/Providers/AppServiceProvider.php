@@ -17,8 +17,10 @@ use App\Repositories\Nfl\TeamStatsRepository;
 use App\Repositories\NflTeamRepository;
 use App\Repositories\NflTeamScheduleRepository;
 use App\Services\OpenAIChatService;
+use DB;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\ServiceProvider;
+use Log;
 use Stripe\Stripe;
 
 class AppServiceProvider extends ServiceProvider
@@ -69,6 +71,12 @@ class AppServiceProvider extends ServiceProvider
     public function boot()
     {
         Stripe::setApiKey(config('services.stripe.api.secret'));
+        if (app()->environment('local')) {
+            DB::listen(function ($query) {
+                Log::info($query->sql, $query->bindings);
+            });
+        }
+
 
     }
 }

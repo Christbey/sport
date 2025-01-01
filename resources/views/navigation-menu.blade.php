@@ -30,9 +30,10 @@
                         ],
                         'Predictions' => [
                             ['label' => 'College Basketball', 'route' => 'cbb.index'],
+                            ['label' => 'College Football', 'route' => 'cfb.index'],
                             ['label' => 'NFL Trends', 'route' => 'nfl.trends.config'],
                             ['label' => 'NFL Player Trends', 'route' => 'player.trends.index'],
-                            ['label' => 'NBA', 'route' => 'player-prop-bets.index'],
+                            ['label' => 'NBA Props', 'route' => 'player-prop-bets.index'],
                         ],
                     ];
 

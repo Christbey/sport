@@ -18,33 +18,43 @@ class CalculateGameDifferences implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     protected $week;
+    protected $seasonType;
 
     /**
      * Create a new job instance.
      *
      * @param int $week
+     * @param string $seasonType
      */
-    public function __construct(int $week)
+    public function __construct(int $week, string $seasonType = 'regular')
     {
         $this->week = $week;
+        $this->seasonType = $seasonType;
     }
 
     public function handle()
     {
         try {
             $weeks = config('college_football.weeks');
-            if (!isset($weeks[$this->week])) {
+            if ($this->seasonType === 'regular' && !isset($weeks[$this->week])) {
                 throw new Exception("Invalid week: {$this->week}");
             }
 
-            $dateRange = $weeks[$this->week];
-            Log::info('Starting game calculations', $dateRange);
-
-            $games = CollegeFootballGame::with(['hypothetical', 'homeTeam', 'awayTeam'])
+            $query = CollegeFootballGame::with(['hypothetical', 'homeTeam', 'awayTeam'])
                 ->whereHas('hypothetical')
                 ->where('completed', '1')
-                ->whereBetween('start_date', [$dateRange['start'], $dateRange['end']])
-                ->get();
+                ->where('season_type', $this->seasonType);
+
+            // Apply date range filter only for regular season
+            if ($this->seasonType === 'regular') {
+                $dateRange = $weeks[$this->week];
+                $query->whereBetween('start_date', [$dateRange['start'], $dateRange['end']]);
+                Log::info('Starting game calculations', ['week' => $this->week, 'season_type' => $this->seasonType, 'date_range' => $dateRange]);
+            } else {
+                Log::info('Starting postseason game calculations', ['week' => $this->week, 'season_type' => $this->seasonType]);
+            }
+
+            $games = $query->get();
 
             $totalProcessedGames = 0;
             $correctPredictions = 0;
@@ -105,9 +115,10 @@ class CalculateGameDifferences implements ShouldQueue
                 );
             }
 
+            $seasonTypeText = ucfirst($this->seasonType);
             Notification::route('discord', config('services.discord.channel_id'))
                 ->notify(new DiscordCommandCompletionNotification(
-                    "Processed games for week {$this->week}. Total: {$totalProcessedGames}, Correct: {$correctPredictions}",
+                    "Processed {$seasonTypeText} games for week {$this->week}. Total: {$totalProcessedGames}, Correct: {$correctPredictions}",
                     'success'
                 ));
 

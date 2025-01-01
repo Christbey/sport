@@ -29,7 +29,22 @@ class NflTrendsController extends Controller
     public function show(Request $request): View
     {
         if (!$request->has('team') || empty($request->input('team'))) {
-            return view('nfl.trends.config');
+            // Define all trends
+            $allTrends = [
+                'The Kansas City Chiefs have won 8 of their last 10 home games.',
+                'The Buffalo Bills have covered the spread in 5 of their last 6 games as underdogs.',
+                'The Dallas Cowboys have gone over the total in 7 of their last 9 games.',
+                'The Green Bay Packers have lost 4 of their last 5 away games by 10+ points.',
+                'The Philadelphia Eagles are 6-1 in their last 7 games as favorites.',
+                'The Miami Dolphins have scored over 30 points in 4 of their last 5 games.',
+            ];
+
+            // Shuffle and select random trends
+            $randomTrends = collect($allTrends)->shuffle()->take(4);
+
+            return view('nfl.trends.config', [
+                'randomTrends' => $randomTrends,
+            ]);
         }
 
         $request->validate([
@@ -58,7 +73,7 @@ class NflTrendsController extends Controller
             'trends' => $trends,
             'totalGames' => count($trends['general'] ?? []),
             'season' => $season,
-            'games' => $games
+            'games' => $games,
         ]);
     }
 

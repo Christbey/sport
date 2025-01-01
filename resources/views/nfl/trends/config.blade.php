@@ -6,6 +6,8 @@
                 <div class="text-sm text-gray-500">
                     @if(isset($selectedTeam))
                         Analyzing: <span class="font-semibold">{{ $selectedTeam }}</span>
+                    @else
+                        Viewing Random Trends
                     @endif
                 </div>
             </div>
@@ -17,11 +19,15 @@
                         <select name="team"
                                 class="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                             <option value="">Select a team...</option>
+                            @php
+                                $defaultTeam = 'KC'; // Set your default team here
+                            @endphp
                             @foreach(['ARI', 'ATL', 'BAL', 'BUF', 'CAR', 'CHI', 'CIN', 'CLE',
                                     'DAL', 'DEN', 'DET', 'GB', 'HOU', 'IND', 'JAX', 'KC',
                                     'LAC', 'LAR', 'LV', 'MIA', 'MIN', 'NE', 'NO', 'NYG',
                                     'NYJ', 'PHI', 'PIT', 'SEA', 'SF', 'TB', 'TEN', 'WAS'] as $team)
-                                <option value="{{ $team }}" {{ $team === ($selectedTeam ?? '') ? 'selected' : '' }}>
+                                <option value="{{ $team }}"
+                                        {{ $team === ($selectedTeam ?? $defaultTeam) ? 'selected' : '' }}>
                                     {{ $team }}
                                 </option>
                             @endforeach
@@ -29,7 +35,7 @@
                     </div>
 
                     <div class="sm:col-span-1 hidden">
-                        <label class="block text-sm font-medium text-gray-700 mb-2 ">Season</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Season</label>
                         <select name="season"
                                 class="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                             <option value="">All Seasons</option>
@@ -61,8 +67,9 @@
             </form>
 
             @if(isset($trends))
+                {{-- General Record Card --}}
                 <div class="space-y-6">
-                    {{-- General Record Card --}}
+                    {{-- Record Summary (as in your original code) --}}
                     <div class="bg-gradient-to-br from-gray-50 to-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <h2 class="text-xl font-bold text-gray-900 mb-4">Record Summary (Last {{ $totalGames }}
                             Games)</h2>
@@ -113,14 +120,9 @@
                             </div>
                         </div>
                     </div>
-                </div>
 
-                {{-- Trend Sections --}}
-                @if(isset($trends))
+                    {{-- Trend Sections --}}
                     <div class="space-y-6">
-
-
-                        {{-- Trend Sections --}}
                         @foreach(['scoring', 'quarters', 'halves', 'margins', 'totals', 'first_score'] as $sectionKey)
                             @if(isset($trends[$sectionKey]) && !empty($trends[$sectionKey]))
                                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -132,32 +134,18 @@
                                                 $trend = (string)$trend;
                                                 $positiveTerms = ['won', 'scored', 'covered', 'over'];
                                                 $negativeTerms = ['lost', 'under', 'fewer'];
-
                                                 $isPositive = false;
-                                                $isNegative = false;
-
                                                 foreach ($positiveTerms as $term) {
                                                     if (str_contains(strtolower($trend), $term)) {
                                                         $isPositive = true;
                                                         break;
                                                     }
                                                 }
-
-                                                foreach ($negativeTerms as $term) {
-                                                    if (str_contains(strtolower($trend), $term)) {
-                                                        $isNegative = true;
-                                                        break;
-                                                    }
-                                                }
-
-                                            $trend = (string)$trend;
-    // Extract percentage from the trend string using regex
-    preg_match('/(\d+) of their last (\d+)/', $trend, $matches);
-    $percentage = $matches ? ($matches[1] / $matches[2]) * 100 : 0;
-
-    $isOverFifty = $percentage >= 50;
-    $trendColor = $isOverFifty ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200';
-    $textColor = $isOverFifty ? 'text-green-700' : 'text-red-700';
+                                                preg_match('/(\d+) of their last (\d+)/', $trend, $matches);
+                                                $percentage = $matches ? ($matches[1] / $matches[2]) * 100 : 0;
+                                                $isOverFifty = $percentage >= 50;
+                                                $trendColor = $isOverFifty ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200';
+                                                $textColor = $isOverFifty ? 'text-green-700' : 'text-red-700';
                                             @endphp
                                             <div class="rounded-lg border {{ $trendColor }} p-3">
                                                 <p class="text-sm {{ $textColor }}">{{ $trend }}</p>
@@ -166,11 +154,30 @@
                                     </div>
                                 </div>
                             @endif
-                        @endforeach            @endif
-
+                        @endforeach
                     </div>
-                @endif
+                </div>
+            @else
+                {{-- Placeholder Random Trends --}}
+                <div class="space-y-6">
+                    <h2 class="text-xl font-bold text-gray-900">Featured NFL Trends</h2>
+                    @php
+                        $randomTrends = [
+                            "The Kansas City Chiefs have won 8 of their last 10 home games.",
+                            "The Buffalo Bills have covered the spread in 5 of their last 6 games as underdogs.",
+                            "The Dallas Cowboys have gone over the total in 7 of their last 9 games.",
+                            "The Green Bay Packers have lost 4 of their last 5 away games by 10+ points.",
+                        ];
+                    @endphp
+                    <div class="space-y-3">
+                        @foreach($randomTrends as $trend)
+                            <div class="rounded-lg border bg-blue-50 border-blue-200 p-3">
+                                <p class="text-sm text-blue-700">{{ $trend }}</p>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
         </div>
     </div>
-
 </x-app-layout>

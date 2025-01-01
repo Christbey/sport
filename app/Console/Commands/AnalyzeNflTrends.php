@@ -4,9 +4,13 @@ namespace App\Console\Commands;
 
 use App\Models\Nfl\NflBettingOdds;
 use App\Models\Nfl\NflBoxScore;
+use App\Models\Nfl\NflTeam;
+use App\Models\Nfl\NflTeamSchedule;
+use App\Models\NflTrend;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
+use Log;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -74,6 +78,7 @@ class AnalyzeNflTrends extends Command
     {
         try {
             $this->analyzeTrends();
+            $this->saveTrends();
             $this->displayResults();
             return 0;
         } catch (Exception $e) {
@@ -81,6 +86,7 @@ class AnalyzeNflTrends extends Command
             return 1;
         }
     }
+
 
     private function analyzeTrends(): void
     {
@@ -133,11 +139,16 @@ class AnalyzeNflTrends extends Command
     {
         $teamScore = $isHome ? $game->home_points : $game->away_points;
 
+        // Determine if this scoring trend should count as 'occurred'
+        $occurred = $teamScore > 20; // Example condition
+
         $this->trends['scoring'][] = [
             'points' => $teamScore,
-            'game_id' => $game->game_id
+            'game_id' => $game->game_id,
+            'occurred' => $occurred ? 1 : 0, // Add the 'occurred' key
         ];
     }
+
 
     private function analyzeQuarters(NflBoxScore $game, bool $isHome): void
     {
@@ -222,6 +233,94 @@ class AnalyzeNflTrends extends Command
         }
     }
 
+    private function saveTrends(): void
+    {
+        foreach ($this->trends as $type => $trendData) {
+            foreach ($trendData as $trend) {
+                if (!isset($trend['occurred'])) {
+                    continue; // Skip trends with missing keys
+                }
+
+                $teamId = $this->getTeamId($this->teamName);
+                $opponentId = $this->getOpponentId($trend['game_id'], $teamId);
+
+                try {
+                    NflTrend::create([
+                        'team_id' => $teamId,
+                        'opponent_id' => $opponentId,
+                        'team_abv' => $this->team_abv, // Pass team_abv
+                        'week' => $this->getWeek($trend['game_id']),
+                        'game_date' => $this->getGameDate($trend['game_id']),
+                        'trend_type' => $type,
+                        'trend_text' => $this->formatTrendText($type, $trend),
+                        'occurred' => $trend['occurred'],
+                        'total_games' => $this->games->count(),
+                        'percentage' => ($trend['occurred'] / $this->games->count()) * 100,
+                    ]);
+                    Log::info('Trend saved successfully', ['trend' => $trend]);
+                } catch (Exception $e) {
+                    Log::error('Error saving trend', ['error' => $e->getMessage(), 'trend' => $trend]);
+                }
+            }
+        }
+    }
+
+    private function getTeamId(string $teamAbbr): int
+    {
+        $teamId = NflTeam::where('team_abv', $teamAbbr)->value('id');
+        if (!$teamId) {
+            Log::error('Team ID not found', ['team_abv' => $teamAbbr]);
+        }
+        return $teamId;
+    }
+
+    private function getOpponentId(string $gameId, int $teamId): ?int
+    {
+        $game = NflBoxScore::where('game_id', $gameId)->first();
+
+        if (!$game) {
+            Log::error('Game not found', ['game_id' => $gameId]);
+            return null;
+        }
+
+        $opponentAbv = $game->home_team === $this->teamName ? $game->away_team : $game->home_team;
+
+        return $this->getTeamId($opponentAbv);
+    }
+
+    private function getWeek(string $gameId): int
+    {
+        return NflTeamSchedule::where('game_id', $gameId)->value('game_week');
+    }
+
+    private function getGameDate(string $gameId): string
+    {
+        return NflBoxScore::where('game_id', $gameId)->value('game_date');
+    }
+
+    private function formatTrendText(string $type, array $trend): string
+    {
+        switch ($type) {
+            case 'scoring':
+                return sprintf('Scored %d points in a game', $trend['points']);
+            case 'quarter':
+                return sprintf('Scored %d points in %s quarter', $trend['team_score'], $trend['quarter']);
+            case 'margin':
+                return $trend['is_win']
+                    ? sprintf('Won by a margin of %d points', $trend['margin'])
+                    : sprintf('Lost by a margin of %d points', abs($trend['margin']));
+            case 'totals':
+                return sprintf('Game total points: %d', $trend['total_points']);
+            case 'spread_cover':
+                return $trend['covered']
+                    ? sprintf('Covered the spread (%s)', $trend['spread'])
+                    : sprintf('Did not cover the spread (%s)', $trend['spread']);
+            default:
+                return 'Unknown trend type';
+        }
+    }
+
+
     private function displayResults(): void
     {
         $totalGames = $this->games->count();
@@ -274,7 +373,6 @@ class AnalyzeNflTrends extends Command
 
         }
     }
-
 
     private function displayConfiguredTrends(int $totalGames): void
     {
@@ -494,7 +592,8 @@ class AnalyzeNflTrends extends Command
 
     private function setupAnalysis(): void
     {
-        $this->teamName = strtoupper($this->argument('team'));
+        $this->teamName = strtoupper($this->argument('team')); // Set the abbreviation
+        $this->team_abv = $this->teamName; // Initialize team_abv for saving trends
         $this->minOccurrences = (int)$this->option('min-occurrences');
         $this->games = $this->fetchGames();
         $this->bettingOdds = $this->fetchBettingOdds();

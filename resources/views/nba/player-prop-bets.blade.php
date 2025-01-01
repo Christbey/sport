@@ -5,23 +5,26 @@
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                     <div class="p-6 bg-white border-b border-gray-200">
-                        <h1 class="text-2xl font-bold text-gray-900 mb-6">NBA Statistics</h1>
+                        <h1 class="text-2xl font-bold text-gray-900 mb-6 text-center sm:text-left">NBA Statistics</h1>
 
                         {{-- Filters --}}
                         <form method="GET" action="{{ route('player-prop-bets.index') }}" class="mb-8 space-y-4">
-                            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
                                 {{-- View Type Toggle --}}
-                                <div class="col-span-4 space-y-2">
+                                <div class="col-span-1 sm:col-span-2 space-y-2">
                                     <label class="block text-sm font-semibold text-gray-700">View Type:</label>
-                                    <div class="flex items-center space-x-4">
-                                        <label>
+                                    <div class="flex flex-wrap items-center space-x-4">
+                                        <label class="flex items-center space-x-2">
                                             <input type="radio" name="view_type" value="player"
+                                                   class="text-indigo-600 focus:ring-indigo-500"
                                                     {{ request('view_type', 'player') === 'player' ? 'checked' : '' }}>
-                                            Player Stats
+                                            <span>Player Stats</span>
                                         </label>
-                                        <label>
+                                        <label class="flex items-center space-x-2">
                                             <input type="radio" name="view_type" value="team"
-                                                    {{ request('view_type') === 'team' ? 'checked' : '' }}> Team Stats
+                                                   class="text-indigo-600 focus:ring-indigo-500"
+                                                    {{ request('view_type') === 'team' ? 'checked' : '' }}>
+                                            <span>Team Stats</span>
                                         </label>
                                     </div>
                                 </div>
@@ -57,27 +60,39 @@
                                 </div>
 
                                 {{-- Filter Button --}}
-                                <div class="flex items-end space-x-4">
-                                    <button type="submit"
-                                            class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                                <div class="flex flex-col sm:flex-row items-center sm:justify-end space-y-4 sm:space-y-0 sm:space-x-4">
+                                    <!-- Filter Button -->
+                                    <button
+                                            type="submit"
+                                            class="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2
+               bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500"
+                                    >
                                         Filter
                                     </button>
-                                    <a href="{{ route('player-prop-bets.index') }}"
-                                       class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+
+                                    <!-- Reset Link -->
+                                    <a
+                                            href="{{ route('player-prop-bets.index') }}"
+                                            class="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2
+               bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300 focus:ring-gray-300"
+                                    >
                                         Reset
                                     </a>
                                 </div>
+
                             </div>
                         </form>
 
                         {{-- Conditional Display --}}
-                        @if(request('view_type', 'player') === 'player')
-                            {{-- Player Stats Table --}}
-                            @include('nba.partials.player-stats', ['playerOverStats' => $playerOverStats])
-                        @elseif(request('view_type') === 'team')
-                            {{-- Team Stats Table --}}
-                            @include('nba.partials.team-stats', ['teamStats' => $teamStats])
-                        @endif
+                        <div class="overflow-x-auto">
+                            @if(request('view_type', 'player') === 'player')
+                                {{-- Player Stats Table --}}
+                                @include('nba.partials.player-stats', ['playerOverStats' => $playerOverStats])
+                            @elseif(request('view_type') === 'team')
+                                {{-- Team Stats Table --}}
+                                @include('nba.partials.team-stats', ['teamStats' => $teamStats])
+                            @endif
+                        </div>
                     </div>
                 </div>
             </div>

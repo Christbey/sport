@@ -1,8 +1,6 @@
-@php use Carbon\Carbon; @endphp
+@php use Carbon\Carbon;use function PHPUnit\Framework\isFalse; @endphp
 
-<div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-all duration-300
-">
-
+<div class="bg-white  rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-all duration-300">
     {{-- Game Header --}}
     <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
         <div class="flex justify-between items-center">
@@ -40,42 +38,48 @@
             </div>
         </div>
 
-        {{-- Win Probability Bar --}}
-        <div class="mb-6">
-            <div class="flex justify-between text-sm text-gray-500 mb-1">
-                <span>Away {{ number_format((1 - $game->home_winning_percentage) * 100, 1) }}%</span>
-                <span>Home {{ number_format($game->home_winning_percentage * 100, 1) }}%</span>
-            </div>
-
-            <!-- Progress bar -->
-            <div class="w-full bg-gray-200 rounded-full">
-                <div class="bg-blue-600 h-2.5 rounded-full"
-                     style="width: {{ $game->home_winning_percentage * 100 }}%"></div>
-            </div>
-        </div>
-
-        {{-- Market Comparison --}}
-        <div class="bg-gray-50 rounded-lg p-4 mb-6">
-            <div class="flex justify-between items-center">
-                <div>
-                    <span class="text-sm font-medium text-gray-500">Market Spread</span>
-                    <div class="text-sm font-bold text-gray-700">{{ $game->formatted_spread }}</div>
+        @if(!$game->completed)
+            {{-- Win Probability Bar --}}
+            <div class="mb-6">
+                <div class="flex justify-between text-sm text-gray-500 mb-1">
+                    <span>Away {{ number_format((1 - $game->home_winning_percentage) * 100, 1) }}%</span>
+                    <span>Home {{ number_format($game->home_winning_percentage * 100, 1) }}%</span>
                 </div>
-                <div>
-                    <span class="text-sm font-medium text-gray-500">Edge</span>
-                    <div class="text-sm font-bold {{ abs($game->hypothetical_spread - floatval(str_replace(['−', '+'], ['-', ''], $game->formatted_spread))) > 3 ? 'text-green-600' : 'text-gray-600' }}">
-                        {{ number_format(abs($game->hypothetical_spread - floatval(str_replace(['−', '+'], ['-', ''], $game->formatted_spread))), 1) }}
-                        pts
+
+                <!-- Progress bar -->
+                <div class="w-full bg-gray-200 rounded-full">
+                    <div class="bg-blue-600 h-2.5 rounded-full"
+                         style="width: {{ $game->home_winning_percentage * 100 }}%"></div>
+                </div>
+            </div>
+
+            {{-- Market Comparison --}}
+            <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <span class="text-sm font-medium text-gray-500">Market Spread</span>
+                        <div class="text-sm font-bold text-gray-700">{{ $game->formatted_spread }}</div>
+                    </div>
+                    <div>
+                        <span class="text-sm font-medium text-gray-500">Edge</span>
+                        <div class="text-sm font-bold {{ abs($game->hypothetical_spread - floatval(str_replace(['−', '+'], ['-', ''], $game->formatted_spread))) > 3 ? 'text-green-600' : 'text-gray-600' }}">
+                            {{ number_format(abs($game->hypothetical_spread - floatval(str_replace(['−', '+'], ['-', ''], $game->formatted_spread))), 1) }}
+                            pts
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        @endif
 
         {{-- Action Button and Icon in the Same Row --}}
         <div class="flex items-center justify-between">
-            <x-link-button href="{{ route('cfb.hypothetical.show', ['game_id' => $game->game_id]) }}">
-                View Analysis
-            </x-link-button>
+            @if($game->completed == false)
+                <x-link-button href="{{ route('cfb.hypothetical.show', ['game_id' => $game->game_id]) }}">
+                    View Analysis
+                </x-link-button>
+            @endif
+
+
 
             {{--            @if($game->completed)--}}
             {{--                @if($game->correct)--}}

@@ -28,4 +28,17 @@ class NbaTeam extends Model
         'alternate_color',
         'is_active',
     ];
+
+    public function trendsAsTeam()
+    {
+        return $this->hasMany(NflTrend::class, 'team_id');
+    }
+
+    /**
+     * Relationship: Trends as an opponent
+     */
+    public function trendsAsOpponent()
+    {
+        return $this->hasMany(NflTrend::class, 'opponent_id');
+    }
 }

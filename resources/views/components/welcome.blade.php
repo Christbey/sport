@@ -9,8 +9,11 @@
                     Welcome to Picksports!
                 </h1>
                 <p class="text-lg md:text-xl text-gray-600 dark:text-gray-400">
-                    Elevate your sports experience with Picksports. Whether you're joining the fun or competing against
-                    your colleagues, Picksports offers an exciting way to enjoy every game.
+                    Elevate your sports experience with Picksports. Explore detailed stats and insights on College
+                    Basketball, College Football, NFL, and NBA trends. Stay ahead with the latest betting analysis to
+                    enhance every game day.
+
+
                 </p>
 
                 @auth
