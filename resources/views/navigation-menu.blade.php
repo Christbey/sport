@@ -32,6 +32,7 @@
                             ['label' => 'College Basketball', 'route' => 'cbb.index'],
                             ['label' => 'NFL Trends', 'route' => 'nfl.trends.config'],
                             ['label' => 'NFL Player Trends', 'route' => 'player.trends.index'],
+                            ['label' => 'NBA', 'route' => 'player-prop-bets.index'],
                         ],
                     ];
 
