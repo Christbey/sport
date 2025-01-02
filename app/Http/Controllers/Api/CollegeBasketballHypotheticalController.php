@@ -22,7 +22,9 @@ class CollegeBasketballHypotheticalController extends Controller
             $query->where('game_date', $request->game_date);
         }
 
-        $hypotheticals = $query->orderBy('game_date')->paginate($request->per_page ?? 15);
+        // Apply role-based limit
+        $perPage = min($request->per_page ?? 15, $this->getResultLimit());
+        $hypotheticals = $query->orderBy('game_date')->paginate($perPage);
 
         // Get distinct dates with the full date object for the view
         $dates = CollegeBasketballHypothetical::select('game_date')
@@ -34,7 +36,9 @@ class CollegeBasketballHypotheticalController extends Controller
             return (new CollegeBasketballCollection($hypotheticals))
                 ->additional([
                     'meta' => [
-                        'available_dates' => $dates->pluck('game_date')
+                        'available_dates' => $dates->pluck('game_date'),
+                        'result_limit' => $this->getResultLimit(),
+                        'current_page_size' => $perPage
                     ]
                 ]);
         }
@@ -42,8 +46,27 @@ class CollegeBasketballHypotheticalController extends Controller
         return view('cbb.index', [
             'hypotheticals' => $hypotheticals,
             'dates' => $dates,
-            'selectedDate' => $request->game_date
+            'selectedDate' => $request->game_date,
+            'resultLimit' => $this->getResultLimit()
         ]);
+    }
+
+    /**
+     * Get the result limit based on user role
+     */
+    private function getResultLimit(): int
+    {
+        $user = auth()->user();
+
+        if ($user->hasRole('admin')) {
+            return 1000;
+        } elseif ($user->hasRole(['pro_subscriber', 'pro_user'])) {
+            return 25;
+        } elseif ($user->hasRole(['basic_subscriber', 'basic_user'])) {
+            return 3;
+        } else {
+            return 3;
+        }
     }
 
     /**
