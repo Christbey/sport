@@ -11,10 +11,10 @@
                         </svg>
 
                         <h2 class="mt-4 text-2xl font-bold text-gray-900 dark:text-white">
-                            {{ $subscription ? 'Payment Successful!' : 'Payment Failed!' }}
+                            {{ $subscription ? 'Payment Successful!' : 'Payment Added Successfully!' }}
                         </h2>
                         <p class="mt-2 text-gray-600 dark:text-gray-400">
-                            {{ $subscription ? 'Your payment has been processed successfully.' : 'We were unable to process your payment.' }}
+                            {{ $subscription ? 'Your subscription details are updated.' : 'Your payment method has been added successfully.' }}
                         </p>
 
                         @if($subscription)
@@ -33,7 +33,7 @@
                         <div class="mt-6">
                             <a href="{{ $redirect }}"
                                class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600">
-                                {{ $subscription ? 'Return to Subscription Management' : 'Try Again' }}
+                                {{ $subscription ? 'Return to Subscription Management' : 'Manage Your Account' }}
                             </a>
                         </div>
                     </div>

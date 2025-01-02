@@ -134,11 +134,9 @@ class PaymentMethodController extends Controller
         // Handle the return from setup confirmation
         $setupIntentId = $request->query('setup_intent');
 
-        try {
-            $user = auth()->user();
-            $subscription = $user->subscription('default'); // Fetch the subscription (adjust as needed)
-
-            if ($setupIntentId) {
+        if ($setupIntentId) {
+            try {
+                $user = auth()->user();
                 $setupIntent = SetupIntent::retrieve($setupIntentId);
 
                 if ($setupIntent->status === 'succeeded') {
@@ -150,21 +148,22 @@ class PaymentMethodController extends Controller
                         $user->updateDefaultPaymentMethod($paymentMethod->id);
                     }
 
+                    // Optional: Retrieve subscription information, if applicable
+                    $subscription = $user->subscription('default'); // Replace 'default' with your subscription name if needed
+
                     return view('payment.success', [
-                        'success' => true,
-                        'message' => 'Payment method added successfully.',
-                        'subscription' => $subscription, // Pass the subscription to the view
+                        'subscription' => $subscription, // Pass the subscription (or null if not applicable)
+                        'redirect' => route('subscription.manage'), // Example redirect URL
                     ]);
                 }
+            } catch (Exception $e) {
+                report($e);
             }
-        } catch (Exception $e) {
-            report($e);
         }
 
         return view('payment.success', [
-            'success' => false,
-            'message' => 'There was an error processing your payment method.',
-            'subscription' => $subscription ?? null, // Handle cases where subscription is null
+            'subscription' => null, // Explicitly pass null if no subscription is available
+            'redirect' => route('subscription.manage'), // Example redirect URL
         ]);
     }
 
