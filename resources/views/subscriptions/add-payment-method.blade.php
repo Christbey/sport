@@ -8,6 +8,10 @@
                         Before changing to the {{ $plan->name }} plan, please add a payment method.
                     </p>
 
+                    <div id="express-checkout-element" class="mb-6">
+                        <!-- Express Checkout Element (Apple Pay, Google Pay, etc.) will be inserted here -->
+                    </div>
+
                     <form id="payment-form" action="{{ route('subscription.add-payment-method') }}" method="POST">
                         @csrf
                         <input type="hidden" name="plan_id" value="{{ $planId }}">
@@ -75,8 +79,19 @@
             };
 
             const elements = stripe.elements({appearance});
-            const cardElement = elements.create('card');
 
+            // Setup Express Checkout
+            const expressCheckoutOptions = {
+                wallets: {
+                    applePay: 'auto',
+                    googlePay: 'auto',
+                },
+            };
+            const expressCheckoutElement = elements.create('expressCheckout', expressCheckoutOptions);
+            expressCheckoutElement.mount('#express-checkout-element');
+
+            // Setup Card Element
+            const cardElement = elements.create('card');
             cardElement.mount('#card-element');
 
             const form = document.getElementById('payment-form');
