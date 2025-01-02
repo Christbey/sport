@@ -16,34 +16,15 @@
                     <!-- Payment Form Section -->
                     <form id="payment-form" action="{{ route('subscription.add-payment-method') }}" method="POST">
                         @csrf
-                        <input type="hidden" name="plan_id" value="{{ $planId }}">
-                        <input type="hidden" name="payment_method" id="payment-method">
-
-                        <div class="mb-4">
-                            <label for="card-holder-name"
-                                   class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Card Holder Name
-                            </label>
-                            <input id="card-holder-name" type="text"
-                                   class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                                   required>
+                        <div id="payment-element" class="mb-6">
+                            <!-- Stripe Payment Element will be inserted here -->
                         </div>
-
-                        <div class="mb-4">
-                            <label for="card-element"
-                                   class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Credit or Debit Card
-                            </label>
-                            <div id="card-element"
-                                 class="mt-1 p-2 border rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700"></div>
-                            <div id="card-errors" role="alert"
-                                 class="mt-2 text-sm text-red-600 dark:text-red-400"></div>
-                        </div>
-
-                        <button type="submit"
-                                id="card-button"
-                                data-secret="{{ $intent->client_secret }}"
-                                class="w-full bg-blue-600 text-white rounded-md px-4 py-2 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600">
+                        <div id="payment-errors" class="text-sm text-red-600 mb-4"></div>
+                        <button
+                                type="submit"
+                                id="payment-button"
+                                class="w-full bg-blue-600 text-white rounded-md px-4 py-2 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+                        >
                             Add Payment Method
                         </button>
                     </form>
