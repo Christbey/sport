@@ -42,11 +42,20 @@ class PaymentMethodController extends Controller
         }
     }
 
+
     public function create()
     {
-        $intent = auth()->user()->createSetupIntent();
-        return view('payment.add-payment-method', compact('intent'));
+        $user = auth()->user();
+
+        // Create a SetupIntent
+        $setupIntent = $user->createSetupIntent();
+
+        // Pass the client secret to the view
+        return view('payment.add-payment-method', [
+            'client_secret' => $setupIntent->client_secret,
+        ]);
     }
+
 
     public function store(Request $request)
     {
