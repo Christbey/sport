@@ -62,6 +62,7 @@ class PlayerPropBetController extends Controller
                             ->where('prop_type', $propType)
                             ->groupBy('athlete_id', 'event_id', 'prop_type');
                     })
+                    ->limit($this->getResultLimit())
                     ->get();
 
                 if ($propBets->isNotEmpty()) {
@@ -285,5 +286,20 @@ class PlayerPropBetController extends Controller
             'viewType',
             'noDataMessage'
         ));
+    }
+
+    private function getResultLimit(): int
+    {
+        $user = auth()->user();
+
+        if ($user->hasRole('admin')) {
+            return 1000; // Admin sees more rows
+        } elseif ($user->hasRole(['pro_subscriber', 'pro_user', 'pro'])) {
+            return 25;  // Pro users see 500 rows
+        } elseif ($user->hasRole(['basic_subscriber', 'basic_user', 'basic'])) {
+            return 3;  // Basic users see 100 rows
+        } else {
+            return 3;   // Free users see 25 rows
+        }
     }
 }
