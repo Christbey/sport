@@ -17,6 +17,11 @@
                         </p>
                     @endif
 
+                    <!-- Express Checkout Section -->
+                    <div id="express-checkout-element" class="mb-6">
+                        <!-- Apple Pay / Google Pay will be inserted here -->
+                    </div>
+
                     <form
                             id="payment-form"
                             action="{{ isset($plan) ? route('subscription.add-payment-method') : route('cashier.payment.process') }}"
@@ -50,14 +55,12 @@
 
                         <div class="mb-4">
                             <label for="card-element" class="block text-sm font-medium text-gray-700">
-                                Credit or debit card
+                                Credit or Debit Card
                             </label>
                             <div
                                     id="card-element"
                                     class="mt-1 p-2 border rounded-md"
-                            >
-                                <!-- Stripe Elements will insert the card element here -->
-                            </div>
+                            ></div>
                             <div
                                     id="card-errors"
                                     role="alert"
@@ -89,8 +92,25 @@
             document.addEventListener('DOMContentLoaded', function () {
                 const stripe = Stripe('{{ config('services.stripe.key') }}');
                 const elements = stripe.elements();
-                const cardElement = elements.create('card');
 
+                // Express Checkout setup
+                const expressCheckoutOptions = {
+                    wallets: {
+                        applePay: 'auto',
+                        googlePay: 'auto',
+                    },
+                };
+
+                const expressCheckoutElement = elements.create('expressCheckout', {
+                    ...expressCheckoutOptions,
+                    amount: {{ isset($amount) ? $amount * 100 : 0 }},
+                    currency: '{{ isset($plan) ? $plan->currency : 'usd' }}',
+                });
+
+                expressCheckoutElement.mount('#express-checkout-element');
+
+                // Card element setup
+                const cardElement = elements.create('card');
                 cardElement.mount('#card-element');
 
                 const form = document.getElementById('payment-form');
@@ -103,19 +123,17 @@
                     cardButton.disabled = true;
 
                     try {
-                        // Determine the type of action based on the form's action
                         const isAddPaymentMethod = form.action.includes('add-payment-method');
 
                         if (isAddPaymentMethod) {
-                            // Setup Intent for adding payment method
                             const {setupIntent, error} = await stripe.confirmCardSetup(
                                 cardButton.dataset.secret, {
                                     payment_method: {
                                         card: cardElement,
                                         billing_details: {
-                                            name: cardHolderName.value
-                                        }
-                                    }
+                                            name: cardHolderName.value,
+                                        },
+                                    },
                                 }
                             );
 
@@ -128,17 +146,15 @@
                                 form.submit();
                             }
                         } else {
-                            // Payment Intent for completing a payment
-                            const {error, paymentIntent} = await stripe.confirmCardPayment(
-                                cardButton.dataset.secret,
-                                {
+                            const {error} = await stripe.confirmCardPayment(
+                                cardButton.dataset.secret, {
                                     payment_method: {
                                         card: cardElement,
                                         billing_details: {
-                                            name: cardHolderName.value
-                                        }
+                                            name: cardHolderName.value,
+                                        },
                                     },
-                                    return_url: '{{ route('subscription.manage') }}'
+                                    return_url: '{{ route('subscription.manage') }}',
                                 }
                             );
 
