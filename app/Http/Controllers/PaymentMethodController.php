@@ -134,9 +134,11 @@ class PaymentMethodController extends Controller
         // Handle the return from setup confirmation
         $setupIntentId = $request->query('setup_intent');
 
-        if ($setupIntentId) {
-            try {
-                $user = auth()->user();
+        try {
+            $user = auth()->user();
+            $subscription = $user->subscription('default'); // Fetch the subscription (adjust as needed)
+
+            if ($setupIntentId) {
                 $setupIntent = SetupIntent::retrieve($setupIntentId);
 
                 if ($setupIntent->status === 'succeeded') {
@@ -150,17 +152,19 @@ class PaymentMethodController extends Controller
 
                     return view('payment.success', [
                         'success' => true,
-                        'message' => 'Payment method added successfully'
+                        'message' => 'Payment method added successfully.',
+                        'subscription' => $subscription, // Pass the subscription to the view
                     ]);
                 }
-            } catch (Exception $e) {
-                report($e);
             }
+        } catch (Exception $e) {
+            report($e);
         }
 
         return view('payment.success', [
             'success' => false,
-            'message' => 'There was an error processing your payment method.'
+            'message' => 'There was an error processing your payment method.',
+            'subscription' => $subscription ?? null, // Handle cases where subscription is null
         ]);
     }
 
