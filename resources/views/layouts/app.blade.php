@@ -19,24 +19,18 @@
     {!! $head ?? '' !!}
 </head>
 
-<body class="font-sans antialiased bg-gray-100 flex flex-col h-full">
-<!-- Beta Pre-Launch Badge -->
-
-
+<body class="font-sans antialiased bg-gray-50 dark:bg-gray-900">
 <x-banner/>
-@livewire('navigation-menu')
 
-@isset($header)
-    <header class="bg-white shadow">
-        <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
-            {{ $header }}
-        </div>
-    </header>
-@endisset
+<!-- Top Navigation -->
+<x-dashboard.top-nav/>
 
-<main class="flex-1 overflow-auto">
+<!-- Sidebar -->
+<x-dashboard.sidebar/>
+
+<!-- Main Content -->
+<main class="p-4 md:ml-64 h-auto pt-20">
     {{ $slot }}
-    @include('components.footer')
 </main>
 
 @livewireScripts

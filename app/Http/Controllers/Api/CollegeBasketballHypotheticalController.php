@@ -5,9 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ListCollegeBasketballRequest;
 use App\Http\Resources\CollegeBasketballCollection;
-use App\Http\Resources\CollegeBasketballResource;
 use App\Models\CollegeBasketballHypothetical;
-use Illuminate\Http\Request;
 
 class CollegeBasketballHypotheticalController extends Controller
 {
@@ -72,12 +70,5 @@ class CollegeBasketballHypotheticalController extends Controller
     /**
      * Get a specific basketball hypothetical
      */
-    public function show(Request $request, CollegeBasketballHypothetical $hypothetical)
-    {
-        if ($request->wantsJson()) {
-            return new CollegeBasketballResource($hypothetical);
-        }
 
-        return view('cbb.show', compact('hypothetical'));
-    }
 }

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Console\Commands\Nba;
 
 use App\Models\NbaPlayer;
 use GuzzleHttp\Client;

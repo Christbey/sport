@@ -31,3 +31,28 @@ window.populateQuestion = function (question) {
         input.focus();
     }
 };
+
+// In your resources/js/app.js
+document.addEventListener('DOMContentLoaded', function () {
+    const dropdownToggles = document.querySelectorAll('[data-collapse-toggle]');
+
+    dropdownToggles.forEach(toggle => {
+        toggle.addEventListener('click', function () {
+            const targetId = this.getAttribute('data-collapse-toggle');
+            const target = document.getElementById(targetId);
+
+            if (target) {
+                target.classList.toggle('hidden');
+            }
+        });
+    });
+});
+// Mobile menu
+document.addEventListener('DOMContentLoaded', function () {
+    const drawerToggle = document.querySelector('[data-drawer-toggle="drawer-navigation"]');
+    const drawer = document.getElementById('drawer-navigation');
+
+    drawerToggle?.addEventListener('click', function () {
+        drawer.classList.toggle('-translate-x-full');
+    });
+});

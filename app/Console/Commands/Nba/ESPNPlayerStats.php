@@ -1,17 +1,17 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Console\Commands\Nba;
 
 use Illuminate\Console\Command;
 
-class ESPNPlayerEventStatsImport extends Command
+class ESPNPlayerStats extends Command
 {
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'app:e-s-p-n-player-event-stats-import';
+    protected $signature = 'app:e-s-p-n-player-stats';
 
     /**
      * The console command description.

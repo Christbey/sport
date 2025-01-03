@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Nfl;
 
+use App\Http\Controllers\Controller;
 use App\Models\NflNews;
 
 class NflNewsController extends Controller
