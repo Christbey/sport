@@ -60,7 +60,7 @@ class NflBoxScoreRepository
                 $query->whereYear('nfl_box_scores.game_date', $season);
             })
             ->when($week, function ($query) use ($week) {
-                if (!is_numeric($week) || $week < 1 || $week > 17) {
+                if (!is_numeric($week) || $week < 1 || $week > 18) {
                     throw new InvalidArgumentException("Invalid week number '{$week}'. Week must be between 1 and 17.");
                 }
                 $query->whereRaw('CAST(nfl_team_schedules.game_week AS UNSIGNED) < ?', [$week]);
