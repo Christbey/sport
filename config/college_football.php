@@ -6,7 +6,7 @@ return [
 
     'season_start' => '2024-08-26', // First week's start date
     'season_end' => '2024-01-26',   // Last week's end date
-    'season_type' => 'postseason',      // Default to regular season
+    'season_type' => 'regular season',      // Default to regular season
     'regular season' => [
         'weeks' => [
             1 => ['start' => '2024-08-26', 'end' => '2024-09-01'],

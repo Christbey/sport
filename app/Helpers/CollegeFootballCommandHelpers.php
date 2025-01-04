@@ -23,7 +23,7 @@ class CollegeFootballCommandHelpers
     public static function getCurrentWeek(): int
     {
         $today = Carbon::today();
-        $weeks = config('college_football.weeks');
+        $weeks = config('college_football.regular season.weeks');
 
         foreach ($weeks as $weekNumber => $dates) {
             $start = Carbon::parse($dates['start']);

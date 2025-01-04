@@ -62,7 +62,6 @@
                 @endcan
             </x-dashboard.sidebar-item>
 
-            <!-- College Football Section -->
             <x-dashboard.sidebar-item
                     icon="football"
                     label="College Football"
@@ -72,6 +71,12 @@
                     <a href="{{ route('cfb.index') }}"
                        class="flex items-center p-2 pl-11 w-full text-base font-medium text-gray-900 rounded-lg transition duration-75 group hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
                         Overview
+                    </a>
+                </li>
+                <li>
+                    <a href="{{ route('college-football.elo') }}"
+                       class="flex items-center p-2 pl-11 w-full text-base font-medium text-gray-900 rounded-lg transition duration-75 group hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                        Ratings
                     </a>
                 </li>
             </x-dashboard.sidebar-item>
@@ -86,6 +91,12 @@
                     <a href="{{ route('player-prop-bets.index') }}"
                        class="flex items-center p-2 pl-11 w-full text-base font-medium text-gray-900 rounded-lg transition duration-75 group hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
                         Player Props
+                    </a>
+                </li>
+                <li>
+                    <a href="{{ route('nba.team-stats.index') }}"
+                       class="flex items-center p-2 pl-11 w-full text-base font-medium text-gray-900 rounded-lg transition duration-75 group hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                        NBA Stats
                     </a>
                 </li>
             </x-dashboard.sidebar-item>

@@ -7,9 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 class CollegeFootballElo extends Model
 {
     protected $fillable = [
-        'year',
-        'team',
         'team_id',
+        'year',
+        'week',
+        'season_type',
+        'team',
         'conference',
         'elo'
     ];

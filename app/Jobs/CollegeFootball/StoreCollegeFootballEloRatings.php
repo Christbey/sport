@@ -12,7 +12,6 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 
@@ -20,198 +19,124 @@ class StoreCollegeFootballEloRatings implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    protected const CACHE_PREFIX = 'cfb_elo_';
-    protected $year;
-    protected $week;
-    protected $seasonType;
-    protected $team;
-    protected $conference;
-    protected $apiUrl = 'https://apinext.collegefootballdata.com/ratings/elo';
-    protected $apiKey;
+    private const API_URL = 'https://apinext.collegefootballdata.com/ratings/elo';
+    private array $params;
+    private array $stats = ['updated' => 0, 'missing' => [], 'changes' => []];
 
     public function __construct(array $params)
     {
-        $this->year = $params['year'] ?? null;
-        $this->week = $params['week'] ?? null;
-        $this->seasonType = $params['seasonType'] ?? null;
-        $this->team = $params['team'] ?? null;
-        $this->conference = $params['conference'] ?? null;
-        $this->apiKey = config('services.college_football_data.key');
+        $this->params = [
+            'year' => $params['year'] ?? null,
+            'week' => $params['week'] ?? null,
+            'seasonType' => $params['seasonType'] ?? 'regular',
+            'team' => $params['team'] ?? null,
+            'conference' => $params['conference'] ?? null,
+        ];
     }
 
-    /**
-     * Get info about the last successful fetch
-     */
-    public static function getLastSuccess(): ?array
+    public function handle(): void
     {
-        return Cache::get(self::CACHE_PREFIX . 'last_success');
-    }
-
-    /**
-     * Get the last error if any
-     */
-    public static function getLastError(): ?array
-    {
-        return Cache::get(self::CACHE_PREFIX . 'last_error');
-    }
-
-    /**
-     * Get the number of API calls made today
-     */
-    public static function getApiCallsToday(): int
-    {
-        return (int)Cache::get(self::CACHE_PREFIX . 'api_calls_' . now()->format('Y-m-d'));
-    }
-
-    public function handle()
-    {
-        // Store attempt time
-        Cache::put(self::CACHE_PREFIX . 'last_attempt', now(), now()->addDay());
-
         try {
-            $client = new Client();
+            Log::info('Fetching ELO data with params:', $this->params);
 
-            // Track API call
-            $this->incrementApiCalls();
-
-            $response = $client->request('GET', $this->apiUrl, [
-                'query' => [
-                    'year' => $this->year,
-                    'week' => $this->week,
-                    'seasonType' => $this->seasonType,
-                    'team' => $this->team,
-                    'conference' => $this->conference,
-                ],
+            $response = (new Client())->request('GET', self::API_URL, [
+                'query' => array_filter($this->params),
                 'headers' => [
-                    'Authorization' => 'Bearer ' . $this->apiKey,
+                    'Authorization' => 'Bearer ' . config('services.college_football_data.key'),
                     'Accept' => 'application/json',
                 ],
             ]);
 
-            $eloData = json_decode($response->getBody(), true);
+            $eloData = json_decode($response->getBody(), true) ?? [];
+            if (empty($eloData)) {
+                throw new Exception('No ELO data received');
+            }
 
-            $updatedTeams = 0;
-            $missingTeams = [];
-            $significantChanges = [];
+            Log::info('Received ELO data:', ['count' => count($eloData)]);
+
+            $teams = CollegeFootballTeam::pluck('id', 'school');
+            Log::info('Found teams:', ['count' => $teams->count()]);
 
             foreach ($eloData as $elo) {
-                $team = CollegeFootballTeam::where('school', $elo['team'])->first();
+                if (!$teams->has($elo['team'])) {
+                    $this->stats['missing'][] = $elo['team'];
+                    continue;
+                }
 
-                if ($team) {
-                    // Check for significant ELO changes
-                    $previousElo = CollegeFootballElo::where('team_id', $team->id)
-                        ->where('year', $elo['year'])
-                        ->value('elo');
+                $previousElo = CollegeFootballElo::where([
+                    'team_id' => $teams[$elo['team']],
+                    'year' => $elo['year'],
+                    'week' => $this->params['week'],
+                    'season_type' => $this->params['seasonType']
+                ])->value('elo');
 
+                try {
                     CollegeFootballElo::updateOrCreate(
                         [
-                            'team_id' => $team->id,
+                            'team_id' => $teams[$elo['team']],
                             'year' => $elo['year'],
+                            'week' => $this->params['week'],
+                            'season_type' => $this->params['seasonType']
                         ],
                         [
                             'team' => $elo['team'],
-                            'conference' => $elo['conference'],
-                            'elo' => $elo['elo'],
+                            'conference' => $elo['conference'] ?? null,
+                            'elo' => $elo['elo']
                         ]
                     );
 
-                    $updatedTeams++;
+                    $this->stats['updated']++;
 
-                    // Track significant ELO changes (more than 50 points)
                     if ($previousElo && abs($elo['elo'] - $previousElo) > 50) {
-                        $significantChanges[] = [
+                        $this->stats['changes'][] = [
                             'team' => $elo['team'],
-                            'previous' => $previousElo,
-                            'new' => $elo['elo'],
-                            'change' => $elo['elo'] - $previousElo
+                            'from' => $previousElo,
+                            'to' => $elo['elo']
                         ];
                     }
-                } else {
-                    $missingTeams[] = $elo['team'];
+                } catch (Exception $e) {
+                    Log::error('Error storing ELO data', [
+                        'team' => $elo['team'],
+                        'error' => $e->getMessage(),
+                        'data' => $elo
+                    ]);
                 }
             }
 
-            // Cache success details
-            $this->cacheSuccess([
-                'updated_teams' => $updatedTeams,
-                'missing_teams' => $missingTeams,
-                'significant_changes' => $significantChanges
-            ]);
+            $message = "Updated ELO ratings for {$this->stats['updated']} teams for Week {$this->params['week']}.";
 
-            // Prepare notification message
-            $message = $this->prepareSuccessMessage($updatedTeams, $missingTeams, $significantChanges);
+            if (!empty($this->stats['missing'])) {
+                $message .= "\nMissing teams: " . implode(', ', array_slice($this->stats['missing'], 0, 3));
+                if (count($this->stats['missing']) > 3) {
+                    $message .= ' and ' . (count($this->stats['missing']) - 3) . ' more';
+                }
+            }
 
-            // Send success notification
+            if (!empty($this->stats['changes'])) {
+                $message .= "\nSignificant changes:";
+                foreach (array_slice($this->stats['changes'], 0, 3) as $change) {
+                    $diff = $change['to'] - $change['from'];
+                    $message .= sprintf("\n%s %s: %.0f → %.0f (%+.0f)",
+                        $diff > 0 ? '📈' : '📉',
+                        $change['team'],
+                        $change['from'],
+                        $change['to'],
+                        $diff
+                    );
+                }
+            }
+
             Notification::route('discord', config('services.discord.channel_id'))
                 ->notify(new DiscordCommandCompletionNotification($message, 'success'));
 
         } catch (Exception $e) {
-            $this->handleError($e);
+            Log::error('CFB ELO fetch failed', [
+                'error' => $e->getMessage(),
+                'params' => $this->params
+            ]);
+
+            Notification::route('discord', config('services.discord.channel_id'))
+                ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'failure'));
         }
-    }
-
-    protected function incrementApiCalls(): void
-    {
-        $key = self::CACHE_PREFIX . 'api_calls_' . now()->format('Y-m-d');
-        Cache::increment($key, 1);
-        Cache::put($key, Cache::get($key), now()->endOfDay());
-    }
-
-    protected function cacheSuccess(array $details): void
-    {
-        Cache::put(self::CACHE_PREFIX . 'last_success', [
-            'time' => now(),
-            'details' => $details
-        ], now()->addDay());
-    }
-
-    protected function prepareSuccessMessage(int $updatedTeams, array $missingTeams, array $significantChanges): string
-    {
-        $message = "Updated ELO ratings for {$updatedTeams} teams.";
-
-        if (!empty($missingTeams)) {
-            $message .= "\nMissing teams: " . implode(', ', array_slice($missingTeams, 0, 3));
-            if (count($missingTeams) > 3) {
-                $message .= " and " . (count($missingTeams) - 3) . " more";
-            }
-        }
-
-        if (!empty($significantChanges)) {
-            $message .= "\nSignificant ELO changes:";
-            foreach (array_slice($significantChanges, 0, 3) as $change) {
-                $direction = $change['change'] > 0 ? '📈' : '📉';
-                $message .= "\n{$direction} {$change['team']}: " .
-                    round($change['previous']) . " → " .
-                    round($change['new']) .
-                    " (" . ($change['change'] > 0 ? '+' : '') .
-                    round($change['change']) . ")";
-            }
-            if (count($significantChanges) > 3) {
-                $message .= "\n... and " . (count($significantChanges) - 3) . " more changes";
-            }
-        }
-
-        return $message;
-    }
-
-    protected function handleError(Exception $e): void
-    {
-        Log::error('College Football ELO fetch failed', [
-            'error' => $e->getMessage(),
-            'year' => $this->year,
-            'week' => $this->week
-        ]);
-
-        Cache::put(self::CACHE_PREFIX . 'last_error', [
-            'time' => now(),
-            'message' => $e->getMessage(),
-            'context' => [
-                'year' => $this->year,
-                'week' => $this->week
-            ]
-        ], now()->addDay());
-
-        Notification::route('discord', config('services.discord.channel_id'))
-            ->notify(new DiscordCommandCompletionNotification($e->getMessage(), 'failure'));
     }
 }

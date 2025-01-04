@@ -2,8 +2,10 @@
 
 use App\Http\Controllers\{AccessRequestController,
     AnalyzeNflTrendsController,
+    Cfb\CollegeFootballController,
     ChatGPTController,
     ForgeApiController,
+    NbaTeamStatController,
     Nfl\NflNewsController,
     Nfl\NflTrendsController,
     PaymentController,
@@ -302,3 +304,6 @@ Route::post('/player-trends/fetch-odds', [PlayerTrendsController::class, 'fetchP
     ->name('player-trends.fetch-odds');
 
 Route::get('/nba/player-prop-bets', [PlayerPropBetController::class, 'index'])->name('player-prop-bets.index');
+
+Route::get('/college-football', [CollegeFootballController::class, 'elo'])->name('college-football.elo');
+Route::get('/nba/team-stats', [NbaTeamStatController::class, 'index'])->name('nba.team-stats.index');
